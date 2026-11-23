@@ -515,6 +515,43 @@ export const ppmOutOfSpec = (USL, LSL, mean, sigma) => 1e6 * (normCdf((LSL - mea
 export const unitCost = (fixed, variable, N) => fixed / N + variable;
 export const breakEven = (F1, v1, F2, v2) => (F2 - F1) / (v1 - v2);
 
+// =====================================================================
+// DYNAMICS & VIBRATION (SI)
+// =====================================================================
+export const brakingDistance = (v, a) => (v * v) / (2 * a);
+export const stoppingTime = (v, a) => v / a;
+export const kinematicX = (v0, a, t) => v0 * t + 0.5 * a * t * t;
+export const impactSpeed = (h, g = 9.81) => Math.sqrt(2 * g * h);
+export const kineticEnergy = (m, v) => 0.5 * m * v * v;
+export const springEnergy = (k, x) => 0.5 * k * x * x;
+export const frictionForce = (mu, N) => mu * N;
+// mass moments of inertia
+export const inertia = {
+  disk: (m, r) => 0.5 * m * r * r,
+  ring: (m, r) => m * r * r,
+  rodCenter: (m, L) => (m * L * L) / 12,
+  rodEnd: (m, L) => (m * L * L) / 3,
+  sphere: (m, r) => 0.4 * m * r * r,
+};
+export const parallelAxisI = (Icm, m, d) => Icm + m * d * d;
+export const rotationalEnergy = (I, w) => 0.5 * I * w * w;
+export const angularAccelTorque = (I, alpha) => I * alpha;
+export const precessionRate = (tau, I, ws) => tau / (I * ws);
+export const rpmToRad = (rpm) => (2 * PI * rpm) / 60;
+// single degree of freedom
+export const naturalOmega = (k, m) => Math.sqrt(k / m);
+export const naturalFreqHz = (k, m) => naturalOmega(k, m) / (2 * PI);
+export const freqFromStaticDeflection = (delta_m, g = 9.81) => Math.sqrt(g / delta_m) / (2 * PI);
+export const dampingRatio = (c, k, m) => c / (2 * Math.sqrt(k * m));
+export const dampedOmega = (wn, zeta) => wn * Math.sqrt(1 - zeta * zeta);
+export const logDecrement = (x1, x2) => Math.log(x1 / x2);
+export const zetaFromLogDec = (delta) => delta / Math.sqrt(4 * PI * PI + delta * delta);
+export const magnification = (r, zeta) => 1 / Math.sqrt((1 - r * r) ** 2 + (2 * zeta * r) ** 2);
+export const transmissibility = (r, zeta) => Math.sqrt(1 + (2 * zeta * r) ** 2) / Math.sqrt((1 - r * r) ** 2 + (2 * zeta * r) ** 2);
+export const unbalanceForce = (m_unb, e, w) => m_unb * e * w * w;
+// random vibration: flat PSD [g²/Hz] over a band [Hz]
+export const grmsFlat = (psd, f1, f2) => Math.sqrt(psd * (f2 - f1));
+
 // ---------- Helpers ----------
 export const deg = (rad) => (rad * 180) / PI;
 export const rad = (d) => (d * PI) / 180;

@@ -9,6 +9,7 @@ import electric from './electric.js';
 import design from './design.js';
 import gdt from './gdt.js';
 import mfg from './mfg.js';
+import dynamics from './dynamics.js';
 
 export const domains = [
   { id: 'strength', module: strength },
@@ -19,7 +20,7 @@ export const domains = [
   { id: 'design', module: design },
   { id: 'gdt', module: gdt },
   { id: 'dfm', module: mfg },
-  { id: 'dynamics', title: 'דינמיקה ורעידות', icon: '〰️', summary: 'קינמטיקה, תדר עצמי, ריסון', soon: true },
+  { id: 'dynamics', module: dynamics },
   { id: 'fea', title: 'FEA וסימולציה', icon: '🧮', summary: 'רשת, תנאי שפה, אימות תוצאות', soon: true },
   { id: 'cad', title: 'CAD ו-SOLIDWORKS', icon: '🖥️', summary: 'מידול, הרכבות, שרטוטים', soon: true },
 ];

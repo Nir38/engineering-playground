@@ -497,6 +497,49 @@ const ex = [
   check('Cpk = Cp when centred', near(f.cpk(10.05, 9.95, 10, 0.01), f.cp(10.05, 9.95, 0.01), 1e-12));
 }
 
+// ---------- dynamics & vibration ----------
+{
+  const ex7 = [
+    ['dy-kinematics d', f.brakingDistance(f.kmh(100), 7), 55.1, 2e-3], ['dy-kinematics t', f.stoppingTime(f.kmh(100), 7), 4.0, 1e-2],
+    ['dy-newton F', 0.4 * 10, 4, 1e-12], ['dy-energy P [kW]', f.shaftPower(300, 3000) / 1000, 94.2, 1e-3],
+    ['dy-energy ≈128 PS (metric hp = 735.5 W)', f.shaftPower(300, 3000) / 735.5, 128, 3e-3], ['dy-energy impact', f.impactSpeed(2), 6.26, 1e-3],
+    ['dy-rotation I', f.inertia.disk(20, 0.2), 0.4, 1e-12], ['dy-rotation E [kJ]', f.rotationalEnergy(0.4, f.rpmToRad(3000)) / 1000, 19.7, 2e-3],
+    ['dy-sdof fn', f.naturalFreqHz(20000, 5), 10.1, 5e-3], // lesson rounds 10.07 to 10.1 ['dy-sdof fn from 1 mm', f.freqFromStaticDeflection(0.001), 15.8, 3e-3],
+    ['dy-sdof 15.76 constant', Math.sqrt(9810) / (2 * Math.PI), 15.76, 1e-3],
+    ['dy-damping ζ', f.dampingRatio(40, 20000, 5), 0.063, 4e-3], ['dy-damping δ', f.logDecrement(10, 8), 0.223, 2e-3], ['dy-damping ζ from δ', f.zetaFromLogDec(f.logDecrement(10, 8)), 0.036, 2e-2],
+    ['dy-forced M at r=1, ζ=0.05', f.magnification(1, 0.05), 10, 1e-12], ['dy-isolation T', f.transmissibility(3, 0.05), 0.13, 1e-2],
+    ['dy-unbalance F', f.unbalanceForce(0.01, 0.1, f.rpmToRad(3000)), 98.7, 1e-3], ['dy-testing Grms', f.grmsFlat(0.04, 20, 2000), 8.9, 1e-3],
+  ];
+  ex7.forEach(([n, got, want, tol]) => check(n, near(got, want, tol), `got ${got}, lesson says ${want}`));
+  check('T(r=√2) = 1 for any ζ', [0.01, 0.1, 0.5].every((z) => near(f.transmissibility(Math.SQRT2, z), 1, 1e-12)));
+  check('M(r=1) = 1/(2ζ)', [0.02, 0.1, 0.3].every((z) => near(f.magnification(1, z), 1 / (2 * z), 1e-12)));
+  // simulate m x'' + c x' + k x = 0 (RK4), measure damped period and log decrement
+  const sim = (m, c, k, F0 = 0, w = 0, T = 3, dt = 1e-5) => {
+    let x = F0 ? 0 : 1, v = 0, tt = 0; const peaks = [], xs = [];
+    const acc = (x, v, t) => (F0 * Math.sin(w * t) - c * v - k * x) / m;
+    let prevV = v;
+    while (tt < T) {
+      const k1x = v, k1v = acc(x, v, tt);
+      const k2x = v + 0.5 * dt * k1v, k2v = acc(x + 0.5 * dt * k1x, v + 0.5 * dt * k1v, tt + dt / 2);
+      const k3x = v + 0.5 * dt * k2v, k3v = acc(x + 0.5 * dt * k2x, v + 0.5 * dt * k2v, tt + dt / 2);
+      const k4x = v + dt * k3v, k4v = acc(x + dt * k3x, v + dt * k3v, tt + dt);
+      x += (dt / 6) * (k1x + 2 * k2x + 2 * k3x + k4x); v += (dt / 6) * (k1v + 2 * k2v + 2 * k3v + k4v); tt += dt;
+      if (prevV > 0 && v <= 0) peaks.push([tt, x]); prevV = v; xs.push(x);
+    }
+    return { peaks, xs };
+  };
+  { const m = 5, k = 20000, c = 40; const { peaks } = sim(m, c, k);
+    const Td = peaks[2][0] - peaks[1][0], wd = (2 * Math.PI) / Td;
+    check('simulated ωd = ωn√(1−ζ²)', near(wd, f.dampedOmega(f.naturalOmega(k, m), f.dampingRatio(c, k, m)), 1e-3), `${wd}`);
+    const delta = Math.log(peaks[1][1] / peaks[2][1]);
+    check('simulated decrement → ζ', near(f.zetaFromLogDec(delta), f.dampingRatio(c, k, m), 1e-3), `${f.zetaFromLogDec(delta)}`); }
+  // forced response: steady-state amplitude / static deflection = M
+  { const m = 2, k = 8000, c = 2 * 0.1 * Math.sqrt(k * m), F0 = 10, r = 0.8, w = r * Math.sqrt(k / m);
+    const { xs } = sim(m, c, k, F0, w, 4, 2e-5); const tail = xs.slice(Math.floor(xs.length * 0.75));
+    const amp = (Math.max(...tail) - Math.min(...tail)) / 2;
+    check('simulated forced amplitude = M · F0/k', near(amp / (F0 / k), f.magnification(r, 0.1), 5e-3), `${amp / (F0 / k)}`); }
+}
+
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {
   const sub = (id) => domains.flatMap((d) => (d.module ? d.module.subtopics : [])).find((s) => s.id === id);

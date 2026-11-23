@@ -20,7 +20,7 @@
     await new Promise((r) => setTimeout(r, 250));
     { const all = fr.contentDocument.getElementById('allSteps'); if (all) { all.click(); await new Promise((r) => setTimeout(r, 60)); } }
     const doc = fr.contentDocument, W = doc.documentElement.clientWidth;
-    const bad = [...doc.querySelectorAll('#view *')].filter((e) => { const b = e.getBoundingClientRect(); return b.width > 0 && (b.right > W + 1 || b.left < -1) && !e.closest('.eq, .step, .katex-display'); });
+    const bad = [...doc.querySelectorAll('#view *')].filter((e) => { const b = e.getBoundingClientRect(); return b.width > 0 && (b.right > W + 1 || b.left < -1) && !e.closest('.eq, .step, .katex-display, .katex') /* KaTeX clips its own wide √ paths */; });
     const wide = [...doc.querySelectorAll('.eq .katex-display, .step .katex-display, .step')].filter((e) => e.classList.contains('katex-display') && tooWide(e));
     wide.forEach((e) => lines.push(`WIDE EQUATION ${p}: ${(e.textContent || '').slice(0, 60)}`));
     if (bad.length || doc.documentElement.scrollWidth > W) lines.push(`OVERFLOW ${p}: ${bad.slice(0, 3).map((e) => e.tagName + '.' + e.className).join(', ')} sw=${doc.documentElement.scrollWidth}`);

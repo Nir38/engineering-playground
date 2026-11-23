@@ -177,6 +177,8 @@ svg.diagram text[direction="rtl"] { direction: rtl; }
 .d-fcf { fill: var(--text); font-size: 15px; font-family: system-ui, 'Segoe UI Symbol', 'Noto Sans Symbols', 'Noto Sans Symbols 2', 'DejaVu Sans', Arial, sans-serif; }
 .d-sym { stroke: var(--text); stroke-width: 1.6; fill: none; }
 .d-fcf-small { fill: var(--text); font-size: 10px; font-weight: 700; font-family: system-ui, Arial, sans-serif; }
+.d-text-curve2 { fill: var(--curve2); font-size: 11px; font-weight: 700; font-family: system-ui, Arial, sans-serif; }
+.d-ring { fill: none; stroke: color-mix(in srgb, var(--accent) 45%, var(--surface)); stroke-width: 9; }
 .d-curve2-fill { fill: var(--curve2); }
 .d-grid { stroke: var(--border); stroke-width: .8; }
 .d-area-v { fill: color-mix(in srgb, var(--curve2) 25%, transparent); stroke: var(--curve2); stroke-width: 1.4; }

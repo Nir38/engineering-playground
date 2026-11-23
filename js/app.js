@@ -4,7 +4,7 @@ import { generators, makeQuestion, fmt } from './generators.js';
 import { draw } from './diagrams.js';
 import { esc, rich } from './text.js';
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }

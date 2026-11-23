@@ -1,7 +1,7 @@
 // diagrams.js: original SVG drawings, drawn in code so they are sharp on a
 // phone, follow light/dark mode, and can be drawn to the numbers of a question.
 // Colors come from CSS classes defined in style.css (d-*), never hard-coded.
-import { frictionColebrook, FE_C, holeH, shaftLimits, fit } from './formulas.js';
+import { frictionColebrook, FE_C, holeH, shaftLimits, fit, magnification, transmissibility, PI } from './formulas.js';
 
 const svg = (w, h, body, label = '') =>
   `<svg class="diagram" viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}" xmlns="http://www.w3.org/2000/svg">${defs}${body}</svg>`;
@@ -1470,6 +1470,88 @@ export function fishbone() {
   return svg(320, 178, s, 'Ishikawa diagram');
 }
 
+// =====================================================================
+// DYNAMICS & VIBRATION
+// =====================================================================
+export function massSpringDamper() {
+  let s = line(40, 150, 280, 150, 'd-line', 'stroke-width="2"') + `<rect x="40" y="150" width="240" height="8" fill="url(#hatch)"/>`;
+  let p = 'M110,150'; for (let i = 0; i < 8; i++) p += ` L${i % 2 ? 98 : 122},${142 - i * 9}`; p += ' L110,70';
+  s += `<path d="${p}" class="d-rope" fill="none"/>` + t(90, 110, 'k', 'd-text-accent', 'end');
+  s += line(210, 150, 210, 120) + `<rect x="198" y="96" width="24" height="26" class="d-ghost"/>` + line(204, 108, 216, 108) + line(210, 108, 210, 70) + t(230, 110, 'c', 'd-text-accent', 'start');
+  s += `<rect x="80" y="30" width="160" height="40" rx="4" class="d-section"/>` + t(160, 55, 'm');
+  s += arrow(260, 50, 260, 16, 'd-load') + t(268, 26, 'x(t)', 'd-text-load', 'start');
+  s += t(160, 178, 'ωn = √(k/m) ,  ζ = c / 2√(km)', 'd-text-accent');
+  return svg(320, 186, s, 'mass-spring-damper');
+}
+
+export function freeResponse(opts = {}) {
+  const zeta = opts.zeta ?? 0.06, x0 = 30, y0 = 90, W = 270, A = 60;
+  let p = ''; for (let i = 0; i <= 300; i++) { const tt = (i / 300) * 6; const x = Math.exp(-zeta * 2 * PI * tt) * Math.cos(2 * PI * tt * Math.sqrt(1 - zeta * zeta)); p += `${i ? 'L' : 'M'}${x0 + (i / 300) * W},${y0 - A * x} `; }
+  let env = '', env2 = ''; for (let i = 0; i <= 60; i++) { const tt = (i / 60) * 6, e = Math.exp(-zeta * 2 * PI * tt); env += `${i ? 'L' : 'M'}${x0 + (i / 60) * W},${y0 - A * e} `; env2 += `${i ? 'L' : 'M'}${x0 + (i / 60) * W},${y0 + A * e} `; }
+  let s = line(x0, y0, x0 + W, y0, 'd-muted') + `<path d="${env}" class="d-curve2" fill="none" stroke-dasharray="4 3"/><path d="${env2}" class="d-curve2" fill="none" stroke-dasharray="4 3"/>`;
+  s += `<path d="${p}" class="d-curve" fill="none"/>`;
+  s += t(x0 + W, 20, `ζ = ${zeta}: הדעיכה לפי e^(−ζωn t)`, 'd-text-accent', 'end');
+  s += t(160, 170, 'δ = ln(x₁/x₂) ≈ 2πζ', 'd-text');
+  return svg(320, 178, s, 'free damped response');
+}
+
+// magnification (or transmissibility) vs frequency ratio, several damping values, to scale
+function frf(kind) {
+  const x0 = 40, y0 = 150, W = 260, H = 125, rmax = 3, ymax = 10.5;
+  const X = (r) => x0 + (r / rmax) * W, Y = (v) => y0 - (Math.min(v, ymax) / ymax) * H;
+  let s = axes(x0, y0, W, H, 'r = ω/ωn', kind === 'T' ? 'T' : 'X/X_st');
+  [[0.05, 'd-curve-hot'], [0.2, 'd-curve'], [0.5, 'd-curve2']].forEach(([z, cls]) => {
+    let p = ''; for (let i = 0; i <= 150; i++) { const r = (i / 150) * rmax; const v = kind === 'T' ? transmissibility(r, z) : magnification(r, z); p += `${i ? 'L' : 'M'}${X(r)},${Y(v)} `; }
+    s += `<path d="${p}" class="${cls}" fill="none"/>`;
+  });
+  s += line(X(1), y0, X(1), y0 - H, 'd-grid', 'stroke-dasharray="3 3"') + t(X(1), y0 + 14, '1');
+  s += line(x0, Y(1), x0 + W, Y(1), 'd-grid', 'stroke-dasharray="3 3"') + t(x0 - 4, Y(1) + 4, '1', 'd-text', 'end');
+  if (kind === 'T') { s += line(X(Math.SQRT2), y0, X(Math.SQRT2), y0 - H, 'd-accent', 'stroke-dasharray="5 3"') + t(X(Math.SQRT2) + 4, y0 - H + 10, '√2: מכאן מבודדים', 'd-text-accent', 'start'); }
+  s += t(x0 + W, 26, 'ζ = 0.05', 'd-text-load', 'end') + t(x0 + W, 42, 'ζ = 0.2', 'd-text-accent', 'end') + t(x0 + W, 58, 'ζ = 0.5', 'd-text-curve2', 'end');
+  return s;
+}
+export function resonanceCurve() { return svg(320, 196, frf('M') + t(160, 190, 'בתהודה (r ≈ 1) רק הריסון מגביל את ההגברה', 'd-text'), 'resonance curve'); }
+export function transmissibilityCurve() { return svg(320, 196, frf('T') + t(160, 190, 'מעל √2 ריסון קטן דווקא מבודד טוב יותר', 'd-text'), 'transmissibility'); }
+
+export function unbalanceRotor() {
+  let s = `<circle cx="120" cy="90" r="56" class="d-section"/><circle cx="120" cy="90" r="5" class="d-line"/>`;
+  s += `<circle cx="150" cy="56" r="8" class="d-load-fill"/>` + line(120, 90, 150, 56, 'd-muted', 'stroke-dasharray="3 3"') + t(140, 80, 'e', 'd-text', 'start');
+  s += arrow(156, 50, 196, 10) + t(200, 16, 'F = m·e·ω²', 'd-text-load', 'start');
+  s += `<path d="M60,90 A60,60 0 0,1 90,38" class="d-accent" fill="none" marker-end="url(#arra)"/>` + t(56, 60, 'ω', 'd-text-accent', 'end');
+  s += t(200, 100, 'הכוח מסתובב עם הרוטור', 'd-text', 'start') + t(200, 118, 'ועולה עם ω²', 'd-text', 'start');
+  s += t(160, 170, 'איזון: מוסיפים או מורידים מסה כדי לבטל את m·e', 'd-text-accent');
+  return svg(320, 178, s, 'rotating unbalance');
+}
+
+export function inertiaShapes() {
+  let s = `<circle cx="80" cy="70" r="44" class="d-section"/><circle cx="80" cy="70" r="4" class="d-line"/>` + t(80, 134, 'דיסקה: I = ½mr²');
+  s += `<circle cx="230" cy="70" r="40" class="d-ring"/><circle cx="230" cy="70" r="4" class="d-line"/>` + t(230, 134, 'טבעת: I = mr²');
+  s += t(160, 160, 'אותה מסה ברדיוס החיצוני = פי 2 אינרציה', 'd-text-accent');
+  return svg(320, 168, s, 'moment of inertia shapes');
+}
+
+export function brakingGraph(opts = {}) {
+  const v0 = opts.v0 ?? 27.8, a = opts.a ?? 7, T = v0 / a;
+  const x0 = 40, y0 = 140, W = 240, H = 110;
+  let s = axes(x0, y0, W, H, 't', 'v');
+  s += `<path d="M${x0},${y0 - H} L${x0 + W},${y0} L${x0},${y0} Z" class="d-area-v"/>` + line(x0, y0 - H, x0 + W, y0, 'd-curve');
+  s += t(x0 + W * 0.35, y0 - H * 0.25, 'השטח = מרחק הבלימה', 'd-text-accent');
+  s += t(x0 + 6, y0 - H - 6, `v₀ = ${v0} m/s`, 'd-text', 'start') + t(x0 + W - 18, y0 - 8, `t = ${T.toFixed(1)} s`, 'd-text', 'end');
+  s += t(160, 172, 'מהירות כפולה = מרחק בלימה פי 4', 'd-text-load');
+  return svg(320, 180, s, 'braking v-t graph');
+}
+
+export function psdPlot(opts = {}) {
+  const f1 = opts.f1 ?? 20, f2 = opts.f2 ?? 2000, psd = opts.psd ?? 0.04;
+  const x0 = 46, y0 = 140, W = 250, H = 100;
+  const X = (fq) => x0 + (Math.log10(fq / 10) / Math.log10(300)) * W;
+  let s = axes(x0, y0, W, H, 'Hz', 'g²/Hz');
+  s += `<rect x="${X(f1)}" y="${y0 - H * 0.6}" width="${X(f2) - X(f1)}" height="${H * 0.6}" class="d-area-v"/>` + line(X(f1), y0 - H * 0.6, X(f2), y0 - H * 0.6, 'd-curve');
+  s += t(X(f1), y0 + 14, String(f1)) + t(X(f2), y0 + 14, String(f2)) + t((X(f1) + X(f2)) / 2, y0 - H * 0.6 - 8, `${psd} g²/Hz`, 'd-text-accent');
+  s += t(160, 172, 'Grms = √(השטח מתחת לגרף)', 'd-text-load');
+  return svg(320, 180, s, 'random vibration PSD');
+}
+
 export const registry = {
   beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar,
   tank, hydraulicPress, floating, pipeContraction, torricelliTank, pitot, velocityProfiles, moody, pumpCurve, dragCar, jetPlate,
@@ -1482,6 +1564,7 @@ export const registry = {
   shaftLayout, bearingLife, boltJoint, jointDiagram, helicalSpring, stribeck, keySection, filletWeld, beltDrive, pressFit,
   fitDiagram, stackChain, fcf, datums321, gdtSymbols, positionZone, mmcBonus, roughness, gdtSym,
   turning, milling, sheetBend, moldPart, amLayers, costCurves, cpkCurve, npiFlow, fishbone,
+  massSpringDamper, freeResponse, resonanceCurve, transmissibilityCurve, unbalanceRotor, inertiaShapes, brakingGraph, psdPlot,
 };
 
 // content uses {fn:'beam', args:['ss-udl',{diagrams:true}]}

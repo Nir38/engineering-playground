@@ -2030,6 +2030,178 @@ Object.assign(generators, {
   },
 });
 
+// =====================================================================
+// DYNAMICS & VIBRATION
+// =====================================================================
+const SRC_RAO = 'Rao, Mechanical Vibrations';
+const SRC_HDY = 'Hibbeler, Engineering Mechanics: Dynamics';
+Object.assign(generators, {
+  'gy-brake': {
+    subtopic: 'dy-kinematics', difficulty: 1,
+    make() {
+      const v = pick([50, 80, 100, 120]); const a = pick([5, 6, 7, 8]); const ask = pick(['d', 't']);
+      const V = f.kmh(v);
+      return {
+        q: `רכב נוסע ב-$${v}$ km/h ובולם בהאטה קבועה של $${a}$ m/s². ${ask === 'd' ? 'מה מרחק הבלימה?' : 'כמה זמן לוקח לעצור?'}`,
+        answer: ask === 'd' ? f.brakingDistance(V, a) : f.stoppingTime(V, a), unit: ask === 'd' ? 'm' : 's',
+        steps: [`v_0=${v}/3.6=${fmt(V, 4)}\\ \\text{m/s}`, `d=\\frac{v_0^2}{2a}=${fmt(f.brakingDistance(V, a), 4)}\\ \\text{m}`, `t=\\frac{v_0}{a}=${fmt(f.stoppingTime(V, a), 4)}\\ \\text{s}`],
+        hint: 'בלי זמן התגובה של הנהג. מהירות כפולה = מרחק פי 4.',
+        diagram: { fn: 'brakingGraph', args: [{ v0: +V.toFixed(1), a }] }, source: SRC_HDY,
+      };
+    },
+  },
+  'gy-force': {
+    subtopic: 'dy-newton', difficulty: 1,
+    make() {
+      const m = pick([0.4, 1, 2, 5]); const a = pick([2, 5, 10, 20]); const mu = pick([0, 0.05, 0.1]);
+      const F = m * a + mu * m * 9.81;
+      return {
+        q: `ראש הדפסה של $${m}$ kg צריך להאיץ ב-$${a}$ m/s² על מסילה אופקית${mu ? ` עם מקדם חיכוך $${mu}$` : ' בלי חיכוך'}. איזה כוח צריך המנוע לספק?`,
+        answer: F, unit: 'N',
+        steps: [`F=ma${mu ? '+\\mu mg' : ''}=${m}\\cdot${a}${mu ? `+${mu}\\cdot${m}\\cdot9.81` : ''}=${fmt(F, 4)}\\ \\text{N}`],
+        hint: 'זה הכוח המינימלי. בפועל מוסיפים מקדם ביטחון ואת האינרציה של המנוע והתמסורת.',
+        source: 'סיכום הנדסי להכנה לראיונות עבודה (חומר גלם), עמ\' 1',
+      };
+    },
+  },
+  'gy-energy': {
+    subtopic: 'dy-energy', difficulty: 1,
+    make() {
+      const h = pick([0.5, 1, 1.5, 2, 3]); const m = pick([1, 2, 5]); const ask = pick(['v', 'E']);
+      const v = f.impactSpeed(h); const E = m * 9.81 * h;
+      return {
+        q: `גוף של $${m}$ kg נופל מגובה $${h}$ m (בלי התנגדות אוויר). ${ask === 'v' ? 'מה מהירות הפגיעה?' : 'כמה אנרגיה קינטית יש לו בפגיעה?'}`,
+        answer: ask === 'v' ? v : E, unit: ask === 'v' ? 'm/s' : 'J',
+        steps: [`mgh=\\tfrac12mv^2\\Rightarrow v=\\sqrt{2gh}=${fmt(v, 4)}\\ \\text{m/s}`, `E=mgh=${fmt(E, 4)}\\ \\text{J}`],
+        hint: 'בבדיקות נפילה (drop test) זה בדיוק מה שהחלק צריך לספוג.',
+        source: SRC_HDY,
+      };
+    },
+  },
+  'gy-flywheel': {
+    subtopic: 'dy-rotation', difficulty: 2,
+    make() {
+      const m = pick([10, 20, 50]); const r = pick([0.15, 0.2, 0.3]); const rpm = pick([1500, 3000, 6000]); const shape = pick(['disk', 'ring']);
+      const I = f.inertia[shape](m, r); const E = f.rotationalEnergy(I, f.rpmToRad(rpm)) / 1000;
+      return {
+        q: `גלגל תנופה בצורת ${shape === 'disk' ? 'דיסקה מלאה' : 'טבעת דקה'}, מסה $${m}$ kg ורדיוס $${r}$ m, מסתובב ב-$${rpm}$ rpm. כמה אנרגיה הוא אוגר?`,
+        answer: E, unit: 'kJ',
+        steps: [`I=${shape === 'disk' ? '\\tfrac12' : ''}mr^2=${fmt(I, 4)}\\ \\text{kg}\\cdot\\text{m}^2`, `\\omega=${fmt(f.rpmToRad(rpm), 4)}\\ \\text{rad/s}`, `E=\\tfrac12I\\omega^2=${fmt(E * 1000, 4)}\\ \\text{J}`],
+        hint: 'האנרגיה גדלה עם ω². מהירות כפולה = פי 4 אנרגיה, וגם פי 4 מאמץ בחומר.',
+        diagram: { fn: 'inertiaShapes', args: [] }, source: SRC_HDY,
+      };
+    },
+  },
+  'gy-fn': {
+    subtopic: 'dy-sdof', difficulty: 1,
+    make() {
+      const k = pick([5000, 10000, 20000, 50000]); const m = pick([1, 2, 5, 10]);
+      return {
+        q: `מסה של $${m}$ kg על קפיץ עם $k=${k}$ N/m. מה התדר הטבעי בהרץ?`,
+        answer: f.naturalFreqHz(k, m), unit: 'Hz',
+        steps: [`\\omega_n=\\sqrt{k/m}=${fmt(f.naturalOmega(k, m), 4)}\\ \\text{rad/s}`, `f_n=\\frac{\\omega_n}{2\\pi}=${fmt(f.naturalFreqHz(k, m), 4)}\\ \\text{Hz}`],
+        hint: 'רד/ש חלקי 2π = הרץ. קשיח יותר = תדר גבוה יותר, כבד יותר = נמוך יותר.',
+        diagram: { fn: 'massSpringDamper', args: [] }, source: SRC_RAO,
+      };
+    },
+  },
+  'gy-static': {
+    subtopic: 'dy-sdof', difficulty: 2,
+    make() {
+      const d = pick([0.5, 1, 2, 5, 10, 25]);
+      const fn = f.freqFromStaticDeflection(d / 1000);
+      return {
+        q: `מכונה יושבת על בולמים, והם מתכווצים $${d}$ mm תחת המשקל שלה. מה התדר הטבעי של המערכת?`,
+        answer: fn, unit: 'Hz',
+        steps: [`k\\delta=mg\\Rightarrow\\frac{k}{m}=\\frac{g}{\\delta}`, `f_n=\\frac{1}{2\\pi}\\sqrt{\\frac{g}{\\delta}}\\approx\\frac{15.76}{\\sqrt{\\delta\\,[\\text{mm}]}}=${fmt(fn, 4)}\\ \\text{Hz}`],
+        hint: 'טריק שימושי: לא צריך לדעת את המסה ואת k בנפרד, רק את השקיעה הסטטית.',
+        source: SRC_RAO,
+      };
+    },
+  },
+  'gy-zeta': {
+    subtopic: 'dy-damping', difficulty: 2,
+    make() {
+      const ask = pick(['c', 'dec']);
+      if (ask === 'c') {
+        const k = pick([10000, 20000]); const m = pick([2, 5]); const c = pick([20, 40, 80, 150]);
+        return {
+          q: `מערכת עם $m=${m}$ kg, $k=${k}$ N/m ו-$c=${c}$ N·s/m. מה יחס הריסון ζ?`,
+          answer: f.dampingRatio(c, k, m), unit: '',
+          steps: [`c_c=2\\sqrt{km}=${fmt(2 * Math.sqrt(k * m), 4)}\\ \\text{N}\\cdot\\text{s/m}`, `\\zeta=\\frac{c}{c_c}=${fmt(f.dampingRatio(c, k, m), 4)}`],
+          hint: 'ζ < 1: תת-מרוסן (מתנדנד ודועך). ζ = 1: קריטי. רוב המבנים בסביבות 0.01-0.05.',
+          diagram: { fn: 'freeResponse', args: [{ zeta: Math.min(0.3, +f.dampingRatio(c, k, m).toFixed(2)) || 0.02 }] }, source: SRC_RAO,
+        };
+      }
+      const x1 = pick([10, 8, 5]); const x2 = +(x1 * pick([0.9, 0.8, 0.7, 0.6])).toFixed(2);
+      const d = f.logDecrement(x1, x2);
+      return {
+        q: `בבדיקת "פטיש" מדדו שתי משרעות שיא עוקבות: $${x1}$ ו-$${x2}$ (באותן יחידות). מה ζ?`,
+        answer: f.zetaFromLogDec(d), unit: '',
+        steps: [`\\delta=\\ln\\frac{x_1}{x_2}=${fmt(d, 4)}`, `\\zeta=\\frac{\\delta}{\\sqrt{4\\pi^2+\\delta^2}}\\approx\\frac{\\delta}{2\\pi}=${fmt(f.zetaFromLogDec(d), 4)}`],
+        hint: 'כך מודדים ריסון בפועל: מכים במבנה ומודדים כמה מהר התנודה דועכת.',
+        diagram: { fn: 'freeResponse', args: [{ zeta: Math.min(0.3, +f.zetaFromLogDec(d).toFixed(2)) }] }, source: SRC_RAO,
+      };
+    },
+  },
+  'gy-magnify': {
+    subtopic: 'dy-forced', difficulty: 2,
+    make() {
+      const r = pick([0.5, 0.8, 0.9, 1, 1.2, 2]); const z = pick([0.02, 0.05, 0.1, 0.2]);
+      const M = f.magnification(r, z);
+      return {
+        q: `מערכת עם $\\zeta=${z}$ מעוררת בכוח הרמוני ביחס תדרים $r=\\omega/\\omega_n=${r}$. פי כמה גדלה התזוזה ביחס לתזוזה הסטטית?`,
+        answer: M, unit: '',
+        steps: [`M=\\frac{1}{\\sqrt{(1-r^2)^2+(2\\zeta r)^2}}=${fmt(M, 4)}`],
+        hint: 'בתהודה (r = 1) M = 1/(2ζ). עם ζ = 0.02 זה פי 25!',
+        diagram: { fn: 'resonanceCurve', args: [] }, source: SRC_RAO,
+      };
+    },
+  },
+  'gy-isolation': {
+    subtopic: 'dy-isolation', difficulty: 3,
+    make() {
+      const fe = pick([25, 30, 50, 100]); const fn = pick([5, 8, 10, 15]); const z = pick([0.05, 0.1]);
+      const r = fe / fn; const T = f.transmissibility(r, z);
+      return {
+        q: `מכונה מרעידה ב-$${fe}$ Hz. היא מותקנת על בולמים שנותנים תדר טבעי של $${fn}$ Hz עם $\\zeta=${z}$. איזה חלק מהכוח עובר לרצפה? תשובה באחוזים.`,
+        answer: T * 100, unit: '%',
+        steps: [`r=\\frac{${fe}}{${fn}}=${fmt(r, 4)}`, `T=\\frac{\\sqrt{1+(2\\zeta r)^2}}{\\sqrt{(1-r^2)^2+(2\\zeta r)^2}}=${fmt(T, 4)}`],
+        hint: 'בידוד עובד רק מעל r = √2. כלל אצבע: תדר טבעי לפחות פי 3 מתחת לתדר ההפרעה.',
+        diagram: { fn: 'transmissibilityCurve', args: [] }, source: SRC_RAO,
+      };
+    },
+  },
+  'gy-unbalance': {
+    subtopic: 'dy-unbalance', difficulty: 2,
+    make() {
+      const m = pick([1, 5, 10, 20]); const e = pick([10, 20, 50, 100]); const rpm = pick([1500, 3000, 6000]);
+      const F = f.unbalanceForce(m / 1000, e / 1000, f.rpmToRad(rpm));
+      return {
+        q: `על רוטור יש חוסר איזון של $${m}$ g ברדיוס $${e}$ mm. מה הכוח הצנטריפוגלי שנוצר ב-$${rpm}$ rpm?`,
+        answer: F, unit: 'N',
+        steps: [`\\omega=${fmt(f.rpmToRad(rpm), 4)}\\ \\text{rad/s}`, `F=m\\,e\\,\\omega^2=${m / 1000}\\cdot${e / 1000}\\cdot${fmt(f.rpmToRad(rpm), 4)}^2=${fmt(F, 4)}\\ \\text{N}`],
+        hint: 'כמה גרמים בלבד יוצרים כוח של עשרות ניוטונים במהירות גבוהה, וזה מסתובב ומטלטל את המיסבים.',
+        diagram: { fn: 'unbalanceRotor', args: [] }, source: SRC_RAO,
+      };
+    },
+  },
+  'gy-grms': {
+    subtopic: 'dy-testing', difficulty: 2,
+    make() {
+      const psd = pick([0.01, 0.02, 0.04, 0.08]); const f1 = pick([10, 20]); const f2 = pick([500, 1000, 2000]);
+      const g = f.grmsFlat(psd, f1, f2);
+      return {
+        q: `בדיקת רעידות אקראיות עם ספקטרום שטוח של $${psd}$ g²/Hz בין $${f1}$ ל-$${f2}$ Hz. מה ה-Grms?`,
+        answer: g, unit: 'g',
+        steps: [`\\text{area}=${psd}\\cdot(${f2}-${f1})=${fmt(psd * (f2 - f1), 4)}\\ g^2`, `G_{rms}=\\sqrt{\\text{area}}=${fmt(g, 4)}\\ g`],
+        hint: 'בספקטרום אמיתי יש שיפועים (dB/oct) ומחשבים את השטח בכל קטע בנפרד.',
+        diagram: { fn: 'psdPlot', args: [{ f1, f2, psd }] }, source: 'MIL-STD-810H, Method 514',
+      };
+    },
+  },
+});
+
 export function makeQuestion(genId) {
   const g = generators[genId];
   const out = g.make();
