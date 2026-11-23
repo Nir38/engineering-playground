@@ -957,6 +957,312 @@ Object.assign(generators, {
   },
 });
 
+// =====================================================================
+// THERMODYNAMICS & HEAT TRANSFER
+// =====================================================================
+const SRC_CB = 'Çengel & Boles, Thermodynamics: An Engineering Approach';
+const SRC_I = 'Incropera, Fundamentals of Heat and Mass Transfer';
+Object.assign(generators, {
+  'gt-heat': {
+    subtopic: 't-laws', difficulty: 1,
+    make() {
+      const m = pick([0.5, 1, 1.5, 2]); const T1 = pick([10, 15, 20]); const P = pick([1500, 2000, 2200]);
+      const Q = f.sensibleHeat(m, f.CP_WATER, 100 - T1); const tt = Q / P;
+      const ask = pick(['Q', 't']);
+      return {
+        q: `קומקום חשמלי של $${P}$ W מחמם $${m}$ kg מים מ-$${T1}$°C עד רתיחה (100°C). $c=4.18$ kJ/kg·K. ${ask === 'Q' ? 'כמה חום צריך?' : 'כמה זמן זה ייקח, בהזנחת הפסדים?'}`,
+        answer: ask === 'Q' ? Q / 1000 : tt, unit: ask === 'Q' ? 'kJ' : 's',
+        steps: [`Q=mc\\Delta T=${m}\\cdot4180\\cdot${100 - T1}=${fmt(Q / 1000, 4)}\\ \\text{kJ}`, `t=\\frac{Q}{P}=\\frac{${fmt(Q, 5)}}{${P}}=${fmt(tt, 4)}\\ \\text{s}`],
+        hint: 'הפרש טמפרטורה ב-°C שווה להפרש ב-K.',
+        diagram: { fn: 'heatModes', args: [] }, source: `${SRC_CB}, פרק 4`,
+      };
+    },
+  },
+  'gt-firstlaw': {
+    subtopic: 't-laws', difficulty: 1,
+    make() {
+      const Q = pick([50, 80, 120, 200]); const W = pick([20, 30, 60, 90, 150]);
+      const dU = f.firstLawDU(Q, W);
+      return {
+        q: `גז בצילינדר מקבל $${Q}$ kJ חום ומבצע $${W}$ kJ עבודה על הבוכנה. מה השינוי באנרגיה הפנימית שלו?`,
+        answer: dU, unit: 'kJ', tol: 0.001,
+        steps: [`\\Delta U=Q-W=${Q}-${W}=${dU}\\ \\text{kJ}`],
+        hint: 'סימן: Q חיובי כשחום נכנס, W חיובי כשהמערכת עושה עבודה. התשובה יכולה להיות שלילית.',
+        source: `${SRC_CB}, פרק 4`,
+      };
+    },
+  },
+  'gt-tire': {
+    subtopic: 't-gas', difficulty: 2,
+    make() {
+      const pg = pick([200, 220, 240, 250]); const T1 = pick([15, 20, 25]); const T2 = pick([45, 50, 60]);
+      const P1 = pg + 101.3; const P2 = f.isochoricP2(P1, f.K(T1), f.K(T2)); const pg2 = P2 - 101.3;
+      return {
+        q: `לחץ צמיג (מנומטרי) $${pg}$ kPa ב-$${T1}$°C. אחרי נסיעה הטמפרטורה בצמיג $${T2}$°C. בהנחת נפח קבוע, מה הלחץ המנומטרי החדש? ($P_{atm}=101.3$ kPa)`,
+        answer: pg2, unit: 'kPa',
+        steps: [`P_1=${pg}+101.3=${fmt(P1, 4)}\\ \\text{kPa (abs)}`, `P_2=P_1\\frac{T_2}{T_1}=${fmt(P1, 4)}\\cdot\\frac{${fmt(f.K(T2), 5)}}{${fmt(f.K(T1), 5)}}=${fmt(P2, 4)}\\ \\text{kPa}`, `P_{2,g}=${fmt(pg2, 4)}\\ \\text{kPa}`],
+        hint: 'בחוק הגזים חייבים לחץ מוחלט וטמפרטורה בקלווין. זו הטעות הכי נפוצה כאן.',
+        source: `${SRC_CB}, פרק 3`,
+      };
+    },
+  },
+  'gt-adiabatic': {
+    subtopic: 't-gas', difficulty: 2,
+    make() {
+      const r = pick([6, 8, 10, 16, 20]); const T1 = pick([20, 25, 30]);
+      const T2 = f.isentropicT2fromV(f.K(T1), r) - 273.15;
+      return {
+        q: `אוויר ב-$${T1}$°C נדחס בתהליך איזנטרופי ביחס דחיסה $r=${r}$ ($k=1.4$). מה הטמפרטורה בסוף הדחיסה ב-°C?`,
+        answer: T2, unit: '°C',
+        steps: [`T_1=${fmt(f.K(T1), 5)}\\ \\text{K}`, `T_2=T_1\\,r^{k-1}=${fmt(f.K(T1), 5)}\\cdot${r}^{0.4}=${fmt(T2 + 273.15, 4)}\\ \\text{K}`, `=${fmt(T2, 4)}^\\circ\\text{C}`],
+        hint: 'כך מנוע דיזל מצית את הדלק בלי מצת: הדחיסה לבדה מחממת את האוויר.',
+        diagram: { fn: 'pvCycle', args: ['diesel', { r: Math.min(r, 12) }] }, source: `${SRC_CB}, פרק 7`,
+      };
+    },
+  },
+  'gt-isothermal': {
+    subtopic: 't-gas', difficulty: 3,
+    make() {
+      const P1 = pick([100, 200, 500]); const V1 = pick([0.05, 0.1, 0.2]); const ratio = pick([2, 3, 4, 5]);
+      const Wk = f.isothermalWork(P1, V1, V1 * ratio);
+      return {
+        q: `גז אידיאלי ב-$${P1}$ kPa ובנפח $${V1}$ m³ מתפשט באופן איזותרמי עד פי $${ratio}$ מהנפח. כמה עבודה הוא מבצע?`,
+        answer: Wk, unit: 'kJ',
+        steps: [`W=P_1V_1\\ln\\frac{V_2}{V_1}=${P1}\\cdot${V1}\\cdot\\ln${ratio}=${fmt(Wk, 4)}\\ \\text{kJ}`],
+        hint: 'kPa כפול m³ נותן kJ.',
+        source: `${SRC_CB}, פרק 4`,
+      };
+    },
+  },
+  'gt-carnot': {
+    subtopic: 't-second', difficulty: 1,
+    make() {
+      const TH = pick([300, 400, 500, 600, 800]); const TC = pick([20, 25, 30, 40]);
+      const e = f.carnotEff(f.K(TH), f.K(TC));
+      return {
+        q: `מנוע חום עובד בין מקור ב-$${TH}$°C לסביבה ב-$${TC}$°C. מה הנצילות המקסימלית האפשרית (קרנו)? תשובה באחוזים.`,
+        answer: e * 100, unit: '%',
+        steps: [`\\eta=1-\\frac{T_C}{T_H}=1-\\frac{${fmt(f.K(TC), 5)}}{${fmt(f.K(TH), 5)}}=${fmt(e, 4)}`],
+        hint: 'קלווין בלבד! עם צלזיוס מקבלים תשובה שגויה לחלוטין.',
+        diagram: { fn: 'heatEngine', args: ['engine'] }, source: `${SRC_CB}, פרק 6`,
+      };
+    },
+  },
+  'gt-cop': {
+    subtopic: 't-refrig', difficulty: 2,
+    make() {
+      const kind = pick(['carnot', 'real']);
+      if (kind === 'carnot') {
+        const TC = pick([-18, -5, 4, 5]); const TH = pick([30, 35, 40]);
+        const c = f.copRefrigCarnot(f.K(TC), f.K(TH));
+        return {
+          q: `מקרר שומר על $${TC}$°C בתוכו ופולט חום לחדר ב-$${TH}$°C. מה ה-COP המקסימלי האפשרי (קרנו)?`,
+          answer: c, unit: '',
+          steps: [`COP_{R,max}=\\frac{T_C}{T_H-T_C}=\\frac{${fmt(f.K(TC), 5)}}{${TH - TC}}=${fmt(c, 4)}`],
+          hint: 'ככל שהפרש הטמפרטורות קטן, הקירור "זול" יותר.',
+          diagram: { fn: 'heatEngine', args: ['fridge'] }, source: `${SRC_CB}, פרק 6`,
+        };
+      }
+      const QL = pick([1, 2, 3.5, 5]); const W = pick([0.3, 0.5, 0.8, 1]);
+      return {
+        q: `מזגן מוציא מהחדר $${QL}$ kW חום וצורך $${W}$ kW חשמל. מה ה-COP שלו, וכמה חום נפלט בחוץ?`,
+        answer: QL / W, unit: '',
+        steps: [`COP=\\frac{Q_L}{W}=\\frac{${QL}}{${W}}=${fmt(QL / W, 4)}`, `Q_H=Q_L+W=${fmt(QL + W, 4)}\\ \\text{kW}`],
+        hint: 'COP גדול מ-1 זה תקין: המזגן "מעביר" חום, הוא לא מייצר אותו.',
+        diagram: { fn: 'fridgeLoop', args: [] }, source: `${SRC_CB}, פרק 11`,
+      };
+    },
+  },
+  'gt-otto': {
+    subtopic: 't-engines', difficulty: 1,
+    make() {
+      const r = pick([7, 8, 9, 10, 11, 12]);
+      const e = f.ottoEff(r);
+      return {
+        q: `מה הנצילות התיאורטית של מחזור Otto עם יחס דחיסה $r=${r}$ ($k=1.4$)? תשובה באחוזים.`,
+        answer: e * 100, unit: '%',
+        steps: [`\\eta=1-\\frac{1}{r^{k-1}}=1-\\frac{1}{${r}^{0.4}}=${fmt(e, 4)}`],
+        hint: 'מנוע אמיתי מגיע לבערך חצי מהערך הזה בגלל חיכוך, מעבר חום ובעירה לא אידיאלית.',
+        diagram: { fn: 'pvCycle', args: ['otto', { r: Math.min(r, 10) }] }, source: `${SRC_CB}, פרק 9`,
+      };
+    },
+  },
+  'gt-diesel': {
+    subtopic: 't-engines', difficulty: 3,
+    make() {
+      const r = pick([14, 16, 18, 20, 22]); const rc = pick([1.5, 2, 2.5, 3]);
+      const e = f.dieselEff(r, rc);
+      return {
+        q: `מה הנצילות התיאורטית של מחזור Diesel עם $r=${r}$ ויחס cut-off $r_c=${rc}$ ($k=1.4$)? תשובה באחוזים.`,
+        answer: e * 100, unit: '%',
+        steps: [`\\eta=1-\\frac{1}{r^{k-1}}\\cdot\\frac{r_c^k-1}{k(r_c-1)}`, `=1-\\frac{1}{${r}^{0.4}}\\cdot\\frac{${rc}^{1.4}-1}{1.4(${rc}-1)}=${fmt(e, 4)}`],
+        diagram: { fn: 'pvCycle', args: ['diesel', { r: 12, rc }] }, source: `${SRC_CB}, פרק 9`,
+      };
+    },
+  },
+  'gt-power': {
+    subtopic: 't-engines', difficulty: 1,
+    make() {
+      const T = pick([150, 200, 250, 300, 400]); const n = pick([2000, 3000, 4000, 5500]);
+      const P = f.shaftPower(T, n) / 1000;
+      return {
+        q: `מנוע מפיק מומנט של $${T}$ N·m ב-$${n}$ rpm. מה ההספק?`,
+        answer: P, unit: 'kW',
+        steps: [`\\omega=\\frac{2\\pi\\cdot${n}}{60}=${fmt((2 * Math.PI * n) / 60, 4)}\\ \\text{rad/s}`, `P=T\\omega=${fmt(P * 1000, 4)}\\ \\text{W}=${fmt(P)}\\ \\text{kW}`],
+        hint: 'מומנט הוא "כמה חזק מסובבים", הספק הוא "כמה מהר עושים עבודה".',
+        source: `${SRC_CB}, פרק 2`,
+      };
+    },
+  },
+  'gt-brayton': {
+    subtopic: 't-brayton', difficulty: 2,
+    make() {
+      const rp = pick([5, 8, 10, 15, 20, 30]);
+      const e = f.braytonEff(rp);
+      return {
+        q: `טורבינת גז פועלת לפי מחזור Brayton אידיאלי עם יחס לחצים $r_p=${rp}$ ($k=1.4$). מה הנצילות? תשובה באחוזים.`,
+        answer: e * 100, unit: '%',
+        steps: [`\\eta=1-\\frac{1}{r_p^{(k-1)/k}}=1-\\frac{1}{${rp}^{0.286}}=${fmt(e, 4)}`],
+        diagram: { fn: 'pvCycle', args: ['brayton', { rp: Math.min(rp, 10) }] }, source: `${SRC_CB}, פרק 9`,
+      };
+    },
+  },
+  'gt-wall': {
+    subtopic: 't-conduction', difficulty: 1,
+    make() {
+      const m = pick([{ n: 'לבנים', k: 0.72 }, { n: 'בטון', k: 1.4 }, { n: 'זכוכית', k: 1.4 }, { n: 'פלדה', k: 60.5 }]);
+      const L = m.n === 'זכוכית' ? pick([0.004, 0.006]) : m.n === 'פלדה' ? 0.01 : pick([0.1, 0.2, 0.25]);
+      const A = pick([1, 2, 5, 10]); const dT = pick([10, 15, 20, 25]);
+      const Q = f.fourier(m.k, A, dT, L);
+      return {
+        q: `קיר מ${m.n} ($k=${m.k}$ W/m·K) בעובי $${L * 1000}$ mm ובשטח $${A}$ m². הפרש הטמפרטורות בין הפנים לחוץ הוא $${dT}$ K. מה קצב מעבר החום (רק הולכה)?`,
+        answer: Q, unit: 'W',
+        steps: [`\\dot Q=\\frac{kA\\Delta T}{L}=\\frac{${m.k}\\cdot${A}\\cdot${dT}}{${L}}=${fmt(Q, 4)}\\ \\text{W}`],
+        hint: 'בחלון אמיתי ההתנגדות של שכבות האוויר משני הצדדים (הסעה) גדולה בהרבה מזו של הזכוכית.',
+        diagram: { fn: 'wallProfile', args: [{ layers: [{ n: m.n, R: 1, w: 120 }], Ti: 20, To: 20 - dT }] }, source: `${SRC_I}, פרקים 1-3`,
+      };
+    },
+  },
+  'gt-composite': {
+    subtopic: 't-conduction', difficulty: 3,
+    make() {
+      const A = pick([5, 10, 20]); const L1 = pick([0.1, 0.2]); const L2 = pick([0.03, 0.05, 0.08]); const dT = pick([15, 20, 25]); const h = 10;
+      const R1 = f.Rwall(L1, 0.72, A), R2 = f.Rwall(L2, 0.04, A), Rc = f.Rconv(h, A);
+      const Rt = R1 + R2 + 2 * Rc; const Q = dT / Rt;
+      return {
+        q: `קיר בשטח $${A}$ m²: לבנה ($k=0.72$, $${L1 * 1000}$ mm) ובידוד ($k=0.04$, $${L2 * 1000}$ mm), עם הסעה $h=${h}$ W/m²·K משני הצדדים. הפרש הטמפרטורות בין האוויר בפנים לאוויר בחוץ $${dT}$ K. מה איבוד החום?`,
+        answer: Q, unit: 'W',
+        steps: [`R_{brick}=\\frac{L}{kA}=${fmt(R1, 4)},\\quad R_{ins}=${fmt(R2, 4)},\\quad R_{conv}=\\frac{1}{hA}=${fmt(Rc, 4)}\\ \\text{K/W}`, `R_{tot}=${fmt(Rt, 4)}\\ \\text{K/W}`, `\\dot Q=\\frac{\\Delta T}{R_{tot}}=${fmt(Q, 4)}\\ \\text{W}`],
+        hint: 'כמו נגדים בטור: מחברים את כל ההתנגדויות, וכל הזרם (החום) עובר דרך כולן.',
+        diagram: { fn: 'wallProfile', args: [{ layers: [{ n: 'לבנה', R: R1, w: 90 }, { n: 'בידוד', R: R2, w: 60 }] }] }, source: `${SRC_I}, פרק 3`,
+      };
+    },
+  },
+  'gt-conv': {
+    subtopic: 't-convection', difficulty: 1,
+    make() {
+      const c = pick([{ n: 'הסעה טבעית באוויר', h: 10 }, { n: 'מאוורר (הסעה מאולצת באוויר)', h: 50 }, { n: 'מים זורמים', h: 1000 }]);
+      const A = pick([0.1, 0.25, 0.5, 1]); const dT = pick([20, 40, 60]);
+      const Q = f.newtonCooling(c.h, A, dT);
+      return {
+        q: `משטח בשטח $${A}$ m² חם ב-$${dT}$ K מהסביבה, עם ${c.n} ($h=${c.h}$ W/m²·K). מה קצב מעבר החום?`,
+        answer: Q, unit: 'W',
+        steps: [`\\dot Q=hA\\Delta T=${c.h}\\cdot${A}\\cdot${dT}=${fmt(Q, 4)}\\ \\text{W}`],
+        hint: 'h הוא לא תכונת חומר. הוא תלוי בזורם, במהירות ובגיאומטריה.',
+        source: `${SRC_I}, פרק 1`,
+      };
+    },
+  },
+  'gt-lumped': {
+    subtopic: 't-convection', difficulty: 3,
+    make() {
+      const d = pick([5, 10, 20]); const h = pick([20, 50, 100]); const Ti = pick([200, 300, 500]); const tt = pick([30, 60, 120, 300]);
+      const V = (Math.PI * (d / 1000) ** 3) / 6, A = Math.PI * (d / 1000) ** 2;
+      const tau = f.timeConstant(7850, 450, V, h, A); const T = f.lumpedT(25, Ti, tt, tau);
+      return {
+        q: `כדור פלדה בקוטר $${d}$ mm ($\\rho=7850$, $c=450$ J/kg·K) ב-$${Ti}$°C מוכנס לאוויר ב-25°C עם $h=${h}$ W/m²·K. בשיטת lumped capacitance, מה הטמפרטורה אחרי $${tt}$ s?`,
+        answer: T, unit: '°C',
+        steps: [`\\frac{V}{A}=\\frac{d}{6}=${fmt(d / 6000, 4)}\\ \\text{m}`, `\\tau=\\frac{\\rho cV}{hA}=${fmt(tau, 4)}\\ \\text{s}`, `T=T_\\infty+(T_i-T_\\infty)e^{-t/\\tau}=${fmt(T, 4)}^\\circ\\text{C}`],
+        hint: 'השיטה תקפה כש-Bi = h(V/A)/k קטן מ-0.1, כלומר הגוף כמעט אחיד בטמפרטורה.',
+        diagram: { fn: 'coolingCurve', args: [{ Ti, Tinf: 25, tau }] }, source: `${SRC_I}, פרק 5`,
+      };
+    },
+  },
+  'gt-rad': {
+    subtopic: 't-radiation', difficulty: 2,
+    make() {
+      const eps = pick([0.1, 0.5, 0.8, 0.95]); const A = pick([0.5, 1, 2]); const Ts = pick([60, 100, 200, 400]); const Tsur = pick([20, 25]);
+      const Q = f.radiationNet(eps, A, f.K(Ts), f.K(Tsur));
+      return {
+        q: `משטח בשטח $${A}$ m² עם פליטות $\\varepsilon=${eps}$ נמצא ב-$${Ts}$°C, והסביבה הגדולה ב-$${Tsur}$°C. מה קצב איבוד החום נטו בקרינה?`,
+        answer: Q, unit: 'W',
+        steps: [`\\dot Q=\\varepsilon\\sigma A(T_s^4-T_{sur}^4)`, `=${eps}\\cdot5.67\\times10^{-8}\\cdot${A}\\cdot(${fmt(f.K(Ts), 5)}^4-${fmt(f.K(Tsur), 5)}^4)=${fmt(Q, 4)}\\ \\text{W}`],
+        hint: 'בקלווין! ובחזקה רביעית, כך שבטמפרטורות גבוהות הקרינה משתלטת.',
+        diagram: { fn: 'heatModes', args: [] }, source: `${SRC_I}, פרקים 1 ו-12`,
+      };
+    },
+  },
+  'gt-lmtd': {
+    subtopic: 't-hx', difficulty: 2,
+    make() {
+      const Th1 = pick([90, 100, 120]); const Th2 = pick([50, 60, 70]); const Tc1 = pick([15, 20, 25]); const Tc2 = pick([40, 45]);
+      const type = pick(['counter', 'parallel']);
+      const d1 = type === 'counter' ? Th1 - Tc2 : Th1 - Tc1, d2 = type === 'counter' ? Th2 - Tc1 : Th2 - Tc2;
+      if (d2 <= 0 || d1 <= 0) return this.make();
+      const L = f.lmtd(d1, d2);
+      return {
+        q: `מחליף חום ב${type === 'counter' ? 'זרימה נגדית' : 'זרימה מקבילה'}: הזורם החם נכנס ב-$${Th1}$°C ויוצא ב-$${Th2}$°C, הקר נכנס ב-$${Tc1}$°C ויוצא ב-$${Tc2}$°C. מה $\\Delta T_{lm}$?`,
+        answer: L, unit: 'K',
+        steps: [type === 'counter' ? `\\Delta T_1=T_{h,in}-T_{c,out}=${d1},\\quad \\Delta T_2=T_{h,out}-T_{c,in}=${d2}` : `\\Delta T_1=T_{h,in}-T_{c,in}=${d1},\\quad \\Delta T_2=T_{h,out}-T_{c,out}=${d2}`, `\\Delta T_{lm}=\\frac{\\Delta T_1-\\Delta T_2}{\\ln(\\Delta T_1/\\Delta T_2)}=${fmt(L, 4)}\\ \\text{K}`],
+        hint: 'בזרימה נגדית משווים את קצה הכניסה של אחד לקצה היציאה של השני.',
+        diagram: { fn: 'hxProfiles', args: [type, { Th1, Th2, Tc1, Tc2 }] }, source: `${SRC_I}, פרק 11`,
+      };
+    },
+  },
+  'gt-hx-area': {
+    subtopic: 't-hx', difficulty: 3,
+    make() {
+      const Q = pick([10, 20, 50]); const U = pick([300, 500, 800]); const dTlm = pick([20, 30, 40]);
+      const A = (Q * 1000) / (U * dTlm);
+      return {
+        q: `צריך להעביר $${Q}$ kW במחליף חום עם $U=${U}$ W/m²·K ו-$\\Delta T_{lm}=${dTlm}$ K. מה שטח ההעברה הנדרש?`,
+        answer: A, unit: 'm²',
+        steps: [`A=\\frac{\\dot Q}{U\\,\\Delta T_{lm}}=\\frac{${Q * 1000}}{${U}\\cdot${dTlm}}=${fmt(A, 4)}\\ \\text{m}^2`],
+        source: `${SRC_I}, פרק 11`,
+      };
+    },
+  },
+  'gt-junction': {
+    subtopic: 't-electronics', difficulty: 2,
+    make() {
+      const P = pick([5, 10, 15, 25]); const Ta = pick([25, 40, 50]); const Rjc = pick([0.5, 1, 1.5]); const Rcs = pick([0.2, 0.5]); const Rsa = pick([2, 3, 4]);
+      const Tj = f.junctionTemp(Ta, P, [Rjc, Rcs, Rsa]);
+      return {
+        q: `רכיב מפזר $${P}$ W. $R_{jc}=${Rjc}$, $R_{cs}=${Rcs}$ (משחה), $R_{sa}=${Rsa}$ K/W (גוף קירור), והסביבה ב-$${Ta}$°C. מה טמפרטורת הצומת?`,
+        answer: Tj, unit: '°C',
+        steps: [`R_{tot}=${Rjc}+${Rcs}+${Rsa}=${fmt(Rjc + Rcs + Rsa, 4)}\\ \\text{K/W}`, `T_j=T_a+P\\,R_{tot}=${Ta}+${P}\\cdot${fmt(Rjc + Rcs + Rsa, 4)}=${fmt(Tj, 4)}^\\circ\\text{C}`],
+        hint: 'בדיוק כמו חוק אוהם: הספק במקום זרם, טמפרטורה במקום מתח.',
+        diagram: { fn: 'resistanceChain', args: [{}] }, source: `${SRC_I}, פרק 3`,
+      };
+    },
+  },
+  'gt-heatsink': {
+    subtopic: 't-electronics', difficulty: 3,
+    make() {
+      const P = pick([10, 20, 30]); const TjMax = pick([110, 125, 150]); const Ta = pick([40, 50, 55]); const Rjc = pick([0.5, 0.8]); const Rcs = pick([0.2, 0.3]);
+      const R = f.requiredRsa(TjMax, Ta, P, Rjc, Rcs);
+      if (R <= 0) return this.make();
+      return {
+        q: `טרנזיסטור מפזר $${P}$ W, עם $T_{j,max}=${TjMax}$°C, $R_{jc}=${Rjc}$ ו-$R_{cs}=${Rcs}$ K/W. הסביבה בתוך המארז $${Ta}$°C. מה ההתנגדות התרמית המקסימלית המותרת לגוף הקירור?`,
+        answer: R, unit: 'K/W',
+        steps: [`R_{tot,max}=\\frac{T_{j,max}-T_a}{P}=\\frac{${TjMax}-${Ta}}{${P}}=${fmt((TjMax - Ta) / P, 4)}`, `R_{sa}\\le R_{tot}-R_{jc}-R_{cs}=${fmt(R, 4)}\\ \\text{K/W}`],
+        hint: 'בוחרים גוף קירור עם R קטן מזה, עם מרווח. מאוורר מקטין R_sa מאוד.',
+        diagram: { fn: 'resistanceChain', args: [{}] }, source: `${SRC_I}, פרק 3`,
+      };
+    },
+  },
+});
+
 export function makeQuestion(genId) {
   const g = generators[genId];
   const out = g.make();

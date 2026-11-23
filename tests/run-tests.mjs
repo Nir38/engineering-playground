@@ -268,6 +268,87 @@ const ex = [
   check('rich(): Hebrew after math is not swallowed', rich('$x$ ואחר כך').includes('<span class="ltr">$x$</span> ואחר'));
 }
 
+// ---------- thermo: worked examples and independent cross-checks ----------
+{
+  const ex2 = [
+    ['t-laws example Q [kJ]', f.sensibleHeat(1.5, 4180, 80) / 1000, 502, 2e-3],
+    ['t-laws example t [s]', f.sensibleHeat(1.5, 4180, 80) / 2000, 251, 2e-3],
+    ['t-laws c water/steel ≈ 10', 4.18 / 0.43, 9.7, 1e-2],
+    ['t-gas example T2 [K]', f.isentropicT2fromV(300, 10), 754, 2e-3],
+    ['t-gas example P2 [kPa]', f.isentropicP2fromV(100, 10), 2512, 2e-3],
+    ['t-gas tire 220 gauge = 321 abs', 220 + 101.3, 321, 2e-3],
+    ['t-second example η', f.carnotEff(800, 300), 0.625, 1e-12],
+    ['t-second example COP', f.copRefrigCarnot(f.K(5), f.K(35)), 9.3, 5e-3], // lesson rounds 9.27 to 9.3
+    ['t-engines Otto r=10', f.ottoEff(10), 0.602, 2e-3],
+    ['t-engines Diesel r=18 rc=2', f.dieselEff(18, 2), 0.632, 2e-3],
+    ['t-engines power [kW]', f.shaftPower(300, 3000) / 1000, 94.2, 1e-3],
+    ['t-brayton rp=10', f.braytonEff(10), 0.482, 2e-3],
+    ['t-conduction R brick', f.Rwall(0.2, 0.72, 10), 0.028, 1e-2],
+    ['t-conduction R insulation', f.Rwall(0.05, 0.04, 10), 0.125, 1e-12],
+    ['t-conduction brick only [W]', 20 / f.Rwall(0.2, 0.72, 10), 720, 1e-9],
+    ['t-conduction with insulation [W]', 20 / (f.Rwall(0.2, 0.72, 10) + f.Rwall(0.05, 0.04, 10)), 131, 2e-3],
+    ['t-conduction saving 82%', 1 - (20 / (f.Rwall(0.2, 0.72, 10) + f.Rwall(0.05, 0.04, 10))) / 720, 0.82, 1e-2],
+    ['t-conduction Cu/SS ≈ 27', 401 / 14.9, 27, 1e-2],
+    ['t-convection τ [s]', f.timeConstant(8000, 450, Math.PI / 6 * 0.01 ** 3, 50, Math.PI * 0.01 ** 2), 120, 1e-9],
+    ['t-convection T(60) [°C]', f.lumpedT(25, 300, 60, 120), 192, 3e-3],
+    ['t-convection e^-1 = 37%', Math.exp(-1), 0.37, 1e-2],
+    ['t-convection 3τ ≈ 5%', Math.exp(-3), 0.05, 1e-2],
+    ['t-radiation example [W]', f.radiationNet(0.9, 1, 400, 300), 893, 1e-3],
+    ['t-radiation bar 100°C [kW/m²]', f.SIGMA_SB * f.K(100) ** 4 / 1000, 1.1, 1e-2],
+    ['t-radiation bar 300°C [kW/m²]', f.SIGMA_SB * f.K(300) ** 4 / 1000, 6.1, 1e-2],
+    ['t-radiation bar 600°C [kW/m²]', f.SIGMA_SB * f.K(600) ** 4 / 1000, 33.0, 2e-3],
+    ['t-radiation 600 vs 100 ≈ ×30', (f.K(600) / f.K(100)) ** 4, 30, 1e-2],
+    ['t-hx counter LMTD', f.lmtd(50, 40), 44.8, 2e-3],
+    ['t-hx parallel LMTD', f.lmtd(80, 10), 33.7, 2e-3],
+    ['t-hx parallel needs 33% more area', f.lmtd(50, 40) / f.lmtd(80, 10) - 1, 0.33, 1e-2],
+    ['t-electronics R_tot max', (125 - 40) / 20, 4.25, 1e-12],
+    ['t-electronics R_sa', f.requiredRsa(125, 40, 20, 0.8, 0.3), 3.15, 1e-9],
+    ['t-electronics visual Tj', f.junctionTemp(25, 10, [0.5, 0.2, 3]), 62, 1e-12],
+  ];
+  ex2.forEach(([n, got, want, tol]) => check(n, near(got, want, tol), `got ${got}, lesson says ${want}`));
+  // cycle efficiencies re-derived from the four state temperatures
+  const k = 1.4, T1 = 300;
+  { const r = 9, T2 = T1 * r ** (k - 1), T3 = 1900, T4 = T3 / r ** (k - 1);
+    check('Otto formula = 1 - (T4-T1)/(T3-T2)', near(f.ottoEff(r), 1 - (T4 - T1) / (T3 - T2), 1e-12)); }
+  { const r = 17, rc = 2.2, T2 = T1 * r ** (k - 1), T3 = T2 * rc, T4 = T3 * (rc / r) ** (k - 1);
+    check('Diesel formula = 1 - (T4-T1)/(k(T3-T2))', near(f.dieselEff(r, rc), 1 - (T4 - T1) / (k * (T3 - T2)), 1e-12)); }
+  { const rp = 12, T2 = T1 * rp ** ((k - 1) / k), T3 = 1400, T4 = T3 / rp ** ((k - 1) / k);
+    check('Brayton formula = 1 - (T4-T1)/(T3-T2)', near(f.braytonEff(rp), 1 - (T4 - T1) / (T3 - T2), 1e-12)); }
+  check('Diesel → Otto as rc → 1', near(f.dieselEff(10, 1.000001), f.ottoEff(10), 1e-5));
+  check('COP_HP = COP_R + 1', near(f.copHeatPumpCarnot(270, 310), f.copRefrigCarnot(270, 310) + 1, 1e-12));
+  check('Carnot: Otto never beats it', f.ottoEff(12) < f.carnotEff(2000, 300));
+  // isothermal work = ∫P dV numerically
+  let Wn = 0; const P1 = 200, V1 = 0.1, V2 = 0.35, N = 100000;
+  for (let i = 0; i < N; i++) { const V = V1 + (V2 - V1) * (i + 0.5) / N; Wn += (P1 * V1 / V) * (V2 - V1) / N; }
+  check('isothermal work = ∫P dV', near(Wn, f.isothermalWork(P1, V1, V2), 1e-8));
+  // lumped cooling = Euler integration of dT/dt = -(T - T∞)/τ
+  let T = 300; const tau = 120, dt = 0.001;
+  for (let tt = 0; tt < 60; tt += dt) T += -(T - 25) / tau * dt;
+  check('lumped solution = ODE integration', near(T, f.lumpedT(25, 300, 60, tau), 1e-4));
+  // counter-flow LMTD: integrate dQ = U dA ΔT for balanced streams (ΔT const) and an unbalanced case
+  check('LMTD of equal end differences = that difference', near(f.lmtd(30, 30), 30, 1e-12));
+  { // hot stream cools 100→60, cold heats 20→50 in counter-flow; march along the exchanger
+    const C_h = 1, C_c = 40 / 30, UAtot = 1; // Q = 40 (units), C_c chosen so cold rises 30
+    let Th = 100, Tc = 50, Q = 0, A = 0; const dA = 1e-5; // start at hot inlet / cold outlet
+    while (Th > 60) { const dq = UAtot * (Th - Tc) * dA; Th -= dq / C_h; Tc -= dq / C_c; Q += dq; A += dA; }
+    check('counter-flow area from marching = Q / (U ΔTlm)', near(A, Q / f.lmtd(50, 40), 2e-3));
+  }
+  check('Rcyl ≈ Rwall for a thin shell', near(f.Rcyl(1, 1.001, 50, 2), f.Rwall(0.001, 50, 2 * Math.PI * 1.0005 * 2), 1e-6));
+}
+
+// ---------- bar charts in lessons: values read from the content, checked against formulas ----------
+{
+  const sub = (id) => domains.flatMap((d) => (d.module ? d.module.subtopics : [])).find((s) => s.id === id);
+  const barsOf = (id, i = 0) => { const L = sub(id).lesson; const specs = [L.diagram, ...(L.visuals || []).map((v) => v.spec)].filter((x) => x && x.fn === 'bars'); return specs[i].args[0].data; };
+  const all = (name, rows, fn, tol) => check(name, rows.every(([n, v]) => near(v, fn(n), tol)), JSON.stringify(rows));
+  all('chart t-radiation σT⁴', barsOf('t-radiation'), (n) => f.SIGMA_SB * f.K(parseInt(n)) ** 4 / 1000, 1.2e-2);
+  all('chart f-drag power', barsOf('f-drag'), (n) => f.dragPower(1.204, f.kmh(parseInt(n)), 0.3, 2.2) / 1000, 1.2e-2);
+  all('chart f-pumps power', barsOf('f-pumps'), (n) => 100 * (parseInt(n) / 100) ** 3, 1e-9);
+  all('chart buckling 1/K²', barsOf('buckling'), (n) => 1 / f.K_EFFECTIVE[n] ** 2, 3e-3);
+  all('chart deflection ratio', barsOf('deflection'), (n) => (n.startsWith('שלוחה') ? 16 : 1), 1e-12);
+  all('chart m-selection E/ρ', barsOf('m-selection'), (n) => ({ 'פלדה': 200 / 7.85, 'Al 6061': 69 / 2.7, 'Ti-6Al-4V': 114 / 4.43 }[n]), 3e-3);
+}
+
 // ---------- materials: independent cross-checks ----------
 {
   // Ashby beam index derived directly: square beam, same EI -> b ∝ E^(-1/4), m ∝ ρ b²
@@ -296,7 +377,7 @@ for (const id of Object.keys(generators)) {
   for (let i = 0; i < 300; i++) {
     const q = makeQuestion(id);
     if (!isFinite(q.answer)) { ok = false; why = 'answer not finite'; break; }
-    if (id !== 'g-mohr' && q.answer <= 0) { ok = false; why = `answer ${q.answer} <= 0`; break; }
+    if (!['g-mohr', 'gt-firstlaw'].includes(id) && q.answer <= 0) { ok = false; why = `answer ${q.answer} <= 0`; break; }
     if (!q.steps || !q.steps.length || !q.source || !q.q) { ok = false; why = 'missing steps/source/q'; break; }
     if (!subIds.has(q.subtopic)) { ok = false; why = `unknown subtopic ${q.subtopic}`; break; }
     // a lost backslash in a JS string turns \t into a TAB and \c into "c": catch both

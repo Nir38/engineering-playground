@@ -17,8 +17,10 @@ const defs = `<defs>
 // In RTL, text-anchor "start" is the right edge, so start/end are swapped to keep
 // the same visual anchor the caller asked for.
 const HEB = /[֐-׿]/;
+const SUB = (s) => String(s).replace(/([A-Za-zτσα])_([A-Za-z0-9]+)/g, '$1<tspan baseline-shift="sub" font-size="8">$2</tspan>');
 const t = (x, y, s, cls = 'd-text', anchor = 'middle') => {
-  if (!HEB.test(s)) return `<text x="${x}" y="${y}" class="${cls}" text-anchor="${anchor}">${s}</text>`;
+  s = SUB(s);
+  if (!HEB.test(s))return `<text x="${x}" y="${y}" class="${cls}" text-anchor="${anchor}">${s}</text>`;
   const a = anchor === 'start' ? 'end' : anchor === 'end' ? 'start' : 'middle';
   return `<text x="${x}" y="${y}" class="${cls}" text-anchor="${a}" direction="rtl">${s}</text>`;
 };
@@ -771,6 +773,177 @@ export function galvanicCell() {
   return svg(320, 158, s, 'galvanic cell');
 }
 
+// =====================================================================
+// THERMODYNAMICS & HEAT TRANSFER
+// =====================================================================
+const axes = (x0, y0, W, H, xl, yl) =>
+  arrow(x0, y0, x0 + W + 6, y0, 'd-muted', 'arrm') + arrow(x0, y0, x0, y0 - H - 6, 'd-muted', 'arrm') +
+  t(x0 + W + 4, y0 + 16, xl, 'd-text', 'end') + t(x0 - 6, y0 - H, yl, 'd-text', 'end');
+
+// P-v diagram of an ideal air-standard cycle, computed from the process equations (k = 1.4)
+export function pvCycle(kind = 'otto', opts = {}) {
+  const k = 1.4, r = opts.r ?? 8, rc = opts.rc ?? 2, rp = opts.rp ?? 8;
+  const iso = (P1, v1, v2, n = 30) => { const pts = []; for (let i = 0; i <= n; i++) { const v = v1 + ((v2 - v1) * i) / n; pts.push([v, P1 * (v1 / v) ** k]); } return pts; };
+  let pts = [], labels = [];
+  if (kind === 'otto') {
+    const v1 = 1, v2 = 1 / r, P1 = 1, P2 = P1 * r ** k, P3 = P2 * 2.2, P4 = P3 / r ** k;
+    pts = [...iso(P1, v1, v2), [v2, P3], ...iso(P3, v2, v1), [v1, P1]];
+    labels = [[v1, P1, '1'], [v2, P2, '2'], [v2, P3, '3'], [v1, P4, '4']];
+  } else if (kind === 'diesel') {
+    const v1 = 1, v2 = 1 / r, v3 = v2 * rc, P1 = 1, P2 = P1 * r ** k, P4 = P2 * (v3 / v1) ** k;
+    pts = [...iso(P1, v1, v2), [v3, P2], ...iso(P2, v3, v1), [v1, P1]];
+    labels = [[v1, P1, '1'], [v2, P2, '2'], [v3, P2, '3'], [v1, P4, '4']];
+  } else { // brayton
+    const P1 = 1, P2 = rp, v1 = 1, v2 = v1 / rp ** (1 / k), v3 = v2 * 2.4, v4 = v3 * rp ** (1 / k);
+    pts = [...iso(P1, v1, v2), [v3, P2], ...iso(P2, v3, v4), [v1, P1]];
+    labels = [[v1, P1, '1'], [v2, P2, '2'], [v3, P2, '3'], [v4, P1, '4']];
+  }
+  const vmax = Math.max(...pts.map((p) => p[0])) * 1.05, pmax = Math.max(...pts.map((p) => p[1])) * 1.08;
+  const x0 = 40, y0 = 170, W = 260, H = 150;
+  const X = (v) => x0 + (v / vmax) * W, Y = (P) => y0 - (P / pmax) * H;
+  let s = axes(x0, y0, W, H, 'v', 'P');
+  s += `<path d="${pts.map((p, i) => `${i ? 'L' : 'M'}${X(p[0])},${Y(p[1])}`).join(' ')} Z" class="d-cycle"/>`;
+  labels.forEach(([v, P, n]) => (s += `<circle cx="${X(v)}" cy="${Y(P)}" r="3" class="d-load-fill"/>` + t(X(v) + 6, n === '1' ? Y(P) + 14 : Y(P) - 6, n, 'd-text-load', 'start')));
+  const name = { otto: 'Otto: חום בנפח קבוע', diesel: 'Diesel: חום בלחץ קבוע', brayton: 'Brayton: חום ופליטה בלחץ קבוע' }[kind];
+  s += t(x0 + W, 26, name, 'd-text-accent', 'end') + t(x0 + W, 42, 'השטח הכלוא = עבודה נטו', 'd-text', 'end');
+  return svg(320, 190, s, `${kind} P-v diagram`);
+}
+
+export function tsCarnot() {
+  const x0 = 40, y0 = 160, W = 250, H = 140;
+  let s = axes(x0, y0, W, H, 's', 'T');
+  s += `<rect x="90" y="40" width="160" height="80" class="d-cycle"/>`;
+  s += `<rect x="90" y="120" width="160" height="${y0 - 120}" class="d-area-v"/>`;
+  s += t(170, 34, 'T_H: קליטת חום', 'd-text-load') + t(170, 116, 'T_C: פליטת חום', 'd-text-accent');
+  s += t(170, 84, 'עבודה נטו', 'd-text') + t(170, 146, 'חום שנפלט', 'd-text');
+  return svg(320, 180, s, 'Carnot T-s');
+}
+
+export function heatEngine(kind = 'engine') {
+  const fridge = kind === 'fridge';
+  let s = `<rect x="90" y="10" width="140" height="30" rx="8" class="d-hot"/>` + t(160, 30, fridge ? 'חם (המטבח / בחוץ)' : 'מאגר חם T_H', 'd-text');
+  s += `<rect x="90" y="140" width="140" height="30" rx="8" class="d-cold"/>` + t(160, 160, fridge ? 'קר (בתוך המקרר)' : 'מאגר קר T_C', 'd-text');
+  s += `<circle cx="160" cy="90" r="28" class="d-section"/>` + t(160, 94, fridge ? 'מקרר' : 'מנוע');
+  if (!fridge) {
+    s += arrow(160, 40, 160, 60) + t(170, 54, 'Q_H', 'd-text-load', 'start');
+    s += arrow(160, 118, 160, 138, 'd-accent', 'arra') + t(170, 132, 'Q_C', 'd-text-accent', 'start');
+    s += arrow(188, 90, 250, 90) + t(256, 94, 'W', 'd-text-load', 'start');
+    s += t(30, 90, 'η = W/Q_H', 'd-text-accent', 'start');
+  } else {
+    s += arrow(160, 138, 160, 118, 'd-accent', 'arra') + t(170, 132, 'Q_L', 'd-text-accent', 'start');
+    s += arrow(160, 60, 160, 40) + t(170, 54, 'Q_H', 'd-text-load', 'start');
+    s += arrow(250, 90, 190, 90) + t(256, 94, 'W', 'd-text-load', 'start');
+    s += t(30, 90, 'COP = Q_L/W', 'd-text-accent', 'start');
+  }
+  return svg(320, 180, s, fridge ? 'refrigerator' : 'heat engine');
+}
+
+// vapour-compression loop (fridge / AC)
+export function fridgeLoop() {
+  const box = (x, y, w, h, label, cls = 'd-section') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" class="${cls}"/>` + t(x + w / 2, y + h / 2 + 4, label);
+  let s = box(90, 14, 140, 30, 'מעבה: פולט חום', 'd-hot') + box(90, 136, 140, 30, 'מאייד: סופג חום', 'd-cold');
+  s += box(250, 74, 60, 34, 'מדחס') + box(10, 74, 66, 34, 'שסתום');
+  s += `<path d="M280,74 L280,29 L230,29" class="d-curve" fill="none" marker-end="url(#arra)"/>` + `<path d="M90,29 L43,29 L43,74" class="d-curve" fill="none" marker-end="url(#arra)"/>`;
+  s += `<path d="M43,108 L43,151 L90,151" class="d-curve2" fill="none" marker-end="url(#arra)"/>` + `<path d="M230,151 L280,151 L280,108" class="d-curve2" fill="none" marker-end="url(#arra)"/>`;
+  s += t(160, 64, 'לחץ גבוה', 'd-text-load') + t(160, 122, 'לחץ נמוך', 'd-text-accent');
+  return svg(320, 176, s, 'vapour-compression cycle');
+}
+
+export function rankineLoop() {
+  const box = (x, y, w, h, label, cls = 'd-section') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6" class="${cls}"/>` + t(x + w / 2, y + h / 2 + 4, label);
+  let s = box(90, 14, 140, 30, 'דוד: מים → קיטור', 'd-hot') + box(90, 136, 140, 30, 'מעבה: קיטור → מים', 'd-cold');
+  s += box(250, 74, 60, 34, 'טורבינה') + box(10, 74, 66, 34, 'משאבה');
+  s += `<path d="M230,29 L280,29 L280,74" class="d-curve" fill="none" marker-end="url(#arra)"/>` + `<path d="M280,108 L280,151 L230,151" class="d-curve" fill="none" marker-end="url(#arra)"/>`;
+  s += `<path d="M90,151 L43,151 L43,108" class="d-curve2" fill="none" marker-end="url(#arra)"/>` + `<path d="M43,74 L43,29 L90,29" class="d-curve2" fill="none" marker-end="url(#arra)"/>`;
+  s += t(160, 70, 'הטורבינה מפיקה הרבה יותר', 'd-text-load') + t(160, 88, 'ממה שהמשאבה צורכת', 'd-text-load') + t(160, 106, 'כי שואבים נוזל, לא גז', 'd-text');
+  return svg(320, 176, s, 'Rankine cycle');
+}
+
+// composite wall: temperature drops in proportion to each layer's resistance
+export function wallProfile(opts = {}) {
+  const layers = opts.layers || [{ n: 'לבנה', R: 0.028, w: 90 }, { n: 'בידוד', R: 0.125, w: 50 }];
+  const Ti = opts.Ti ?? 20, To = opts.To ?? 0, Rtot = layers.reduce((a, l) => a + l.R, 0);
+  const x0 = 70, top = 30, H = 120;
+  const Y = (T) => top + ((Ti - T) / (Ti - To)) * H;
+  let s = '', x = x0, T = Ti, pts = [[x0, Y(Ti)]];
+  layers.forEach((l, i) => {
+    s += `<rect x="${x}" y="${top}" width="${l.w}" height="${H}" class="${i % 2 ? 'd-coat' : 'd-section'}"/>` + t(x + l.w / 2, top + H + 16, l.n);
+    T -= ((Ti - To) * l.R) / Rtot; x += l.w; pts.push([x, Y(T)]);
+  });
+  s += `<path d="${pts.map((p, i) => `${i ? 'L' : 'M'}${p[0]},${p[1]}`).join(' ')}" class="d-load" fill="none" stroke-width="3"/>`;
+  s += t(x0 - 6, Y(Ti) + 4, `${Ti}°C`, 'd-text-load', 'end') + t(x + 6, Y(To) + 4, `${To}°C`, 'd-text-accent', 'start');
+  s += t(160, 18, 'הטמפרטורה יורדת בעיקר בשכבה עם ההתנגדות הגדולה', 'd-text');
+  return svg(320, 172, s, 'composite wall');
+}
+
+export function resistanceChain(opts = {}) {
+  const items = opts.items || [['R_jc', 'צומת → מארז'], ['R_cs', 'משחה תרמית'], ['R_sa', 'גוף קירור → אוויר']];
+  let s = `<circle cx="22" cy="60" r="8" class="d-load-fill"/>` + t(22, 40, 'Tj', 'd-text-load') + t(22, 90, 'P [W]', 'd-text-load');
+  let x = 30;
+  items.forEach(([name, desc]) => {
+    s += line(x, 60, x + 12, 60) + `<path d="M${x + 12},60 l6,-10 l10,20 l10,-20 l10,20 l10,-20 l10,20 l6,-10" class="d-line" fill="none"/>`;
+    s += t(x + 41, 40, name, 'd-text-accent') + t(x + 41, 88, desc, 'd-text');
+    x += 82;
+  });
+  s += line(x, 60, x + 8, 60) + `<circle cx="${x + 12}" cy="60" r="5" class="d-accent-fill"/>` + t(x + 4, 40, 'Ta', 'd-text-accent');
+  s += t(160, 116, 'Tj = Ta + P·(R_jc + R_cs + R_sa)', 'd-text-load');
+  return svg(320, 126, s, 'thermal resistance chain');
+}
+
+// hot/cold temperature along a heat exchanger, computed for given end temperatures
+export function hxProfiles(type = 'counter', opts = {}) {
+  const Th1 = opts.Th1 ?? 100, Th2 = opts.Th2 ?? 60, Tc1 = opts.Tc1 ?? 20, Tc2 = opts.Tc2 ?? 50;
+  const x0 = 40, y0 = 150, W = 250, H = 120, Tmax = Math.max(Th1, Tc2) * 1.05;
+  const X = (u) => x0 + u * W, Y = (T) => y0 - (T / Tmax) * H;
+  let s = axes(x0, y0, W, H, 'אורך', 'T');
+  const curve = (a, b, cls) => { let p = ''; for (let i = 0; i <= 30; i++) { const u = i / 30, T = a + (b - a) * (1 - Math.exp(-2 * u)) / (1 - Math.exp(-2)); p += `${i ? 'L' : 'M'}${X(u)},${Y(T)} `; } return `<path d="${p}" class="${cls}" fill="none"/>`; };
+  s += curve(Th1, Th2, 'd-curve-hot');
+  s += type === 'counter' ? curve(Tc2, Tc1, 'd-curve') : curve(Tc1, Tc2, 'd-curve');
+  s += t(X(0) + 4, Y(Th1) - 6, `חם: נכנס ${Th1}, יוצא ${Th2}`, 'd-text-load', 'start');
+  s += t(X(1), Y(type === 'counter' ? Tc1 : Tc2) + 16, `קר: נכנס ${Tc1}, יוצא ${Tc2}`, 'd-text-accent', 'end');
+  s += t(X(0.5), 12, type === 'counter' ? 'זרימה נגדית: הפרש אחיד יותר' : 'זרימה מקבילה: הפרש גדול רק בהתחלה', 'd-text');
+  return svg(320, 176, s, `${type}-flow heat exchanger`);
+}
+
+export function coolingCurve(opts = {}) {
+  const Ti = opts.Ti ?? 300, Tinf = opts.Tinf ?? 25, tau = opts.tau ?? 120, tmax = 5 * tau;
+  const x0 = 46, y0 = 150, W = 250, H = 120;
+  const X = (tt) => x0 + (tt / tmax) * W, Y = (T) => y0 - ((T - Tinf * 0.9) / (Ti - Tinf * 0.9)) * H;
+  let s = axes(x0, y0, W, H, 't', 'T');
+  let p = ''; for (let i = 0; i <= 60; i++) { const tt = (tmax * i) / 60; p += `${i ? 'L' : 'M'}${X(tt)},${Y(Tinf + (Ti - Tinf) * Math.exp(-tt / tau))} `; }
+  s += `<path d="${p}" class="d-curve-hot" fill="none"/>` + line(x0, Y(Tinf), x0 + W, Y(Tinf), 'd-muted', 'stroke-dasharray="4 3"');
+  const T1 = Tinf + (Ti - Tinf) * Math.exp(-1);
+  s += line(X(tau), Y(T1), X(tau), y0, 'd-accent', 'stroke-dasharray="3 3"') + `<circle cx="${X(tau)}" cy="${Y(T1)}" r="4" class="d-accent-fill"/>` + t(X(tau) + 6, Y(T1) - 6, 'τ: נשאר 37% מההפרש', 'd-text-accent', 'start');
+  s += t(x0 + W, Y(Tinf) - 6, 'T∞', 'd-text', 'end');
+  return svg(320, 172, s, 'lumped cooling curve');
+}
+
+export function heatModes() {
+  let s = `<rect x="20" y="70" width="90" height="60" class="d-hot"/>` + t(65, 104, 'חם');
+  // conduction: rod into the block
+  s += `<rect x="110" y="92" width="70" height="16" class="d-section"/>` + arrow(118, 100, 172, 100) + t(145, 124, 'הולכה', 'd-text-load');
+  // convection: rising air
+  s += `<path d="M50,64 q-8,-12 0,-22 q8,-10 0,-22" class="d-curve" fill="none"/><path d="M80,64 q-8,-12 0,-22 q8,-10 0,-22" class="d-curve" fill="none"/>` + t(65, 14, 'הסעה', 'd-text-accent');
+  // radiation: wavy arrows
+  for (const y of [70, 100, 128]) s += `<path d="M200,${y} q8,-8 16,0 t16,0 t16,0 t16,0" class="d-curve2" fill="none"/>` + arrow(264, y, 290, y, 'd-curve2');
+  s += t(245, 154, 'קרינה (גם בוואקום)', 'd-text');
+  return svg(320, 162, s, 'three modes of heat transfer');
+}
+
+export function psychro() {
+  const x0 = 40, y0 = 150, W = 250, H = 120;
+  let s = axes(x0, y0, W, H, 'T יבש', 'ω');
+  let p = ''; for (let i = 0; i <= 40; i++) { const u = i / 40; p += `${i ? 'L' : 'M'}${x0 + u * W},${y0 - H * (Math.exp(3 * u) - 1) / (Math.exp(3) - 1)} `; }
+  s += `<path d="${p}" class="d-curve" fill="none"/>` + t(x0 + W * 0.98, y0 - H * 1.02, 'רוויה 100%', 'd-text-accent', 'end');
+  const cx = x0 + W * 0.78, cy = y0 - H * 0.22;
+  s += `<circle cx="${cx}" cy="${cy}" r="4" class="d-load-fill"/>`;
+  s += arrow(cx, cy, cx + 40, cy) + t(cx + 20, cy + 16, 'חימום', 'd-text');
+  s += arrow(cx, cy, cx - 46, cy, 'd-accent', 'arra') + t(cx - 24, cy + 16, 'קירור', 'd-text-accent');
+  s += arrow(cx, cy, cx, cy - 34, 'd-curve2') + t(cx + 6, cy - 26, 'הוספת לחות', 'd-text', 'start');
+  s += t(x0 + W / 2, y0 + 30, 'קירור עד קו הרוויה (נקודת הטל): המים מתחילים להתעבות', 'd-text');
+  return svg(320, 188, s, 'psychrometric processes');
+}
+
 export const registry = {
   beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar,
   tank, hydraulicPress, floating, pipeContraction, torricelliTank, pitot, velocityProfiles, moody, pumpCurve, dragCar, jetPlate,
@@ -778,6 +951,7 @@ export const registry = {
   tackle, atwood, twoCables, capstanDrum,
   poissonBar, torsionDistribution, bendingFibers, safetyDistributions, fractureSurface, streamlinesHole,
   couette, energyBars, jominy, caseProfile, anodizeGrowth, passiveLayer, hazProfile, galvanicCell,
+  pvCycle, tsCarnot, heatEngine, fridgeLoop, rankineLoop, wallProfile, resistanceChain, hxProfiles, coolingCurve, heatModes, psychro,
 };
 
 // content uses {fn:'beam', args:['ss-udl',{diagrams:true}]}

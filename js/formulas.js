@@ -283,6 +283,52 @@ export const pren = ({ Cr = 0, Mo = 0, N = 0 }) => Cr + 3.3 * Mo + 16 * N;
 // thermal mismatch between two parts of the same length
 export const thermalMismatch = (a1, a2, dT, L) => Math.abs(a1 - a2) * dT * L;
 
+// =====================================================================
+// THERMODYNAMICS & HEAT TRANSFER (SI, temperatures in K unless noted)
+// =====================================================================
+export const AIR_GAS = { R: 287, k: 1.4, cp: 1005, cv: 718 }; // Cengel & Boles, Table A-2
+export const CP_WATER = 4180;                                  // J/kg·K, ~25 °C
+export const SIGMA_SB = 5.67e-8;                               // Stefan-Boltzmann, W/m²K⁴
+export const K = (c) => c + 273.15;
+
+export const sensibleHeat = (m, c, dT) => m * c * dT;
+export const firstLawDU = (Q, W) => Q - W; // W = work done BY the system
+// ideal gas, mass form: P V = m R T
+export const idealGasP = (m, R, T, V) => (m * R * T) / V;
+export const isochoricP2 = (P1, T1, T2) => (P1 * T2) / T1;
+export const isothermalWork = (P1, V1, V2) => P1 * V1 * Math.log(V2 / V1);
+export const isentropicT2fromP = (T1, P1, P2, k = 1.4) => T1 * (P2 / P1) ** ((k - 1) / k);
+export const isentropicT2fromV = (T1, r, k = 1.4) => T1 * r ** (k - 1); // r = V1/V2
+export const isentropicP2fromV = (P1, r, k = 1.4) => P1 * r ** k;
+export const polytropicWork = (P1, V1, P2, V2, n) => (P2 * V2 - P1 * V1) / (1 - n);
+
+export const carnotEff = (TH, TC) => 1 - TC / TH;
+export const copRefrigCarnot = (TC, TH) => TC / (TH - TC);
+export const copHeatPumpCarnot = (TC, TH) => TH / (TH - TC);
+export const ottoEff = (r, k = 1.4) => 1 - 1 / r ** (k - 1);
+export const dieselEff = (r, rc, k = 1.4) => 1 - (1 / r ** (k - 1)) * ((rc ** k - 1) / (k * (rc - 1)));
+export const braytonEff = (rp, k = 1.4) => 1 - 1 / rp ** ((k - 1) / k);
+export const shaftPower = (T, rpm) => (T * 2 * PI * rpm) / 60;
+
+// conduction / resistances (W, K)
+export const fourier = (k, A, dT, L) => (k * A * dT) / L;
+export const Rwall = (L, k, A) => L / (k * A);
+export const Rcyl = (r1, r2, k, L) => Math.log(r2 / r1) / (2 * PI * k * L);
+export const Rconv = (h, A) => 1 / (h * A);
+// convection, lumped capacitance
+export const newtonCooling = (h, A, dT) => h * A * dT;
+export const timeConstant = (rho, c, V, h, A) => (rho * c * V) / (h * A);
+export const lumpedT = (Tinf, Ti, t, tau) => Tinf + (Ti - Tinf) * Math.exp(-t / tau);
+export const biot = (h, Lc, k) => (h * Lc) / k;
+// radiation
+export const radiationNet = (eps, A, Ts, Tsur) => eps * SIGMA_SB * A * (Ts ** 4 - Tsur ** 4);
+// heat exchangers
+export const lmtd = (dT1, dT2) => (Math.abs(dT1 - dT2) < 1e-9 ? dT1 : (dT1 - dT2) / Math.log(dT1 / dT2));
+export const hxDuty = (U, A, dTlm) => U * A * dTlm;
+// electronics cooling: junction temperature and required heat-sink resistance
+export const junctionTemp = (Ta, P, Rs) => Ta + P * Rs.reduce((a, b) => a + b, 0);
+export const requiredRsa = (TjMax, Ta, P, Rjc, Rcs) => (TjMax - Ta) / P - Rjc - Rcs;
+
 // ---------- Helpers ----------
 export const deg = (rad) => (rad * 180) / PI;
 export const rad = (d) => (d * PI) / 180;
