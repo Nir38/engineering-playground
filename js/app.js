@@ -3,8 +3,9 @@ import { allDomains } from '../data/catalog.js';
 import { generators, makeQuestion, fmt } from './generators.js';
 import { draw } from './diagrams.js';
 import { esc, rich } from './text.js';
+import { renderPlayground } from './playground.js';
 
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.1.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }
@@ -74,6 +75,7 @@ const routes = [
   [/^#\/quiz\/run$/, quizRun, 'quiz'],
   [/^#\/progress$/, progressView, 'progress'],
   [/^#\/search$/, searchView, 'learn'],
+  [/^#\/play$/, () => renderPlayground(view, { setTitle, toast }), 'play'],
 ];
 function router() {
   const h = location.hash || '#/';

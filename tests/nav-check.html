@@ -12,7 +12,7 @@
   let W, D;
   const $ = (s) => D.querySelector(s);
   const go = async (h) => { W.location.hash = h; await sleep(200); };
-  const check = (name, cond) => log.push(`${cond ? 'PASS' : 'FAIL'} ${name}`);
+  const check = (name, cond, info = '') => log.push(`${cond ? 'PASS' : 'FAIL'} ${name}${cond || !info ? '' : ' (' + info + ')'}`);
   const qIndex = () => { const t = $('.qhead .small'); return t ? t.textContent.trim() : ''; };
   async function answerCurrent() {
     if ($('.option:not([disabled])')) { $('.option:not([disabled])').click(); }
@@ -123,6 +123,28 @@
   check('search finds the pulleys lesson', [...D.querySelectorAll('#res a')].some((a) => a.getAttribute('href').endsWith('/pulleys')));
   const before = D.documentElement.getAttribute('data-theme'); $('#themeBtn').click(); await sleep(50);
   check('theme button switches theme', D.documentElement.getAttribute('data-theme') !== before);
+
+  // 10. playground
+  await go('#/play');
+  check('playground tab opens and is marked active', !!$('#pgCanvas') && $('.tabbar a.active')?.dataset.tab === 'play');
+  $('[data-tpl="ss"]').click(); await sleep(80);
+  check('simply supported template: determinate, R = 30 kN', $('#pgResults .pg-status.good') && $('#pgResults').textContent.includes('Ry = 30 kN'));
+  $('[data-add="point"]').click(); await sleep(80);
+  check('adding a force opens its editor', $('#pgEdit h3')?.textContent.includes('כוח נקודתי'));
+  const g = $('#pgCanvas .pg-sel'), r0 = g.getBoundingClientRect(), xBefore = $('#pgEdit [data-f="x"]').value;
+  const pe = (type, el, x) => el.dispatchEvent(new W.PointerEvent(type, { bubbles: true, clientX: x, clientY: r0.top + r0.height / 2, pointerId: 7, isPrimary: true }));
+  pe('pointerdown', g.querySelector('.pg-hit'), r0.left + r0.width / 2); pe('pointermove', $('#pgCanvasWrap'), r0.left + r0.width / 2 + 60); await sleep(80);
+  pe('pointerup', $('#pgCanvasWrap'), r0.left + r0.width / 2 + 60); await sleep(80);
+  const xAfter = $('#pgEdit [data-f="x"]').value;
+  check('dragging moves the force to the right', parseFloat(xAfter) > parseFloat(xBefore), `${xBefore} -> ${xAfter}`);
+  const inpP = $('#pgEdit [data-f="P"]'); inpP.value = '50'; inpP.dispatchEvent(new W.Event('input', { bubbles: true })); await sleep(80);
+  check('typing a force value updates the results', $('#pgResults').textContent.includes('Ry') && $('#pgCanvas').textContent.includes('50 kN'));
+  $('#pgEdit [data-act="del"]').click(); await sleep(80);
+  check('delete removes the force', !$('#pgCanvas').textContent.includes('50 kN') && $('#pgEdit h3')?.textContent.includes('הקורה'));
+  $('[data-tpl="empty"]').click(); await sleep(50); $('[data-add="roller"]').click(); await sleep(50); $('[data-add="roller"]').click(); await sleep(50);
+  check('two rollers are reported as a mechanism', !!$('#pgResults .pg-status.bad'));
+  $('[data-tpl="prop"]').click(); await sleep(50); await go('#/learn'); await go('#/play');
+  check('the scene is kept after leaving the tab', $('#pgResults .pg-status.warn') && $('#pgResults').textContent.includes('22.5 kN'));
 
   const fails = log.filter((l) => l.startsWith('FAIL'));
   out.textContent = log.join('\n') + `\n\n${log.length - fails.length}/${log.length} passed`;

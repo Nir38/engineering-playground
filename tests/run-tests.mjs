@@ -8,6 +8,7 @@ import * as f from '../js/formulas.js';
 import { generators, makeQuestion } from '../js/generators.js';
 import { registry, draw } from '../js/diagrams.js';
 import { domains } from '../data/catalog.js';
+import { beamChecks } from './beam-cases.mjs';
 
 const require = createRequire(import.meta.url);
 const katex = require('../vendor/katex/katex.min.js');
@@ -567,6 +568,9 @@ const ex = [
   check('Richardson exact for p=2 error', near(f.richardson(10 + 1 / 16, 10 + 1 / 4), 10, 1e-12));
   check('pctDiff sign', f.pctDiff(95, 100) === -5 && f.pctDiff(110, 100) === 10);
 }
+// ---------- playground beam solver vs textbook tables ----------
+beamChecks(check, near);
+
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {
   const sub = (id) => domains.flatMap((d) => (d.module ? d.module.subtopics : [])).find((s) => s.id === id);
