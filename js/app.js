@@ -4,7 +4,7 @@ import { generators, makeQuestion, fmt } from './generators.js';
 import { draw } from './diagrams.js';
 import { esc, rich } from './text.js';
 
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }
@@ -29,7 +29,19 @@ function mathify(el = view) {
   if (window.renderMathInElement) {
     window.renderMathInElement(el, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '$', right: '$', display: false }], throwOnError: false });
   }
+  fitMath(el);
 }
+// shrink display equations that are wider than the screen (down to 62%)
+function fitMath(el = view) {
+  el.querySelectorAll('.katex-display').forEach((d) => {
+    const R = d.getBoundingClientRect();
+    if (!R.width) return;
+    const over = () => { const r = d.getBoundingClientRect(); return [...d.querySelectorAll('.base')].some((b) => { const q = b.getBoundingClientRect(); return q.right > r.right + 1 || q.left < r.left - 1; }); };
+    let size = 1;
+    while (over() && size > 0.62) { size -= 0.06; d.style.fontSize = `${size.toFixed(2)}em`; }
+  });
+}
+window.__fitMath = fitMath; // used by tests/overflow-check.html
 function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t);
   setTimeout(() => t.remove(), 2200);
@@ -179,6 +191,7 @@ function lessonView(did, sid) {
     const stepsEl = $('#steps');
     const show = (n) => {
       while (shown < Math.min(n, L.example.steps.length)) { stepsEl.insertAdjacentHTML('beforeend', `<div class="step">${tex(L.example.steps[shown])}</div>`); shown++; }
+      fitMath(stepsEl);
       if (shown >= L.example.steps.length) { $('#nextStep').disabled = true; $('#allSteps').disabled = true; }
     };
     $('#nextStep').onclick = () => show(shown + 1);

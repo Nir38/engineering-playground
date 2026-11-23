@@ -265,6 +265,8 @@ const ex = [
   check('rich(): every math segment is LTR-isolated', !bad, bad.slice(0, 80));
   check('rich(): "$E=200$ GPa" keeps the unit with the number', rich('($E=200$ GPa)').includes('<span class="ltr">$E=200$ GPa</span>'));
   check('rich(): "650-1100 MPa" isolated as one run', rich('של 650-1100 MPa אחרי').includes('<span class="ltr">650-1100 MPa</span>'));
+  check('rich(): "400/230 V" stays one run', rich('מוריד ל-400/230 V לבניינים').includes('<span class="ltr">400/230 V</span>'));
+  check('rich(): "12.6/22/33 kV" stays one run', rich('מתחים 12.6/22/33 kV').includes('<span class="ltr">12.6/22/33 kV</span>'));
   check('rich(): Hebrew after math is not swallowed', rich('$x$ ואחר כך').includes('<span class="ltr">$x$</span> ואחר'));
 }
 
@@ -334,6 +336,49 @@ const ex = [
     check('counter-flow area from marching = Q / (U ΔTlm)', near(A, Q / f.lmtd(50, 40), 2e-3));
   }
   check('Rcyl ≈ Rwall for a thin shell', near(f.Rcyl(1, 1.001, 50, 2), f.Rwall(0.001, 50, 2 * Math.PI * 1.0005 * 2), 1e-6));
+}
+
+// ---------- electricity: worked examples and independent cross-checks ----------
+{
+  const ex3 = [
+    ['e-basics I', 2000 / 230, 8.7, 3e-3], ['e-basics R', 230 ** 2 / 2000, 26.5, 2e-3],
+    ['e-basics R cable', f.wireR(f.RHO_CU, 40, 2.5e-6), 0.27, 1e-2], ['e-basics ΔV', 16 * f.wireR(f.RHO_CU, 40, 2.5e-6), 4.3, 1e-2],
+    ['e-circuits series', f.seriesR(100, 100), 200, 1e-12], ['e-circuits parallel', f.parallelR(100, 100), 50, 1e-12],
+    ['e-circuits ec2 parallel 100‖1', f.parallelR(100, 1), 0.99, 1e-2], ['e-circuits divider', f.divider(12, 10, 4.7), 3.84, 2e-3],
+    ['e-ac peak', f.vPeak(230), 325, 2e-3], ['e-ac line voltage', f.lineFromPhase(230), 400, 5e-3], ['e-ac motor I', f.threePhaseCurrent(11000, 400, 0.85), 18.7, 2e-3],
+    ['e-magnet ratio', 22000 / 400, 55, 1e-12], ['e-magnet I1', f.transformerI2(550, 400, 22000), 10, 1e-12],
+    ['e-dcmotor start', f.dcStartCurrent(24, 0.2), 120, 1e-12], ['e-dcmotor running', f.dcCurrent(24, 0.1, 200, 0.2), 20, 1e-9],
+    ['e-acmotor Ns', f.syncSpeed(50, 4), 1500, 1e-12], ['e-acmotor slip', f.slip(1500, 1450), 0.033, 1.1e-2], ['e-acmotor 2-pole', f.syncSpeed(50, 2), 3000, 1e-12],
+    ['e-drives resolution [μm]', f.leadScrewResolution(5, 200, 16) * 1000, 1.6, 2.5e-2], ['e-drives step angle', f.stepAngle(200), 1.8, 1e-12],
+    ['e-drives gear torque', f.gearOutTorque(2, 10, 0.9), 18, 1e-12],
+    ['e-home 1×40 (tariff 9.24)', f.connectionKVA(40, 1), 9.24, 1e-3], ['e-home 3×25 (tariff 17.32)', f.connectionKVA(25, 3), 17.32, 1e-3],
+    ['e-home 3×40', f.connectionKVA(40, 3), 27.7, 2e-3], ['e-home 0.23 kVA per A', f.connectionKVA(1, 1), 0.23, 5e-3], ['e-home 16 A circuit', 230 * 16, 3680, 1e-12],
+    ['e-grid I at 22 kV', f.threePhaseCurrent(1e6, 22000), 26, 1e-2], ['e-grid loss 22 kV [kW]', f.lineLoss3ph(1e6, 22000, 1) / 1000, 2.1, 2e-2],
+    ['e-grid I at 400 V', f.threePhaseCurrent(1e6, 400), 1443, 1e-3], ['e-grid loss 400 V [MW]', f.lineLoss3ph(1e6, 400, 1) / 1e6, 6.25, 1e-9],
+    ['e-grid loss ratio', f.lineLoss3ph(1e6, 400, 1) / f.lineLoss3ph(1e6, 22000, 1), 3025, 1e-9], ['e-grid sag', f.cableSag(15, 300, 20000), 8.4, 1e-2],
+  ];
+  ex3.forEach(([n, got, want, tol]) => check(n, near(got, want, tol), `got ${got}, lesson says ${want}`));
+  // star-delta: line current in star is 1/3 of delta for the same windings (impedance Z)
+  const VL = 400, Z = 10, Istar = (VL / Math.sqrt(3)) / Z, Idelta = Math.sqrt(3) * (VL / Z);
+  check('star-delta: starting current ÷3', near(Istar / Idelta, 1 / 3, 1e-12));
+  // balanced three-phase: instantaneous sum is zero; total power = 3·Vph·I = √3·VL·I
+  let maxSum = 0; for (let k = 0; k < 100; k++) { const w = k * 0.0637; maxSum = Math.max(maxSum, Math.abs(Math.sin(w) + Math.sin(w - 2 * Math.PI / 3) + Math.sin(w + 2 * Math.PI / 3))); }
+  check('three phases sum to zero', maxSum < 1e-12);
+  check('3·Vph·I = √3·VL·I', near(3 * 230.94 * 10, f.threePhasePower(400, 10), 1e-4));
+  // DC motor power balance: V·I = E·I + I²R
+  { const V = 48, k = 0.2, w = 150, Ra = 0.3, I = f.dcCurrent(V, k, w, Ra);
+    check('DC motor: V·I = E·I + I²R', near(V * I, k * w * I + I * I * Ra, 1e-12));
+    check('DC motor: mechanical power = T·ω = E·I', near(f.dcTorque(k, I) * w, k * w * I, 1e-12)); }
+  // ideal transformer conserves power
+  check('transformer: V1·I1 = V2·I2', near(22000 * f.transformerI2(550, 400, 22000), 400 * 550, 1e-12));
+  // parallel is always below the smallest resistor
+  check('parallel < smallest resistor', [[3, 7], [1, 1000], [50, 50]].every(([a, b]) => f.parallelR(a, b) < Math.min(a, b)));
+  // RMS of a sine = peak/√2 by numerical integration
+  let ms = 0; const N = 100000; for (let i = 0; i < N; i++) ms += (325.27 * Math.sin((2 * Math.PI * (i + 0.5)) / N)) ** 2 / N;
+  check('RMS of 325 V peak sine = 230 V', near(Math.sqrt(ms), 230, 1e-3));
+  // parabolic sag vs exact catenary
+  { const w = 15, L = 300, H = 20000, exact = (H / w) * (Math.cosh((w * L) / (2 * H)) - 1);
+    check('parabolic sag within 0.5% of catenary', near(f.cableSag(w, L, H), exact, 5e-3)); }
 }
 
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------

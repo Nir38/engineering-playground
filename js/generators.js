@@ -1152,7 +1152,7 @@ Object.assign(generators, {
       return {
         q: `קיר בשטח $${A}$ m²: לבנה ($k=0.72$, $${L1 * 1000}$ mm) ובידוד ($k=0.04$, $${L2 * 1000}$ mm), עם הסעה $h=${h}$ W/m²·K משני הצדדים. הפרש הטמפרטורות בין האוויר בפנים לאוויר בחוץ $${dT}$ K. מה איבוד החום?`,
         answer: Q, unit: 'W',
-        steps: [`R_{brick}=\\frac{L}{kA}=${fmt(R1, 4)},\\quad R_{ins}=${fmt(R2, 4)},\\quad R_{conv}=\\frac{1}{hA}=${fmt(Rc, 4)}\\ \\text{K/W}`, `R_{tot}=${fmt(Rt, 4)}\\ \\text{K/W}`, `\\dot Q=\\frac{\\Delta T}{R_{tot}}=${fmt(Q, 4)}\\ \\text{W}`],
+        steps: [`R_{brick}=\\frac{L}{kA}=${fmt(R1, 4)}\\ \\text{K/W}`, `R_{ins}=${fmt(R2, 4)}\\ \\text{K/W}`, `R_{conv}=\\frac{1}{hA}=${fmt(Rc, 4)}\\ \\text{K/W (each side)}`, `R_{tot}=R_{brick}+R_{ins}+2R_{conv}=${fmt(Rt, 4)}\\ \\text{K/W}`, `\\dot Q=\\frac{\\Delta T}{R_{tot}}=${fmt(Q, 4)}\\ \\text{W}`],
         hint: 'כמו נגדים בטור: מחברים את כל ההתנגדויות, וכל הזרם (החום) עובר דרך כולן.',
         diagram: { fn: 'wallProfile', args: [{ layers: [{ n: 'לבנה', R: R1, w: 90 }, { n: 'בידוד', R: R2, w: 60 }] }] }, source: `${SRC_I}, פרק 3`,
       };
@@ -1258,6 +1258,256 @@ Object.assign(generators, {
         steps: [`R_{tot,max}=\\frac{T_{j,max}-T_a}{P}=\\frac{${TjMax}-${Ta}}{${P}}=${fmt((TjMax - Ta) / P, 4)}`, `R_{sa}\\le R_{tot}-R_{jc}-R_{cs}=${fmt(R, 4)}\\ \\text{K/W}`],
         hint: 'בוחרים גוף קירור עם R קטן מזה, עם מרווח. מאוורר מקטין R_sa מאוד.',
         diagram: { fn: 'resistanceChain', args: [{}] }, source: `${SRC_I}, פרק 3`,
+      };
+    },
+  },
+});
+
+// =====================================================================
+// ELECTRICITY & DRIVES
+// =====================================================================
+const SRC_HU = 'Hughes, Electrical and Electronic Technology';
+const SRC_CH = 'Chapman, Electric Machinery Fundamentals';
+Object.assign(generators, {
+  'ge-ohm': {
+    subtopic: 'e-basics', difficulty: 1,
+    make() {
+      const P = pick([800, 1200, 2000, 2200, 3000]); const ask = pick(['I', 'R']);
+      const I = P / 230, R = 230 ** 2 / P;
+      return {
+        q: `מכשיר של $${P}$ W מחובר לשקע 230 V (עומס התנגדותי). מה ${ask === 'I' ? 'הזרם שהוא צורך' : 'ההתנגדות שלו'}?`,
+        answer: ask === 'I' ? I : R, unit: ask === 'I' ? 'A' : 'Ω',
+        steps: [`I=\\frac{P}{V}=\\frac{${P}}{230}=${fmt(I, 4)}\\ \\text{A}`, `R=\\frac{V}{I}=\\frac{V^2}{P}=${fmt(R, 4)}\\ \\Omega`],
+        hint: 'P = VI, ו-V = IR.',
+        diagram: { fn: 'waterAnalogy', args: [] }, source: SRC_HU,
+      };
+    },
+  },
+  'ge-wire': {
+    subtopic: 'e-basics', difficulty: 2,
+    make() {
+      const L = pick([10, 15, 20, 30]); const A = pick([1.5, 2.5, 4]); const I = pick([10, 16, 20]);
+      const R = f.wireR(f.RHO_CU, 2 * L, A * 1e-6); const dV = I * R; const P = f.powerI2R(I, R);
+      const ask = pick(['dV', 'P']);
+      return {
+        q: `שקע נמצא $${L}$ m מהלוח. הכבל מנחושת ($\\rho=1.68\\times10^{-8}$ Ω·m) בחתך $${A}$ mm², והזרם $${I}$ A. ${ask === 'dV' ? 'מה מפל המתח בכבל (הלוך וחזור)?' : 'כמה חום מתפתח בכבל?'}`,
+        answer: ask === 'dV' ? dV : P, unit: ask === 'dV' ? 'V' : 'W',
+        steps: [`R=\\frac{\\rho\\,(2L)}{A}=\\frac{1.68\\times10^{-8}\\cdot${2 * L}}{${A}\\times10^{-6}}=${fmt(R, 4)}\\ \\Omega`, `\\Delta V=IR=${fmt(dV, 4)}\\ \\text{V},\\quad P=I^2R=${fmt(P, 4)}\\ \\text{W}`],
+        hint: 'הזרם עובר בפאזה ובאפס: האורך הכולל כפול.',
+        source: SRC_HU,
+      };
+    },
+  },
+  'ge-kwh': {
+    subtopic: 'e-basics', difficulty: 1,
+    make() {
+      const P = pick([800, 1200, 1500, 2000]); const h = pick([2, 4, 6, 8]); const price = pick([0.55, 0.6, 0.65]);
+      const E = f.energyKWh(P, h);
+      return {
+        q: `מזגן צורך $${P}$ W ופועל $${h}$ שעות ביום. בהנחה שמחיר קוט"ש הוא $${price}$ ₪ (ערך לתרגיל), כמה עולה יום אחד?`,
+        answer: E * price, unit: '₪',
+        steps: [`E=P\\,t=${P / 1000}\\ \\text{kW}\\cdot${h}\\ \\text{h}=${fmt(E, 4)}\\ \\text{kWh}`, `\\text{cost}=${fmt(E, 4)}\\cdot${price}=${fmt(E * price, 4)}`],
+        hint: 'קוט"ש = kWh = קילוואט כפול שעה. זו יחידת אנרגיה, לא הספק.',
+        source: SRC_HU,
+      };
+    },
+  },
+  'ge-series-parallel': {
+    subtopic: 'e-circuits', difficulty: 1,
+    make() {
+      const R1 = pick([10, 22, 47, 100]); const R2 = pick([10, 33, 68, 100, 220]); const kind = pick(['s', 'p']);
+      const R = kind === 's' ? f.seriesR(R1, R2) : f.parallelR(R1, R2);
+      return {
+        q: `שני נגדים, $${R1}$ Ω ו-$${R2}$ Ω, מחוברים ${kind === 's' ? 'בטור' : 'במקביל'}. מה ההתנגדות השקולה?`,
+        answer: R, unit: 'Ω',
+        steps: [kind === 's' ? `R=R_1+R_2=${R1}+${R2}=${R}` : `R=\\frac{R_1R_2}{R_1+R_2}=\\frac{${R1}\\cdot${R2}}{${R1 + R2}}=${fmt(R, 4)}\\ \\Omega`],
+        hint: 'במקביל ההתנגדות השקולה תמיד קטנה מהנגד הקטן.',
+        diagram: { fn: 'circuits', args: [] }, source: SRC_HU,
+      };
+    },
+  },
+  'ge-divider': {
+    subtopic: 'e-circuits', difficulty: 2,
+    make() {
+      const Vin = pick([5, 12, 24]); const R1 = pick([1, 2.2, 4.7, 10]); const R2 = pick([1, 3.3, 4.7, 10]);
+      const Vo = f.divider(Vin, R1, R2);
+      return {
+        q: `מחלק מתח: $V_{in}=${Vin}$ V, $R_1=${R1}$ kΩ (עליון), $R_2=${R2}$ kΩ (תחתון). מה המתח על $R_2$?`,
+        answer: Vo, unit: 'V',
+        steps: [`V_{out}=V_{in}\\frac{R_2}{R_1+R_2}=${Vin}\\cdot\\frac{${R2}}{${fmt(R1 + R2, 4)}}=${fmt(Vo, 4)}\\ \\text{V}`],
+        hint: 'כך מחברים חיישן התנגדותי (תרמיסטור, פוטנציומטר) לכניסה של בקר.',
+        source: SRC_HU,
+      };
+    },
+  },
+  'ge-3phase': {
+    subtopic: 'e-ac', difficulty: 2,
+    make() {
+      const P = pick([3, 5.5, 7.5, 11, 15, 22]); const pf = pick([0.8, 0.85, 0.9]);
+      const I = f.threePhaseCurrent(P * 1000, 400, pf);
+      return {
+        q: `מנוע תלת-פאזי של $${P}$ kW (הספק חשמלי) ברשת 400 V, עם מקדם הספק $\\cos\\varphi=${pf}$. מה הזרם בכל פאזה?`,
+        answer: I, unit: 'A',
+        steps: [`P=\\sqrt3\\,V_LI\\cos\\varphi`, `I=\\frac{${P * 1000}}{\\sqrt3\\cdot400\\cdot${pf}}=${fmt(I, 4)}\\ \\text{A}`],
+        hint: 'בתלת-פאזי מתח הקו (בין פאזות) הוא 400 V.',
+        diagram: { fn: 'threePhase', args: [] }, source: SRC_HU,
+      };
+    },
+  },
+  'ge-peak': {
+    subtopic: 'e-ac', difficulty: 1,
+    make() {
+      const V = pick([12, 24, 110, 230, 400]);
+      return {
+        q: `מה מתח השיא של מתח חילופין סינוסי עם ערך RMS של $${V}$ V?`,
+        answer: f.vPeak(V), unit: 'V',
+        steps: [`V_{peak}=\\sqrt2\\,V_{rms}=1.414\\cdot${V}=${fmt(f.vPeak(V), 4)}\\ \\text{V}`],
+        hint: 'RMS הוא הערך שנותן את אותו חימום כמו DC באותו מתח.',
+        diagram: { fn: 'sineWave', args: [{}] }, source: SRC_HU,
+      };
+    },
+  },
+  'ge-transformer': {
+    subtopic: 'e-magnet', difficulty: 2,
+    make() {
+      // turn counts chosen so N2 comes out a whole number
+      const c = pick([{ V1: 230, V2: 12, N: [230, 460, 1150] }, { V1: 230, V2: 24, N: [230, 460, 1150] }, { V1: 22000, V2: 400, N: [5500, 11000] }, { V1: 400, V2: 230, N: [400, 800] }]);
+      const N1 = pick(c.N); const N2 = (N1 * c.V2) / c.V1;
+      const I2 = pick([2, 5, 10]); const I1 = f.transformerI2(I2, N2, N1);
+      const ask = pick(['N2', 'I1']);
+      return {
+        q: `שנאי אידיאלי מוריד מתח מ-$${c.V1}$ V ל-$${c.V2}$ V. לליפוף הראשוני $${N1}$ כריכות. ${ask === 'N2' ? 'כמה כריכות במשני?' : `העומס במשני צורך $${I2}$ A. מה הזרם בראשוני?`}`,
+        answer: ask === 'N2' ? N2 : I1, unit: ask === 'N2' ? '' : 'A',
+        steps: [`\\frac{N_2}{N_1}=\\frac{V_2}{V_1}\\Rightarrow N_2=${N1}\\cdot\\frac{${c.V2}}{${c.V1}}=${fmt(N2, 4)}`, `\\text{power in = power out: }I_1=I_2\\frac{V_2}{V_1}=${fmt(I1, 4)}\\ \\text{A}`],
+        hint: 'מתח יורד, זרם עולה באותו יחס. ההספק נשמר (בשנאי אידיאלי).',
+        diagram: { fn: 'transformer', args: [{}] }, source: SRC_CH,
+      };
+    },
+  },
+  'ge-lorentz': {
+    subtopic: 'e-magnet', difficulty: 1,
+    make() {
+      const B = pick([0.5, 0.8, 1, 1.2]); const I = pick([5, 10, 20]); const L = pick([0.1, 0.2, 0.3]);
+      return {
+        q: `מוליך באורך $${L}$ m נושא זרם $${I}$ A בניצב לשדה מגנטי של $${B}$ T. מה הכוח עליו?`,
+        answer: f.lorentzForce(B, I, L), unit: 'N',
+        steps: [`F=BIL=${B}\\cdot${I}\\cdot${L}=${fmt(f.lorentzForce(B, I, L), 4)}\\ \\text{N}`],
+        hint: 'זה הכוח שמסובב כל מנוע חשמלי.',
+        source: SRC_HU,
+      };
+    },
+  },
+  'ge-dc-start': {
+    subtopic: 'e-dcmotor', difficulty: 2,
+    make() {
+      const V = pick([12, 24, 48]); const Ra = pick([0.1, 0.2, 0.5]); const k = pick([0.05, 0.1, 0.2]);
+      const w0 = f.dcNoLoadSpeed(V, k); const w = w0 * pick([0.7, 0.8, 0.9]);
+      const ask = pick(['start', 'run']);
+      const Is = f.dcStartCurrent(V, Ra), Ir = f.dcCurrent(V, k, w, Ra);
+      return {
+        q: `מנוע DC: $V=${V}$ V, התנגדות סליל $R_a=${Ra}$ Ω, קבוע $k=${k}$ V·s/rad. ${ask === 'start' ? 'מה זרם ההתנעה (המנוע עומד)?' : `מה הזרם כשהמנוע מסתובב ב-$${fmt(w, 4)}$ rad/s?`}`,
+        answer: ask === 'start' ? Is : Ir, unit: 'A',
+        steps: [`\\text{start: }E=0\\Rightarrow I=\\frac{V}{R_a}=${fmt(Is, 4)}\\ \\text{A}`, `\\text{running: }E=k\\omega=${fmt(k * w, 4)}\\ \\text{V},\\quad I=\\frac{V-E}{R_a}=${fmt(Ir, 4)}\\ \\text{A}`],
+        hint: 'ה-back EMF הוא מתח שהמנוע מייצר כשהוא מסתובב, והוא "מתנגד" למתח הספק.',
+        diagram: { fn: 'dcMotorCurve', args: [] }, source: SRC_CH,
+      };
+    },
+  },
+  'ge-sync': {
+    subtopic: 'e-acmotor', difficulty: 1,
+    make() {
+      const f0 = pick([50, 60]); const p = pick([2, 4, 6, 8]); const s = pick([0.02, 0.03, 0.04, 0.05]);
+      const Ns = f.syncSpeed(f0, p); const N = f.rotorSpeed(Ns, s); const ask = pick(['Ns', 'N']);
+      return {
+        q: `מנוע השראה עם $${p}$ קטבים מחובר לרשת $${f0}$ Hz. ${ask === 'Ns' ? 'מה המהירות הסינכרונית?' : `ההחלקה בעומס מלא $${s * 100}\\%$. מה מהירות הרוטור?`}`,
+        answer: ask === 'Ns' ? Ns : N, unit: 'rpm',
+        steps: [`N_s=\\frac{120f}{P}=\\frac{120\\cdot${f0}}{${p}}=${Ns}\\ \\text{rpm}`, `N=N_s(1-s)=${fmt(N, 5)}\\ \\text{rpm}`],
+        hint: 'בישראל 50 Hz. לכן מנוע 4 קטבים מסתובב בקצת פחות מ-1500 rpm.',
+        diagram: { fn: 'inductionCurve', args: [] }, source: SRC_CH,
+      };
+    },
+  },
+  'ge-stepper': {
+    subtopic: 'e-drives', difficulty: 2,
+    make() {
+      const steps = pick([200, 400]); const micro = pick([1, 4, 8, 16]); const lead = pick([2, 5, 8, 10]);
+      const res = f.leadScrewResolution(lead, steps, micro) * 1000;
+      return {
+        q: `מנוע צעד עם $${steps}$ צעדים לסיבוב (${fmt(f.stepAngle(steps), 3)}° לצעד), דרייבר ב-${micro === 1 ? 'צעד מלא' : `$${micro}$ מיקרו-צעדים`}, מניע בורג עם lead של $${lead}$ mm. מה התנועה הלינארית לכל פולס?`,
+        answer: res, unit: 'μm',
+        steps: [`\\text{pulses/rev}=${steps}\\cdot${micro}=${steps * micro}`, `\\Delta x=\\frac{${lead}}{${steps * micro}}\\ \\text{mm}=${fmt(res, 4)}\\ \\mu m`],
+        hint: 'מיקרו-צעדים משפרים חלקות ורזולוציה, אבל הדיוק בפועל תלוי גם במנוע ובבורג.',
+        diagram: { fn: 'leadScrew', args: [] }, source: SRC_HU,
+      };
+    },
+  },
+  'ge-gearbox': {
+    subtopic: 'e-drives', difficulty: 1,
+    make() {
+      const T = pick([1, 2, 5, 10]); const n = pick([1450, 2900, 3000]); const i = pick([5, 10, 20, 30, 50]); const eta = pick([0.9, 0.95, 0.85]);
+      const ask = pick(['T', 'n']);
+      return {
+        q: `מנוע מפיק $${T}$ N·m ב-$${n}$ rpm, ומחובר לתמסורת עם יחס $i=${i}$ ונצילות $${eta * 100}\\%$. מה ${ask === 'T' ? 'המומנט ביציאה' : 'המהירות ביציאה'}?`,
+        answer: ask === 'T' ? f.gearOutTorque(T, i, eta) : f.gearOutSpeed(n, i), unit: ask === 'T' ? 'N·m' : 'rpm',
+        steps: [`T_{out}=T_{in}\\,i\\,\\eta=${T}\\cdot${i}\\cdot${eta}=${fmt(f.gearOutTorque(T, i, eta), 4)}\\ \\text{N}\\cdot\\text{m}`, `n_{out}=\\frac{n_{in}}{i}=${fmt(f.gearOutSpeed(n, i), 4)}\\ \\text{rpm}`],
+        hint: 'תמסורת מורידה מהירות ומגדילה מומנט. ההספק נשאר (פחות ההפסדים).',
+        diagram: { fn: 'gears', args: [{ i }] }, source: SRC_HU,
+      };
+    },
+  },
+  'ge-connection': {
+    subtopic: 'e-home', difficulty: 1,
+    make() {
+      const c = pick([[1, 25], [1, 40], [3, 25], [3, 40], [3, 63]]);
+      const kva = f.connectionKVA(c[1], c[0]);
+      return {
+        q: `מה ההספק המקסימלי של חיבור חשמל ביתי בגודל $${c[0]}\\times${c[1]}$ A? (מתח פאזה $400/\\sqrt3\\approx231$ V)`,
+        answer: kva, unit: 'kVA',
+        steps: [`S=\\text{phases}\\cdot I\\cdot V_{ph}=${c[0]}\\cdot${c[1]}\\cdot230.9=${fmt(kva * 1000, 4)}\\ \\text{VA}`, `=${fmt(kva, 4)}\\ \\text{kVA}`],
+        hint: 'בספר התעריפים: בערך 0.23 kVA לכל אמפר בכל פאזה.',
+        diagram: { fn: 'homePanel', args: [] }, source: 'רשות החשמל, ספר התעריפים',
+      };
+    },
+  },
+  'ge-circuit-load': {
+    subtopic: 'e-home', difficulty: 2,
+    make() {
+      const A = pick([10, 16, 20]); const dev = pick([[2000, 'קומקום'], [1500, 'מפזר חום'], [2200, 'מייבש כביסה'], [1000, 'מיקרוגל']]);
+      const max = 230 * A;
+      return {
+        q: `מעגל שקעים מוגן במאמ"ת של $${A}$ A. מה ההספק המקסימלי שאפשר לחבר אליו ב-230 V? (ו${dev[1]} של $${dev[0]}$ W ועוד מכשיר זהה, יפילו אותו?)`,
+        answer: max, unit: 'W',
+        steps: [`P_{max}=VI=230\\cdot${A}=${max}\\ \\text{W}`, 2 * dev[0] > max ? `2\\cdot${dev[0]}=${2 * dev[0]}>${max}\\Rightarrow\\text{trips (after a while)}` : `2\\cdot${dev[0]}=${2 * dev[0]}\\le${max}\\Rightarrow\\text{OK}`],
+        hint: 'מאמ"ת מגן על הכבל, לא על המכשיר. בעומס יתר קטן הוא מנתק אחרי זמן (תרמי), בקצר מיד (מגנטי).',
+        diagram: { fn: 'homePanel', args: [] }, source: SRC_HU,
+      };
+    },
+  },
+  'ge-lineloss': {
+    subtopic: 'e-grid', difficulty: 3,
+    make() {
+      const P = pick([0.5, 1, 2]); const R = pick([0.5, 1, 2]); const V = pick([400, 22000]);
+      const loss = f.lineLoss3ph(P * 1e6, V, R) / 1000;
+      return {
+        q: `מעבירים $${P}$ MW (cosφ=1) בקו תלת-פאזי עם התנגדות $${R}$ Ω לכל מוליך, במתח קו של $${V}$ V. כמה הספק הולך לאיבוד בחום?`,
+        answer: loss, unit: 'kW',
+        steps: [`I=\\frac{P}{\\sqrt3V}=${fmt(f.threePhaseCurrent(P * 1e6, V), 4)}\\ \\text{A}`, `P_{loss}=3I^2R=${fmt(loss * 1000, 4)}\\ \\text{W}`],
+        hint: V === 400 ? 'ב-400 V התוצאה אבסורדית: יותר מההספק עצמו. לכן אי אפשר להעביר הספק גדול למרחק במתח נמוך.' : 'הפסד ∝ 1/V². ב-22 kV הוא קטן פי 3025 מאשר ב-400 V.',
+        diagram: { fn: 'gridChain', args: [] }, source: SRC_HU,
+      };
+    },
+  },
+  'ge-sag': {
+    subtopic: 'e-grid', difficulty: 3,
+    make() {
+      const w = pick([10, 15, 20]); const L = pick([200, 300, 400]); const H = pick([15, 20, 30]);
+      const sg = f.cableSag(w, L, H * 1000);
+      return {
+        q: `מוליך במשקל $${w}$ N/m נמתח בין שני עמודים במפתח של $${L}$ m, עם מתיחות אופקית $${H}$ kN. מה השקיעה באמצע (קירוב פרבולי)?`,
+        answer: sg, unit: 'm',
+        steps: [`\\text{sag}\\approx\\frac{wL^2}{8H}=\\frac{${w}\\cdot${L}^2}{8\\cdot${H * 1000}}=${fmt(sg, 4)}\\ \\text{m}`],
+        hint: 'זו אותה נוסחה של מומנט מקסימלי בקורה תחת עומס מפוזר (wL²/8), חלקי המתיחות.',
+        diagram: { fn: 'cableSagSketch', args: [] }, source: 'Hibbeler, Engineering Mechanics: Statics, פרק 7',
       };
     },
   },

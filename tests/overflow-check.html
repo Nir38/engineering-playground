@@ -5,6 +5,8 @@
 <pre id="out">running…</pre>
 <iframe id="f" style="width:375px;height:800px;border:0"></iframe>
 <script type="module">
+  // an equation is too wide if any unbreakable piece (.base) sticks out of its box
+  const tooWide = (disp) => { const R = disp.getBoundingClientRect(); return [...disp.querySelectorAll('.base')].some((b) => { const r = b.getBoundingClientRect(); return r.right > R.right + 2 || r.left < R.left - 2; }); };
   import { allDomains } from '../data/catalog.js';
   const out = document.getElementById('out'), fr = document.getElementById('f');
   const pages = [];
@@ -16,11 +18,39 @@
   for (const p of pages) {
     fr.contentWindow.location.hash = p;
     await new Promise((r) => setTimeout(r, 250));
+    { const all = fr.contentDocument.getElementById('allSteps'); if (all) { all.click(); await new Promise((r) => setTimeout(r, 60)); } }
     const doc = fr.contentDocument, W = doc.documentElement.clientWidth;
     const bad = [...doc.querySelectorAll('#view *')].filter((e) => { const b = e.getBoundingClientRect(); return b.width > 0 && (b.right > W + 1 || b.left < -1) && !e.closest('.eq, .step, .katex-display'); });
+    const wide = [...doc.querySelectorAll('.eq .katex-display, .step .katex-display, .step')].filter((e) => e.classList.contains('katex-display') && tooWide(e));
+    wide.forEach((e) => lines.push(`WIDE EQUATION ${p}: ${(e.textContent || '').slice(0, 60)}`));
     if (bad.length || doc.documentElement.scrollWidth > W) lines.push(`OVERFLOW ${p}: ${bad.slice(0, 3).map((e) => e.tagName + '.' + e.className).join(', ')} sw=${doc.documentElement.scrollWidth}`);
   }
-  out.textContent = `checked ${pages.length} pages\n` + (lines.join('\n') || 'NO OVERFLOW');
+  // solution steps of every generator, rendered in a phone-width card
+  { // self-test: the check must catch a deliberately wide fraction
+    const b0 = fr.contentDocument.createElement('div'); b0.className = 'steps'; b0.style.cssText = 'width:311px;position:absolute;top:0;left:0'; fr.contentDocument.body.appendChild(b0);
+    b0.innerHTML = '<div class="step">' + fr.contentWindow.katex.renderToString(String.raw`\frac{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}{b}`, { displayMode: true }) + '</div>';
+    if (!tooWide(b0.querySelector('.katex-display'))) lines.push('SELF-TEST FAILED: wide fraction not detected');
+    b0.remove();
+  }
+  const { generators, makeQuestion } = await import('../js/generators.js');
+  const box = fr.contentDocument.createElement('div');
+  box.className = 'steps'; box.style.cssText = 'width:311px;position:absolute;top:0;left:0';
+  fr.contentDocument.body.appendChild(box);
+  let nSteps = 0;
+  for (const id of Object.keys(generators)) for (let k = 0; k < 25; k++) {
+    const q = makeQuestion(id);
+    let hit = false;
+    for (const st of q.steps) {
+      box.innerHTML = `<div class="step">${fr.contentWindow.katex.renderToString(st, { displayMode: true, throwOnError: false })}</div>`;
+      fr.contentWindow.__fitMath(box);
+      nSteps++;
+      const e = box.querySelector('.katex-display');
+      if (tooWide(e)) { lines.push(`WIDE STEP ${id}: ${st.slice(0, 70)}`); hit = true; break; }
+    }
+    if (hit) break;
+  }
+  box.remove();
+  out.textContent = `checked ${pages.length} pages, ${nSteps} generator steps\n` + (lines.join('\n') || 'NO OVERFLOW');
   document.title = lines.length ? 'FAIL' : 'PASS';
 </script>
 </body></html>

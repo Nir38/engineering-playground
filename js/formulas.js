@@ -329,6 +329,50 @@ export const hxDuty = (U, A, dTlm) => U * A * dTlm;
 export const junctionTemp = (Ta, P, Rs) => Ta + P * Rs.reduce((a, b) => a + b, 0);
 export const requiredRsa = (TjMax, Ta, P, Rjc, Rcs) => (TjMax - Ta) / P - Rjc - Rcs;
 
+// =====================================================================
+// ELECTRICITY & DRIVES (SI)
+// =====================================================================
+export const RHO_CU = 1.68e-8; // Ω·m, copper at 20 °C
+export const RHO_AL = 2.65e-8; // Ω·m, aluminium at 20 °C
+export const ohmI = (V, R) => V / R;
+export const wireR = (rho, L, A) => (rho * L) / A;
+export const powerVI = (V, I) => V * I;
+export const powerI2R = (I, R) => I * I * R;
+export const energyKWh = (P_W, hours) => (P_W * hours) / 1000;
+export const seriesR = (...R) => R.reduce((a, b) => a + b, 0);
+export const parallelR = (...R) => 1 / R.reduce((a, b) => a + 1 / b, 0);
+export const divider = (Vin, R1, R2) => (Vin * R2) / (R1 + R2);
+// AC
+export const vPeak = (Vrms) => Math.SQRT2 * Vrms;
+export const lineFromPhase = (Vph) => Math.sqrt(3) * Vph;
+export const threePhasePower = (VL, I, pf = 1) => Math.sqrt(3) * VL * I * pf;
+export const threePhaseCurrent = (P, VL, pf = 1) => P / (Math.sqrt(3) * VL * pf);
+export const singlePhasePower = (V, I, pf = 1) => V * I * pf;
+// magnetism & transformers
+export const lorentzForce = (B, I, L) => B * I * L;
+export const transformerV2 = (V1, N1, N2) => (V1 * N2) / N1;
+export const transformerI2 = (I1, N1, N2) => (I1 * N1) / N2;
+// DC motor (armature resistance Ra, constant k = ke = kt in SI)
+export const dcStartCurrent = (V, Ra) => V / Ra;
+export const dcCurrent = (V, k, omega, Ra) => (V - k * omega) / Ra;
+export const dcTorque = (k, I) => k * I;
+export const dcNoLoadSpeed = (V, k) => V / k; // rad/s
+// AC induction motor
+export const syncSpeed = (f, poles) => (120 * f) / poles; // rpm
+export const slip = (Ns, N) => (Ns - N) / Ns;
+export const rotorSpeed = (Ns, s) => Ns * (1 - s);
+// drives
+export const stepAngle = (stepsPerRev) => 360 / stepsPerRev;
+export const leadScrewResolution = (lead, stepsPerRev, micro = 1) => lead / (stepsPerRev * micro);
+export const gearOutTorque = (Tin, ratio, eta = 1) => Tin * ratio * eta;
+export const gearOutSpeed = (nin, ratio) => nin / ratio;
+// supply & grid
+// Israeli tariff book: 1×40 A = 9.24 kVA, 3×25 A = 17.32 kVA, i.e. Vph = 400/√3
+export const connectionKVA = (amps, phases, Vph = 400 / Math.sqrt(3)) => (amps * phases * Vph) / 1000;
+export const lineLoss3ph = (P, VL, R) => 3 * threePhaseCurrent(P, VL) ** 2 * R;
+// sag of a span (parabolic approximation): w = weight per length, H = horizontal tension
+export const cableSag = (w, L, H) => (w * L * L) / (8 * H);
+
 // ---------- Helpers ----------
 export const deg = (rad) => (rad * 180) / PI;
 export const rad = (d) => (d * PI) / 180;

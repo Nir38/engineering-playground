@@ -8,10 +8,11 @@ export const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
 
 const UNIT = '[A-Za-zµμΩ°%][A-Za-z0-9µμΩ°%·²³⁻¹]*(?:/[A-Za-z0-9µμ°²³]+)?';
 // number (optionally a range or product) followed by an optional Latin unit
-const NUM_UNIT = new RegExp(`\\d[\\d.,]*(?:\\s?[-–×x]\\s?\\d[\\d.,]*)?(?:\\s?(?:${UNIT}))?(?![\\p{L}\\d])`, 'gu');
+// (also "400/230 V" and "12.6/22/33 kV": numbers joined by a slash stay one run)
+const NUM_UNIT = new RegExp(`\\d[\\d.,]*(?:\\s?[-–×x/]\\s?\\d[\\d.,]*)*(?:\\s?(?:${UNIT}))?(?![\\p{L}\\d])`, 'gu');
 const LEAD_UNIT = new RegExp(`^\\s?(?:${UNIT})(?![\\p{L}\\d])`, 'u');
 // a run needs isolation only if it has a Latin unit or is a range/product
-const NEEDS_LTR = /[A-Za-zµμΩ°%×–]|\d\s?[-x]\s?\d/;
+const NEEDS_LTR = /[A-Za-zµμΩ°%×–]|\d\s?[-x/]\s?\d/;
 
 function bidiText(t) {
   return esc(t).replace(NUM_UNIT, (m) => (NEEDS_LTR.test(m) ? `<span class="ltr">${m}</span>` : m));

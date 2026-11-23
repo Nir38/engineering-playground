@@ -18,7 +18,11 @@ const defs = `<defs>
 // the same visual anchor the caller asked for.
 const HEB = /[֐-׿]/;
 const SUB = (s) => String(s).replace(/([A-Za-zτσα])_([A-Za-z0-9]+)/g, '$1<tspan baseline-shift="sub" font-size="8">$2</tspan>');
+// inside an RTL label, isolate every Latin/number run (LRI … PDI) so "20 ms (50 Hz)" stays in order
+const LTR_RUN = /[0-9A-Za-zµμΩ°%₀-₉²³τσαηεφθνρΔ√][^֐-׿]*[0-9A-Za-zµμΩ°%₀-₉²³)τσαηεφθνρ]|[0-9A-Za-zµμΩ₀-₉]/g;
 const t = (x, y, s, cls = 'd-text', anchor = 'middle') => {
+  s = String(s);
+  if (HEB.test(s)) s = s.replace(LTR_RUN, (m) => `⁦${m}⁩`);
   s = SUB(s);
   if (!HEB.test(s))return `<text x="${x}" y="${y}" class="${cls}" text-anchor="${anchor}">${s}</text>`;
   const a = anchor === 'start' ? 'end' : anchor === 'end' ? 'start' : 'middle';
@@ -944,6 +948,157 @@ export function psychro() {
   return svg(320, 188, s, 'psychrometric processes');
 }
 
+// =====================================================================
+// ELECTRICITY & DRIVES
+// =====================================================================
+const resistor = (x, y, w = 40, vertical = false) => vertical
+  ? `<path d="M${x},${y} l0,6 l-7,4 l14,6 l-14,6 l14,6 l-14,6 l7,4 l0,${w - 38}" class="d-line" fill="none"/>`
+  : `<path d="M${x},${y} l6,0 l4,-7 l6,14 l6,-14 l6,14 l6,-14 l4,7 l${w - 38},0" class="d-line" fill="none"/>`;
+const battery = (x, y) => line(x - 10, y, x + 10, y, 'd-line', 'stroke-width="3"') + line(x - 5, y + 7, x + 5, y + 7, 'd-line', 'stroke-width="3"') + t(x + 16, y - 2, '+', 'd-text-load', 'start');
+
+// water analogy: pressure = voltage, flow = current, narrow pipe = resistance
+export function waterAnalogy() {
+  let s = `<rect x="20" y="30" width="60" height="90" class="d-cold"/>` + `<rect x="20" y="30" width="60" height="30" class="d-bg"/>` + t(50, 22, 'לחץ = מתח V', 'd-text-load');
+  s += `<path d="M80,105 L150,105 L160,100 L220,100 L230,105 L300,105 L300,120 L230,120 L220,116 L160,116 L150,120 L80,120 Z" class="d-water"/>`;
+  s += t(190, 92, 'צינור צר = התנגדות R', 'd-text');
+  for (const x of [100, 180, 260]) s += arrow(x, 112, x + 22, 112, 'd-accent', 'arra');
+  s += t(190, 140, 'ספיקה = זרם I', 'd-text-accent');
+  s += t(160, 160, 'יותר לחץ או צינור רחב יותר ← יותר זרימה: I = V/R', 'd-text');
+  return svg(320, 170, s, 'water analogy');
+}
+
+export function circuits() {
+  let s = battery(30, 60) + line(30, 60, 30, 26) + line(30, 67, 30, 100) + line(30, 26, 60, 26) + resistor(60, 26, 44) + resistor(104, 26, 44) + line(148, 26, 148, 100) + line(30, 100, 148, 100);
+  s += t(82, 16, 'R₁', 'd-text-accent') + t(126, 16, 'R₂', 'd-text-accent') + t(89, 120, 'טור: R = R₁+R₂', 'd-text-load') + t(89, 136, 'אותו זרם, המתח מתחלק', 'd-text');
+  const x0 = 180;
+  s += battery(x0, 60) + line(x0, 60, x0, 26) + line(x0, 67, x0, 100) + line(x0, 26, 300, 26) + line(x0, 100, 300, 100);
+  s += line(240, 26, 240, 42) + resistor(240, 42, 44, true) + line(240, 86, 240, 100) + line(290, 26, 290, 42) + resistor(290, 42, 44, true) + line(290, 86, 290, 100);
+  s += t(226, 66, 'R₁', 'd-text-accent', 'end') + t(276, 66, 'R₂', 'd-text-accent', 'end');
+  s += t(245, 120, 'מקביל: 1/R = 1/R₁+1/R₂', 'd-text-load') + t(245, 136, 'אותו מתח, הזרם מתחלק', 'd-text');
+  return svg(320, 146, s, 'series and parallel');
+}
+
+export function sineWave(opts = {}) {
+  const x0 = 30, y0 = 80, W = 270, A = 55;
+  let s = line(x0, y0, x0 + W, y0, 'd-muted') + arrow(x0, 140, x0, 14, 'd-muted', 'arrm');
+  let p = ''; for (let i = 0; i <= 120; i++) { const u = i / 120; p += `${i ? 'L' : 'M'}${x0 + u * W},${y0 - A * Math.sin(u * 4 * Math.PI)} `; }
+  s += `<path d="${p}" class="d-curve" fill="none"/>`;
+  s += line(x0, y0 - A, x0 + W, y0 - A, 'd-muted', 'stroke-dasharray="3 3"') + t(x0 + W, y0 - A - 4, opts.peak || 'שיא: 325 V', 'd-text', 'end');
+  s += line(x0, y0 - A / Math.SQRT2, x0 + W, y0 - A / Math.SQRT2, 'd-load', 'stroke-dasharray="6 3"') + t(x0 + W, y0 - A / Math.SQRT2 + 14, opts.rms || 'RMS: 230 V', 'd-text-load', 'end');
+  s += line(x0 + W / 2, y0 + A + 6, x0 + W, y0 + A + 6, 'd-accent') + t(x0 + (3 * W) / 4, y0 + A + 20, 'מחזור אחד: 20 ms (50 Hz)', 'd-text-accent');
+  return svg(320, 162, s, 'AC sine wave');
+}
+
+export function threePhase() {
+  const x0 = 20, y0 = 75, W = 280, A = 50;
+  let s = line(x0, y0, x0 + W, y0, 'd-muted');
+  ['d-curve', 'd-curve2', 'd-curve-hot'].forEach((cls, k) => {
+    let p = ''; for (let i = 0; i <= 120; i++) { const u = i / 120; p += `${i ? 'L' : 'M'}${x0 + u * W},${y0 - A * Math.sin(u * 4 * Math.PI - (k * 2 * Math.PI) / 3)} `; }
+    s += `<path d="${p}" class="${cls}" fill="none"/>`;
+  });
+  s += t(160, 148, 'שלוש פאזות, מוזזות 120° זו מזו: L1, L2, L3', 'd-text');
+  s += t(160, 164, 'בין פאזה לאפס 230 V, בין שתי פאזות 400 V', 'd-text-accent');
+  return svg(320, 172, s, 'three-phase');
+}
+
+export function transformer(opts = {}) {
+  let s = `<path d="M100,30 h120 v110 h-120 Z M120,50 h80 v70 h-80 Z" class="d-section" fill-rule="evenodd"/>`;
+  for (let i = 0; i < 5; i++) s += `<path d="M92,${56 + i * 12} h36" class="d-load" stroke-width="3"/>`;
+  for (let i = 0; i < 9; i++) s += `<path d="M192,${52 + i * 7} h36" class="d-curve2" stroke-width="2.4"/>`;
+  s += line(40, 56, 92, 56, 'd-load') + line(40, 104, 92, 104, 'd-load') + t(36, 84, opts.V1 || 'V₁', 'd-text-load', 'end');
+  s += line(228, 52, 280, 52, 'd-curve2') + line(228, 108, 280, 108, 'd-curve2') + t(284, 84, opts.V2 || 'V₂', 'd-text', 'start');
+  s += t(110, 156, opts.N1 || 'N₁', 'd-text-load') + t(210, 156, opts.N2 || 'N₂', 'd-text');
+  s += t(160, 22, 'V₂/V₁ = N₂/N₁  ,  I₂/I₁ = N₁/N₂', 'd-text-accent');
+  return svg(320, 166, s, 'transformer');
+}
+
+export function dcMotorCurve() {
+  const x0 = 40, y0 = 150, W = 250, H = 120;
+  let s = axes(x0, y0, W, H, 'מהירות', 'T, I');
+  s += line(x0, y0 - H, x0 + W, y0, 'd-curve') + t(x0 + 6, y0 - H + 4, 'מומנט וזרם התנעה מקסימליים', 'd-text-load', 'start');
+  s += `<circle cx="${x0 + W}" cy="${y0}" r="4" class="d-accent-fill"/>` + t(x0 + W, y0 - 10, 'מהירות בלי עומס', 'd-text-accent', 'end');
+  s += `<circle cx="${x0 + W * 0.8}" cy="${y0 - H * 0.2}" r="4" class="d-load-fill"/>` + t(x0 + W * 0.8 - 6, y0 - H * 0.2 - 8, 'נקודת עבודה', 'd-text', 'end');
+  s += t(x0 + W / 2, y0 + 30, 'כשהמנוע מאיץ, ה-back EMF גדל והזרם יורד', 'd-text');
+  return svg(320, 188, s, 'DC motor torque-speed');
+}
+
+export function inductionCurve() {
+  const x0 = 40, y0 = 150, W = 250, H = 120;
+  let s = axes(x0, y0, W, H, '', 'T');
+  // Kloss-style curve: T ∝ 2 Tmax / (s/sk + sk/s), sk = 0.2
+  const sk = 0.2; let p = '';
+  for (let i = 0; i <= 80; i++) { const n = i / 80; const sl = Math.max(1 - n, 1e-4); const T = 2 / (sl / sk + sk / sl); p += `${i ? 'L' : 'M'}${x0 + n * W},${y0 - T * H * 0.92} `; }
+  s += `<path d="${p}" class="d-curve" fill="none"/>`;
+  s += line(x0 + W, y0, x0 + W, y0 - 10, 'd-muted') + t(x0 + W, y0 + 14, 'Ns', 'd-text-accent', 'end');
+  const nOp = 0.965, slOp = 1 - nOp, Top = 2 / (slOp / sk + sk / slOp);
+  s += `<circle cx="${x0 + nOp * W}" cy="${y0 - Top * H * 0.92}" r="4" class="d-load-fill"/>` + t(x0 + nOp * W - 8, y0 - Top * H * 0.92 + 4, 'עבודה (החלקה של כמה %)', 'd-text-load', 'end');
+  s += t(x0 + W * 0.8, y0 - H - 2, 'מומנט מקסימלי', 'd-text', 'middle');
+  return svg(320, 170, s, 'induction motor torque-speed');
+}
+
+export function leadScrew() {
+  let s = `<rect x="16" y="50" width="56" height="44" rx="6" class="d-section"/>` + t(44, 76, 'מנוע');
+  s += `<rect x="72" y="64" width="16" height="16" class="d-support"/>` + t(80, 104, 'מצמד', 'd-text');
+  s += `<rect x="88" y="68" width="210" height="8" class="d-beam"/>`;
+  for (let x = 92; x < 296; x += 8) s += line(x, 68, x + 5, 76, 'd-muted');
+  s += `<rect x="170" y="52" width="56" height="40" rx="4" class="d-coat"/>` + t(198, 46, 'עגלה', 'd-text-accent');
+  s += arrow(232, 120, 286, 120, 'd-accent', 'arra') + t(160, 124, 'סיבוב אחד = התקדמות של lead', 'd-text');
+  s += t(160, 146, 'רזולוציה = lead / (צעדים × מיקרו-צעדים)', 'd-text-load');
+  return svg(320, 156, s, 'lead screw drive');
+}
+
+export function gears(opts = {}) {
+  const gear = (cx, cy, r, n, cls) => { let p = ''; for (let i = 0; i < n * 2; i++) { const a = (i * Math.PI) / n, rr = i % 2 ? r : r + 6; p += `${i ? 'L' : 'M'}${cx + rr * Math.cos(a)},${cy + rr * Math.sin(a)} `; } return `<path d="${p}Z" class="${cls}"/><circle cx="${cx}" cy="${cy}" r="4" class="d-line"/>`; };
+  let s = gear(90, 80, 26, 10, 'd-section') + gear(186, 80, 64, 24, 'd-coat');
+  s += t(60, 132, 'קטן: מהיר,', 'd-text-load') + t(60, 148, 'מומנט נמוך', 'd-text-load') + t(186, 162, 'גדול: איטי, מומנט גבוה', 'd-text-accent');
+  s += t(290, 30, `i = ${opts.i || 'N₂/N₁'}`, 'd-text-accent', 'end');
+  return svg(320, 172, s, 'gear reduction');
+}
+
+export function homePanel() {
+  let s = `<rect x="10" y="10" width="300" height="150" rx="8" class="d-ghost"/>`;
+  const dev = (x, y, w, label, sub, cls = 'd-section') => `<rect x="${x}" y="${y}" width="${w}" height="44" rx="4" class="${cls}"/>` + t(x + w / 2, y + 20, label) + t(x + w / 2, y + 36, sub, 'd-text');
+  s += dev(20, 24, 66, 'מפסק ראשי', 'מנתק הכל', 'd-hot') + dev(96, 24, 74, 'ממסר פחת', '30 mA', 'd-cold');
+  s += arrow(86, 46, 94, 46, 'd-muted', 'arrm') + arrow(170, 46, 178, 46, 'd-muted', 'arrm');
+  const brk = [['תאורה', '10A'], ['שקעים', '16A'], ['מזגן', '16A'], ['דוד', '16A']];
+  brk.forEach(([n, a], i) => (s += dev(180 + (i % 2) * 64, 24 + Math.floor(i / 2) * 52, 58, a, n)));
+  s += t(240, 136, 'מאמ"תים: מעגל לכל צרכן', 'd-text-accent');
+  s += t(100, 96, 'פס הארקה ואפס', 'd-text') + line(30, 106, 170, 106, 'd-curve2', 'stroke-width="5"');
+  s += t(100, 136, 'הערכים להמחשה בלבד', 'd-text');
+  return svg(320, 170, s, 'home electrical panel');
+}
+
+export function gridChain() {
+  const rows = [
+    ['תחנת כוח', 'ייצור', 'd-hot'],
+    ['שנאי העלאה', 'מעלה את המתח', 'd-section'],
+    ['קווי מתח עליון', '400 kV / 161 kV', 'd-section'],
+    ['תחנת משנה', 'מוריד ל-22 kV', 'd-section'],
+    ['קווי מתח גבוה', 'עמודים, או כבל תת-קרקעי', 'd-section'],
+    ['שנאי חלוקה', 'מוריד ל-400/230 V', 'd-cold'],
+  ];
+  let s = '';
+  rows.forEach(([n, v, cls], i) => {
+    const y = 8 + i * 34;
+    s += `<rect x="196" y="${y}" width="116" height="26" rx="5" class="${cls}"/>` + t(254, y + 17, n);
+    s += t(188, y + 17, v, i === 2 || i === 3 || i === 5 ? 'd-text-load' : 'd-text', 'end');
+    if (i < rows.length - 1) s += arrow(254, y + 26, 254, y + 33, 'd-muted', 'arrm');
+  });
+  // tower and pole sketches
+  s += `<path d="M90,270 L106,216 L122,270 M96,254 L116,254 M100,238 L112,238 M84,222 L128,222" class="d-line" fill="none"/>` + t(106, 284, 'עמוד סריג (מתח עליון)', 'd-text');
+  s += `<path d="M230,270 L230,228 M218,232 L242,232" class="d-line" fill="none" stroke-width="2.5"/>` + t(230, 284, 'עמוד חלוקה', 'd-text');
+  s += t(160, 306, 'מתח גבוה = זרם נמוך = הפסדים קטנים', 'd-text-accent');
+  return svg(320, 314, s, 'power grid chain');
+}
+
+export function cableSagSketch() {
+  let s = line(30, 40, 30, 150, 'd-line', 'stroke-width="3"') + line(290, 40, 290, 150, 'd-line', 'stroke-width="3"');
+  s += `<path d="M30,40 Q160,120 290,40" class="d-rope" fill="none"/>` + `<path d="M30,40 Q160,96 290,40" class="d-curve" fill="none" stroke-dasharray="4 3"/>`;
+  s += line(30, 40, 290, 40, 'd-muted', 'stroke-dasharray="3 3"') + arrow(160, 40, 160, 80, 'd-load') + t(166, 64, 'sag', 'd-text-load', 'start');
+  s += t(160, 30, 'L', 'd-text') + t(160, 140, 'בקיץ הכבל מתארך ושוקע יותר', 'd-text') + t(160, 158, 'sag ≈ wL² / 8H', 'd-text-accent');
+  return svg(320, 168, s, 'cable sag');
+}
+
 export const registry = {
   beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar,
   tank, hydraulicPress, floating, pipeContraction, torricelliTank, pitot, velocityProfiles, moody, pumpCurve, dragCar, jetPlate,
@@ -952,6 +1107,7 @@ export const registry = {
   poissonBar, torsionDistribution, bendingFibers, safetyDistributions, fractureSurface, streamlinesHole,
   couette, energyBars, jominy, caseProfile, anodizeGrowth, passiveLayer, hazProfile, galvanicCell,
   pvCycle, tsCarnot, heatEngine, fridgeLoop, rankineLoop, wallProfile, resistanceChain, hxProfiles, coolingCurve, heatModes, psychro,
+  waterAnalogy, circuits, sineWave, threePhase, transformer, dcMotorCurve, inductionCurve, leadScrew, gears, homePanel, gridChain, cableSagSketch,
 };
 
 // content uses {fn:'beam', args:['ss-udl',{diagrams:true}]}
