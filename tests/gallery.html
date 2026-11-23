@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagram gallery</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>body{padding:8px} .g{display:grid;grid-template-columns:1fr 1fr;gap:8px} .g div{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px} .g b{font-size:11px}</style>
+</head>
+<body>
+<div class="g" id="g"></div>
+<script type="module">
+  import { registry } from '../js/diagrams.js';
+  const specs = [
+    ['tank', [{ h: '10 m' }]], ['hydraulicPress', []], ['floating', [{ frac: 0.6 }]], ['pipeContraction', [{ venturi: true }]],
+    ['torricelliTank', []], ['pitot', []], ['velocityProfiles', []], ['moody', [{ point: [1e5, 0.0218] }]],
+    ['pumpCurve', [{}]], ['dragCar', []], ['jetPlate', []], ['beam', ['ss-udl', { diagrams: true }]],
+  ];
+  document.getElementById('g').innerHTML = specs.map(([fn, a]) => `<div><b>${fn}</b>${registry[fn](...a)}</div>`).join('');
+</script>
+</body>
+</html>

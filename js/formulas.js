@@ -145,6 +145,83 @@ export const goodmanFactor = (sa, sm, Se, Sut) => 1 / (sa / Se + sm / Sut);
 export const langerFactor = (sa, sm, Sy) => Sy / (sa + sm);
 export const soderbergFactor = (sa, sm, Se, Sy) => 1 / (sa / Se + sm / Sy);
 
+// =====================================================================
+// FLUIDS (SI: Pa, m, m/s, kg/m^3, Pa*s)
+// =====================================================================
+export const G0 = 9.81;
+// Reference properties, Cengel & Cimbala appendix tables (20 °C, 1 atm)
+export const WATER = { rho: 998, mu: 1.002e-3, pv: 2339 };
+export const AIR = { rho: 1.204, mu: 1.825e-5 };
+export const PATM = 101325;
+
+export const kinematicViscosity = (mu, rho) => mu / rho;
+export const newtonShear = (mu, dudy) => mu * dudy;
+export const hydrostaticPressure = (rho, h, g = G0) => rho * g * h;
+export const buoyancy = (rhoFluid, Vdisp, g = G0) => rhoFluid * g * Vdisp;
+export const hydraulicPressForce = (F1, A1, A2) => (F1 * A2) / A1;
+// resultant on a submerged plane wall: pressure at the centroid times area
+export const planeWallForce = (rho, hc, A, g = G0) => rho * g * hc * A;
+// depth of the centre of pressure below the surface: hc + I_xc / (hc A)
+export const centerOfPressure = (hc, Ixc, A) => hc + Ixc / (hc * A);
+// fraction of a floating body's volume that is submerged
+export const submergedFraction = (rhoBody, rhoFluid) => rhoBody / rhoFluid;
+
+export const flowRate = (A, V) => A * V;
+export const massFlow = (rho, A, V) => rho * A * V;
+
+// Bernoulli between 1 and 2 along a streamline: returns p2
+export const bernoulliP2 = (p1, V1, z1, V2, z2, rho, g = G0) =>
+  p1 + 0.5 * rho * (V1 * V1 - V2 * V2) + rho * g * (z1 - z2);
+export const torricelli = (h, g = G0) => Math.sqrt(2 * g * h);
+export const pitotVelocity = (dp, rho) => Math.sqrt((2 * dp) / rho);
+export const dynamicPressure = (rho, V) => 0.5 * rho * V * V;
+// ideal venturi (Cd = 1): Q = A2 sqrt(2Δp / (ρ (1-β⁴))), β = d2/d1
+export const venturiQ = (d1, d2, dp, rho, Cd = 1) => {
+  const beta = d2 / d1;
+  return Cd * area.circle(d2) * Math.sqrt((2 * dp) / (rho * (1 - beta ** 4)));
+};
+
+export const reynolds = (rho, V, D, mu) => (rho * V * D) / mu;
+export const flowRegime = (Re) => (Re < 2300 ? 'laminar' : Re <= 4000 ? 'transitional' : 'turbulent');
+
+export const frictionLaminar = (Re) => 64 / Re;
+// Haaland explicit approximation (within ~2% of Colebrook)
+export const frictionHaaland = (Re, relRough) =>
+  1 / (-1.8 * Math.log10((relRough / 3.7) ** 1.11 + 6.9 / Re)) ** 2;
+// Colebrook, solved by fixed-point iteration
+export function frictionColebrook(Re, relRough) {
+  let f = frictionHaaland(Re, relRough);
+  for (let i = 0; i < 60; i++) {
+    const rhs = -2 * Math.log10(relRough / 3.7 + 2.51 / (Re * Math.sqrt(f)));
+    f = 1 / (rhs * rhs);
+  }
+  return f;
+}
+export const frictionFactor = (Re, relRough) => (Re < 2300 ? frictionLaminar(Re) : frictionColebrook(Re, relRough));
+export const darcyHeadLoss = (f, L, D, V, g = G0) => f * (L / D) * (V * V) / (2 * g);
+export const darcyPressureDrop = (f, L, D, V, rho) => f * (L / D) * 0.5 * rho * V * V;
+export const minorHeadLoss = (K, V, g = G0) => (K * V * V) / (2 * g);
+// Hagen-Poiseuille (laminar, round pipe)
+export const poiseuilleDrop = (mu, L, Q, D) => (128 * mu * L * Q) / (PI * D ** 4);
+
+export const pumpHydraulicPower = (rho, Q, H, g = G0) => rho * g * Q * H;
+export const pumpShaftPower = (rho, Q, H, eta, g = G0) => (rho * g * Q * H) / eta;
+// affinity laws, same pump, speed N1 -> N2
+export const affinity = (Q1, H1, P1, N1, N2) => {
+  const r = N2 / N1;
+  return { Q: Q1 * r, H: H1 * r * r, P: P1 * r ** 3 };
+};
+// NPSH available: zs = height of the liquid surface ABOVE the pump inlet (negative if below)
+export const npshAvailable = (pSurface, pv, rho, zs, hLoss, g = G0) =>
+  (pSurface - pv) / (rho * g) + zs - hLoss;
+
+export const dragForce = (rho, V, Cd, A) => 0.5 * rho * V * V * Cd * A;
+export const liftForce = (rho, V, Cl, A) => 0.5 * rho * V * V * Cl * A;
+export const dragPower = (rho, V, Cd, A) => dragForce(rho, V, Cd, A) * V;
+// jet hitting a fixed flat plate head-on: F = ρ Q V = ρ A V²
+export const jetForceFlatPlate = (rho, A, V) => rho * A * V * V;
+export const kmh = (v) => v / 3.6; // km/h -> m/s
+
 // ---------- Helpers ----------
 export const deg = (rad) => (rad * 180) / PI;
 export const rad = (d) => (d * PI) / 180;

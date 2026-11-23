@@ -85,6 +85,44 @@ check('pure shear: Tresca 0.5Sy, vM 0.577Sy', near(f.trescaEquivalent(100, -100)
 check('hydrostatic -> von Mises 0', f.vonMises3D(50, 50, 50) === 0);
 check('Goodman: Sut=∞ -> Se/σa', near(f.goodmanFactor(100, 50, 250, 1e12), 2.5, 1e-6));
 
+// ---------- fluids: independent cross-checks ----------
+{
+  // laminar Darcy with f=64/Re equals Hagen-Poiseuille (two separate derivations)
+  const mu = 0.2, rho = 900, D = 0.015, V = 0.4, L = 12, Q = f.area.circle(D) * V;
+  check('laminar: Darcy(64/Re) = Hagen-Poiseuille', near(f.darcyPressureDrop(f.frictionLaminar(f.reynolds(rho, V, D, mu)), L, D, V, rho), f.poiseuilleDrop(mu, L, Q, D), 1e-12));
+  // Colebrook residual ~ 0 and Haaland within 2.5% over the turbulent range
+  let worst = 0, resid = 0;
+  for (const Re of [4e3, 1e4, 1e5, 1e6, 1e7, 1e8]) for (const e of [0, 1e-5, 1e-4, 1e-3, 1e-2, 0.05]) {
+    const fc = f.frictionColebrook(Re, e);
+    resid = Math.max(resid, Math.abs(1 / Math.sqrt(fc) + 2 * Math.log10(e / 3.7 + 2.51 / (Re * Math.sqrt(fc)))));
+    worst = Math.max(worst, Math.abs(f.frictionHaaland(Re, e) - fc) / fc);
+  }
+  check('Colebrook solved (residual < 1e-9)', resid < 1e-9, `resid ${resid}`);
+  check('Haaland within 2.5% of Colebrook', worst < 0.025, `worst ${worst}`);
+  // smooth pipe vs Blasius at Re = 1e5 (Moody chart reading ≈ 0.018)
+  check('smooth f(Re=1e5) ≈ 0.018 and ≈ Blasius', near(f.frictionColebrook(1e5, 0), 0.018, 0.01) && near(f.frictionColebrook(1e5, 0), 0.316 * 1e5 ** -0.25, 0.02));
+  // venturi: recover Q from Δp computed independently with continuity + Bernoulli
+  const d1 = 0.1, d2 = 0.05, Qv = 0.0123;
+  const V1 = Qv / f.area.circle(d1), V2 = Qv / f.area.circle(d2);
+  const dp = 1000e3 - f.bernoulliP2(1000e3, V1, 0, V2, 0, 1000);
+  check('venturi formula inverts Bernoulli+continuity', near(f.venturiQ(d1, d2, dp, 1000), Qv, 1e-12));
+  // pitot = stagnation Bernoulli
+  check('pitot = Bernoulli to V=0', near(f.pitotVelocity(f.bernoulliP2(0, 17, 0, 0, 0, 1.2), 1.2), 17, 1e-12));
+  // Torricelli = free fall from h, and = Bernoulli from surface to jet
+  check('Torricelli = free fall', near(f.torricelli(3.2), 9.81 * Math.sqrt((2 * 3.2) / 9.81), 1e-12));
+  // plane wall: integrate ρ g y w dy numerically, force and centre of pressure
+  let Fn = 0, Mn = 0; const hw = 2.5, w = 3, N = 20000;
+  for (let i = 0; i < N; i++) { const y = (i + 0.5) * (hw / N); const dF = 1000 * 9.81 * y * w * (hw / N); Fn += dF; Mn += dF * y; }
+  check('wall force = integral of ρgy', near(f.planeWallForce(1000, hw / 2, hw * w), Fn, 1e-6));
+  check('centre of pressure = moment integral', near(f.centerOfPressure(hw / 2, (w * hw ** 3) / 12, hw * w), Mn / Fn, 1e-6));
+  // affinity laws consistent with P = ρgQH/η at constant η
+  const a = f.affinity(0.02, 30, f.pumpShaftPower(1000, 0.02, 30, 0.7), 1450, 2900);
+  check('affinity P = ρgQH/η at new point', near(a.P, f.pumpShaftPower(1000, a.Q, a.H, 0.7), 1e-12));
+  // drag power ∝ V³
+  check('drag power ∝ V³', near(f.dragPower(1.2, 40, 0.3, 2) / f.dragPower(1.2, 20, 0.3, 2), 8, 1e-12));
+  check('ν water ≈ 1.0e-6', near(f.kinematicViscosity(f.WATER.mu, f.WATER.rho), 1.004e-6, 1e-3));
+}
+
 // ---------- 2. Worked examples in the lessons ----------
 const ex = [
   ['stress-strain example σ', f.normalStress(31400, f.area.circle(20)), 100, 2e-3],
@@ -117,6 +155,30 @@ const ex = [
   ['fatigue example Langer n (source: 1.40)', f.langerFactor(100, 150, 350), 1.40, 1e-9],
   ['safety example σ', 20000 / f.area.circle(16), 99.5, 1e-3],
   ['safety example n', 640 / (20000 / f.area.circle(16)), 6.4, 1e-2],
+  // fluids lessons
+  ['f-props example τ', f.newtonShear(0.1, 2 / 0.001), 200, 1e-12],
+  ['f-statics example F [kN]', f.planeWallForce(1000, 1, 6) / 1000, 58.9, 1e-3],
+  ['f-statics example y_p', f.centerOfPressure(1, (3 * 2 ** 3) / 12, 6), 1.33, 3e-3],
+  ['f-statics 10 m ≈ 98 kPa', f.hydrostaticPressure(1000, 10) / 1000, 98.1, 1e-3],
+  ['f-statics diver 30 m ≈ 4 bar abs', (f.PATM + f.hydrostaticPressure(1025, 30)) / 1e5, 4, 0.04],
+  ['f-buoy example', f.submergedFraction(600, 1000), 0.6, 1e-12],
+  ['f-buoy ice ≈ 90%', f.submergedFraction(917, 1000), 0.9, 0.02],
+  ['f-continuity example Q [L/s]', f.flowRate(f.area.circle(0.05), 2) * 1000, 3.93, 2e-3],
+  ['f-continuity example V2', 2 * (50 / 25) ** 2, 8, 1e-12],
+  ['f-bernoulli example P2 [kPa]', f.bernoulliP2(200e3, 2, 0, 8, 0, 1000) / 1000, 170, 1e-12],
+  ['f-reynolds example Re', f.reynolds(998, 2, 0.05, 1.002e-3), 99600, 1e-4],
+  ['f-pipe example f', f.frictionColebrook(f.reynolds(998, 2, 0.05, 1.002e-3), 0.045 / 50), 0.0218, 3e-3],
+  ['f-pipe example h_f', f.darcyHeadLoss(f.frictionColebrook(f.reynolds(998, 2, 0.05, 1.002e-3), 0.045 / 50), 100, 0.05, 2), 8.9, 3e-3],
+  ['f-pipe example ΔP [kPa]', f.darcyPressureDrop(f.frictionColebrook(f.reynolds(998, 2, 0.05, 1.002e-3), 0.045 / 50), 100, 0.05, 2, 998) / 1000, 87, 3e-3],
+  ['f-pumps example P [kW]', f.pumpShaftPower(1000, 0.02, 30, 0.75) / 1000, 7.85, 1e-3],
+  ['f-pumps VFD -20% saves ~50%', 1 - f.affinity(1, 1, 1, 1, 0.8).P, 0.49, 0.01],
+  ['f-drag example V', f.kmh(100), 27.8, 2e-3],
+  ['f-drag example F [N]', f.dragForce(1.204, f.kmh(100), 0.3, 2.2), 307, 2e-3],
+  ['f-drag example P [kW]', f.dragPower(1.204, f.kmh(100), 0.3, 2.2) / 1000, 8.5, 2e-2],
+  ['f-drag example 120 km/h [kW]', f.dragPower(1.204, f.kmh(120), 0.3, 2.2) / 1000, 14.7, 2e-3],
+  ['f-drag +73% from 100 to 120', f.dragPower(1, f.kmh(120), 1, 1) / f.dragPower(1, f.kmh(100), 1, 1) - 1, 0.73, 1e-2],
+  ['f-momentum example ṁ', 1000 * f.area.circle(0.02) * 20, 6.28, 1e-3],
+  ['f-momentum example F', f.jetForceFlatPlate(1000, f.area.circle(0.02), 20), 126, 3e-3],
 ];
 ex.forEach(([n, got, want, tol]) => check(n, near(got, want, tol), `got ${got}, lesson says ${want}`));
 

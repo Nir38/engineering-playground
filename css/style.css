@@ -113,8 +113,10 @@ main { max-width: 720px; margin: 0 auto; padding: 16px; outline: none; }
 .stat span { font-size: .78rem; color: var(--muted); }
 
 /* ---------- lesson ---------- */
-.eq-list { display: grid; gap: 8px; }
-.eq { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+.eq-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.eq { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; min-width: 0; overflow-x: auto; }
+.card, .steps, .step, .feedback { min-width: 0; }
+.step { overflow-x: auto; }
 .eq .label { font-size: .8rem; color: var(--muted); }
 .lesson-text p { margin: 0 0 8px; }
 .lesson-text ul { margin: 0; padding-inline-start: 20px; }
@@ -145,6 +147,9 @@ svg.diagram { display: block; width: 100%; height: auto; max-height: 300px; dire
 .d-curve { stroke: var(--accent); stroke-width: 2.4; fill: none; }
 .d-curve2 { stroke: var(--curve2); stroke-width: 2.2; fill: none; }
 .d-circle { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); stroke-width: 2; }
+.d-water { fill: color-mix(in srgb, #38bdf8 28%, var(--surface)); stroke: none; }
+.d-water-line { stroke: #38bdf8; stroke-width: 4; }
+.d-grid { stroke: var(--border); stroke-width: .8; }
 .d-area-v { fill: color-mix(in srgb, var(--curve2) 25%, transparent); stroke: var(--curve2); stroke-width: 1.4; }
 .d-area-m { fill: color-mix(in srgb, var(--load) 22%, transparent); stroke: var(--load); stroke-width: 1.4; }
 

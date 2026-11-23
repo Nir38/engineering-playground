@@ -1,6 +1,7 @@
 // diagrams.js: original SVG drawings, drawn in code so they are sharp on a
 // phone, follow light/dark mode, and can be drawn to the numbers of a question.
 // Colors come from CSS classes defined in style.css (d-*), never hard-coded.
+import { frictionColebrook } from './formulas.js';
 
 const svg = (w, h, body, label = '') =>
   `<svg class="diagram" viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}" xmlns="http://www.w3.org/2000/svg">${defs}${body}</svg>`;
@@ -298,7 +299,163 @@ export function constrainedBar() {
   return svg(320, 120, s, 'constrained bar');
 }
 
-export const registry = { beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar };
+// =====================================================================
+// FLUIDS
+// =====================================================================
+const water = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" class="d-water"/>`;
+const tankWalls = (x, y, w, h) => `<path d="M${x},${y} L${x},${y + h} L${x + w},${y + h} L${x + w},${y}" class="d-line" fill="none"/>`;
+
+// open tank: pressure grows linearly with depth
+export function tank(opts = {}) {
+  let s = water(40, 40, 130, 110) + tankWalls(40, 20, 130, 130);
+  s += line(40, 40, 170, 40, 'd-accent') + `<path d="M100,34 l6,6 l6,-6" class="d-accent" fill="none"/>` + t(178, 44, 'Patm', 'd-text-accent', 'start');
+  s += arrow(30, 40, 30, 148, 'd-muted', 'arrm') + t(22, 100, opts.h || 'h', 'd-text', 'end');
+  // pressure distribution triangle on the right wall
+  s += `<path d="M170,40 L170,150 L250,150 Z" class="d-area-m"/>`;
+  for (let y = 60; y <= 140; y += 20) s += arrow(170 + ((y - 40) / 110) * 80, y, 172, y);
+  s += t(250, 165, 'ρgh', 'd-text-load');
+  return svg(320, 175, s, 'hydrostatic pressure');
+}
+
+export function hydraulicPress() {
+  let s = water(30, 80, 260, 50);
+  s += `<path d="M30,40 L30,130 L290,130 L290,40 M60,40 L60,80 L210,80 L210,40" class="d-line" fill="none"/>`;
+  s += `<rect x="31" y="70" width="28" height="10" class="d-support"/><rect x="211" y="60" width="78" height="10" class="d-support"/>`;
+  s += water(31, 80, 28, 0) + water(211, 70, 78, 10);
+  s += arrow(45, 30, 45, 68) + t(45, 24, 'F₁', 'd-text-load');
+  s += arrow(250, 56, 250, 20) + t(250, 14, 'F₂', 'd-text-load');
+  s += t(45, 150, 'A₁') + t(250, 150, 'A₂') + t(150, 110, 'P זהה בכל הנוזל', 'd-text-accent');
+  return svg(320, 160, s, 'hydraulic press');
+}
+
+export function floating(opts = {}) {
+  const frac = opts.frac ?? 0.6;
+  const h = 70, top = 90 - h * frac;
+  let s = water(30, 90, 260, 70) + line(30, 90, 290, 90, 'd-accent');
+  s += `<rect x="120" y="${top}" width="80" height="${h}" class="d-section"/>`;
+  s += arrow(178, top + h / 2 - 6, 178, top + h / 2 + 34) + t(186, top + h / 2 + 34, 'W', 'd-text-load', 'start');
+  s += arrow(142, top + h + 2, 142, top + h / 2 - 20, 'd-accent', 'arra') + t(134, top + h / 2 - 16, 'F<tspan baseline-shift="sub" font-size="8">B</tspan>', 'd-text-accent', 'end');
+  s += t(240, 125, 'ρ<tspan baseline-shift="sub" font-size="8">f</tspan> g V<tspan baseline-shift="sub" font-size="8">disp</tspan>', 'd-text-accent');
+  return svg(320, 170, s, 'buoyancy');
+}
+
+// pipe with a contraction; venturi:true draws a manometer
+export function pipeContraction(opts = {}) {
+  const top1 = 40, bot1 = 100, top2 = 58, bot2 = 82;
+  let s = `<path d="M20,${top1} L120,${top1} L170,${top2} L230,${top2} L290,${top1} M20,${bot1} L120,${bot1} L170,${bot2} L230,${bot2} L290,${bot1}" class="d-line" fill="none"/>`;
+  s += `<path d="M20,${top1} L120,${top1} L170,${top2} L230,${top2} L290,${top1} L290,${bot1} L230,${bot2} L170,${bot2} L120,${bot1} L20,${bot1} Z" class="d-water"/>`;
+  s += arrow(40, 70, 80, 70, 'd-accent', 'arra') + t(60, 62, 'V₁', 'd-text-accent');
+  s += arrow(180, 70, 222, 70, 'd-accent', 'arra') + t(212, 52, 'V₂', 'd-text-accent', 'start');
+  s += t(60, 118, opts.a1 || 'A₁, P₁') + t(200, 100, opts.a2 || 'V₂ > V₁ ,  P₂ < P₁');
+  if (opts.venturi) {
+    s += `<path d="M70,${top1} L70,10 L70,10 M200,${top2} L200,10" class="d-muted" fill="none"/>`;
+    s += `<rect x="66" y="16" width="8" height="${top1 - 16}" class="d-water"/><rect x="196" y="34" width="8" height="${top2 - 34}" class="d-water"/>`;
+    s += arrow(240, 18, 240, 36, 'd-muted', 'arrm') + arrow(240, 36, 240, 18, 'd-muted', 'arrm') + t(248, 30, 'Δh', 'd-text', 'start');
+  }
+  return svg(320, 128, s, 'pipe contraction');
+}
+
+export function torricelliTank() {
+  let s = water(40, 40, 120, 110) + tankWalls(40, 20, 120, 130);
+  s += line(40, 40, 160, 40, 'd-accent');
+  s += arrow(28, 40, 28, 138, 'd-muted', 'arrm') + t(20, 92, 'h', 'd-text', 'end');
+  s += `<path d="M160,140 Q230,142 280,170" class="d-curve" fill="none" stroke-width="5"/>`;
+  s += t(232, 132, 'V = √(2gh)', 'd-text-accent');
+  return svg(320, 180, s, 'Torricelli');
+}
+
+export function pitot() {
+  let s = `<rect x="20" y="40" width="280" height="80" class="d-water"/>` + line(20, 40, 300, 40) + line(20, 120, 300, 120);
+  for (let y = 58; y <= 104; y += 22) s += arrow(30, y, 70, y, 'd-accent', 'arra');
+  s += `<path d="M120,80 L190,80 L190,10" class="d-load" fill="none" stroke-width="3"/>` + t(122, 96, 'P₀ (עצירה)', 'd-text-load', 'start');
+  s += `<path d="M240,40 L240,10" class="d-muted" fill="none" stroke-width="3"/>` + t(248, 22, 'P (סטטי)', 'd-text', 'start');
+  s += t(160, 140, 'V = √(2(P₀−P)/ρ)', 'd-text-accent');
+  return svg(320, 150, s, 'Pitot tube');
+}
+
+export function velocityProfiles() {
+  let s = '';
+  const prof = (x0, fn, title) => {
+    let p = `M${x0},30`;
+    for (let i = 0; i <= 40; i++) { const r = -1 + (2 * i) / 40; p += ` L${x0 + fn(r) * 90},${30 + (i / 40) * 100}`; }
+    let q = line(x0, 30, x0 + 110, 30) + line(x0, 130, x0 + 110, 130) + line(x0, 30, x0, 130, 'd-muted');
+    for (let i = 1; i < 8; i++) { const r = -1 + (2 * i) / 8; q += arrow(x0, 30 + (i / 8) * 100, x0 + fn(r) * 90 - 1, 30 + (i / 8) * 100, 'd-muted', 'arrm'); }
+    return q + `<path d="${p}" class="d-curve" fill="none"/>` + t(x0 + 55, 150, title);
+  };
+  s += prof(20, (r) => 1 - r * r, 'למינרית: פרבולה');
+  s += prof(180, (r) => Math.pow(1 - Math.abs(r), 1 / 7), 'טורבולנטית: שטוח');
+  return svg(320, 160, s, 'velocity profiles');
+}
+
+// Moody chart computed from Colebrook (to scale, log-log)
+export function moody(opts = {}) {
+  const x0 = 46, y0 = 170, W = 260, H = 150;
+  const lx = (Re) => x0 + ((Math.log10(Re) - 3) / 5) * W; // Re 1e3..1e8
+  const ly = (fv) => y0 - ((Math.log10(fv) - Math.log10(0.005)) / (Math.log10(0.1) - Math.log10(0.005))) * H;
+  let s = arrow(x0, y0, x0 + W + 8, y0, 'd-muted', 'arrm') + arrow(x0, y0, x0, 12, 'd-muted', 'arrm');
+  [1e3, 1e4, 1e5, 1e6, 1e7, 1e8].forEach((Re, i) => { s += t(lx(Re), y0 + 14, `10${['³', '⁴', '⁵', '⁶', '⁷', '⁸'][i]}`); });
+  [0.01, 0.02, 0.04, 0.08].forEach((fv) => { s += t(x0 - 4, ly(fv) + 4, String(fv), 'd-text', 'end') + line(x0, ly(fv), x0 + W, ly(fv), 'd-grid'); });
+  s += t(x0 + W, y0 + 28, 'Re', 'd-text', 'end') + t(x0 - 4, 14, 'f', 'd-text', 'end');
+  // laminar
+  let p = ''; for (let i = 0; i <= 20; i++) { const Re = 600 * 10 ** ((i / 20) * Math.log10(2300 / 600)); const fv = Math.min(64 / Re, 0.1); p += `${i ? 'L' : 'M'}${lx(Math.max(Re, 1000))},${ly(fv)} `; }
+  s += `<path d="${p}" class="d-curve2" fill="none"/>` + t(lx(1300), ly(0.07), '64/Re', 'd-text', 'start');
+  // turbulent curves
+  const eps = opts.curves || [0, 1e-4, 1e-3, 0.01, 0.05];
+  eps.forEach((e) => {
+    let q = '';
+    for (let i = 0; i <= 50; i++) { const Re = 4000 * 10 ** ((i / 50) * Math.log10(1e8 / 4000)); q += `${i ? 'L' : 'M'}${lx(Re)},${ly(frictionColebrook(Re, e))} `; }
+    s += `<path d="${q}" class="d-curve" fill="none" stroke-width="1.6"/>` + t(x0 + W + 2, ly(frictionColebrook(1e8, e)) + 4, e === 0 ? 'חלק' : String(e), 'd-text', 'start');
+  });
+  s += t(x0 + W - 4, 24, 'ε/D', 'd-text-accent', 'end');
+  if (opts.point) { const [Re, fv] = opts.point; s += `<circle cx="${lx(Re)}" cy="${ly(fv)}" r="4.5" class="d-load-fill"/>`; }
+  return svg(340, 205, s, 'Moody chart');
+}
+
+// pump curve H = H0 - aQ², system curve H = Hs + kQ², to scale
+export function pumpCurve(opts = {}) {
+  const H0 = opts.H0 ?? 40, a = opts.a ?? 0.04, Hs = opts.Hs ?? 15, k = opts.k ?? 0.02;
+  const Qop = Math.sqrt((H0 - Hs) / (a + k)), Hop = Hs + k * Qop * Qop;
+  const Qmax = Math.sqrt(H0 / a);
+  const x0 = 40, y0 = 160, W = 250, Hh = 140;
+  const X = (q) => x0 + (q / Qmax) * W, Y = (h) => y0 - (h / (H0 * 1.1)) * Hh;
+  let s = arrow(x0, y0, x0 + W + 8, y0, 'd-muted', 'arrm') + arrow(x0, y0, x0, 12, 'd-muted', 'arrm');
+  s += t(x0 + W + 6, y0 + 16, 'Q', 'd-text', 'end') + t(x0 - 6, 18, 'H', 'd-text', 'end');
+  let p = '', q2 = '';
+  for (let i = 0; i <= 40; i++) { const q = (Qmax * i) / 40; p += `${i ? 'L' : 'M'}${X(q)},${Y(H0 - a * q * q)} `; const hs = Hs + k * q * q; if (hs <= H0 * 1.1) q2 += `${q2 ? 'L' : 'M'}${X(q)},${Y(hs)} `; }
+  s += `<path d="${p}" class="d-curve" fill="none"/>` + `<path d="${q2}" class="d-curve2" fill="none"/>`;
+  s += t(X(Qmax * 0.15), Y(H0) - 6, 'משאבה', 'd-text-accent', 'start') + t(X(Qmax * 0.92), Y(Hs + k * (Qmax * 0.85) ** 2) - 8, 'מערכת', 'd-text', 'end');
+  s += line(x0, Y(Hs), x0 + 8, Y(Hs), 'd-muted') + t(x0 + 10, Y(Hs) + 12, 'עומד סטטי', 'd-text', 'start');
+  s += line(X(Qop), Y(Hop), X(Qop), y0, 'd-muted', 'stroke-dasharray="3 3"') + `<circle cx="${X(Qop)}" cy="${Y(Hop)}" r="5" class="d-load-fill"/>` + t(X(Qop) + 8, Y(Hop) - 8, 'נקודת עבודה', 'd-text-load', 'start');
+  return svg(320, 180, s, 'pump and system curves');
+}
+
+export function dragCar() {
+  let s = '';
+  for (let i = 0; i < 5; i++) {
+    const y = 30 + i * 14;
+    s += `<path d="M10,${y} C80,${y} 110,${y - 26 + i * 4} 170,${y - 24 + i * 4} S260,${y} 310,${y + 6}" class="d-muted" fill="none" stroke-dasharray="${i % 2 ? '5 4' : '0'}"/>`;
+  }
+  s += `<path d="M70,130 L70,112 Q80,98 110,96 L140,76 Q170,66 210,70 L245,96 Q275,100 280,112 L280,130 Z" class="d-section"/>`;
+  s += `<circle cx="110" cy="132" r="13" class="d-support"/><circle cx="240" cy="132" r="13" class="d-support"/>` + line(10, 146, 310, 146, 'd-muted');
+  s += arrow(14, 110, 60, 110, 'd-accent', 'arra') + t(36, 102, 'V', 'd-text-accent');
+  s += arrow(290, 104, 318, 104) + t(300, 92, 'F<tspan baseline-shift="sub" font-size="8">D</tspan>', 'd-text-load');
+  s += `<path d="M282,112 q14,6 6,16 q-10,6 -4,14" class="d-curve2" fill="none"/>` + t(296, 160, 'wake', 'd-text');
+  return svg(320, 165, s, 'drag on a car');
+}
+
+export function jetPlate() {
+  let s = `<rect x="20" y="62" width="50" height="16" class="d-support"/>` + `<rect x="70" y="64" width="160" height="12" class="d-water"/>`;
+  s += arrow(90, 70, 220, 70, 'd-accent', 'arra') + t(150, 56, 'ρ, A, V', 'd-text-accent');
+  s += `<rect x="232" y="10" width="10" height="120" class="d-section"/>`;
+  s += `<path d="M230,64 Q226,40 228,14 M230,76 Q226,100 228,126" class="d-water-line" fill="none"/>`;
+  s += arrow(244, 70, 300, 70) + t(270, 60, 'F = ρAV²', 'd-text-load');
+  return svg(320, 140, s, 'jet on a plate');
+}
+
+export const registry = {
+  beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar,
+  tank, hydraulicPress, floating, pipeContraction, torricelliTank, pitot, velocityProfiles, moody, pumpCurve, dragCar, jetPlate,
+};
 
 // content uses {fn:'beam', args:['ss-udl',{diagrams:true}]}
 export function draw(spec) {

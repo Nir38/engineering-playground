@@ -3,7 +3,7 @@ import { allDomains } from '../data/catalog.js';
 import { generators, makeQuestion, fmt } from './generators.js';
 import { draw } from './diagrams.js';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }

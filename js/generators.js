@@ -392,8 +392,315 @@ export const generators = {
   },
 };
 
+// =====================================================================
+// FLUIDS. Water ρ = 1000 kg/m³ and g = 9.81 m/s² unless the question says otherwise.
+// =====================================================================
+const SRC_C = 'Çengel & Cimbala, Fluid Mechanics';
+const LIQ = [
+  { n: 'מים', rho: 1000 }, { n: 'מי ים', rho: 1025 }, { n: 'שמן', rho: 850 },
+];
+Object.assign(generators, {
+  'gf-hydro': {
+    subtopic: 'f-statics', difficulty: 1,
+    make() {
+      const l = pick(LIQ); const h = pick([2, 5, 8, 10, 15, 20, 30]);
+      const p = f.hydrostaticPressure(l.rho, h) / 1000;
+      return {
+        q: `מה הלחץ המנומטרי (gauge) בעומק $${h}$ m ב${l.n} ($\\rho=${l.rho}$ kg/m³)?`,
+        answer: p, unit: 'kPa',
+        steps: [`P_{gage}=\\rho g h=${l.rho}\\cdot9.81\\cdot${h}=${fmt(p * 1000, 4)}\\ \\text{Pa}`, `=${fmt(p)}\\ \\text{kPa}`],
+        hint: 'כלל אצבע: כל 10 מטר מים מוסיפים בערך אטמוספרה אחת (~98 kPa).',
+        diagram: { fn: 'tank', args: [{ h: `${h} m` }] }, source: `${SRC_C}, פרק 3`,
+      };
+    },
+  },
+  'gf-press': {
+    subtopic: 'f-statics', difficulty: 1,
+    make() {
+      const F1 = pick([100, 200, 300, 500]); const d1 = pick([20, 25, 30]); const d2 = pick([150, 200, 250, 300]);
+      const F2 = f.hydraulicPressForce(F1, f.area.circle(d1), f.area.circle(d2));
+      return {
+        q: `במגבה הידראולי לבוכנה הקטנה קוטר $${d1}$ mm ולגדולה $${d2}$ mm. מפעילים $${F1}$ N על הקטנה. איזה כוח מתקבל בגדולה?`,
+        answer: F2 / 1000, unit: 'kN',
+        steps: [`P=\\frac{F_1}{A_1}=\\frac{F_2}{A_2}`, `F_2=F_1\\left(\\frac{d_2}{d_1}\\right)^2=${F1}\\cdot\\left(\\frac{${d2}}{${d1}}\\right)^2=${fmt(F2, 4)}\\ \\text{N}`],
+        hint: 'יחס השטחים הוא יחס הקטרים בריבוע.',
+        diagram: { fn: 'hydraulicPress', args: [] }, source: `${SRC_C}, פרק 3`,
+      };
+    },
+  },
+  'gf-wall': {
+    subtopic: 'f-statics', difficulty: 2,
+    make() {
+      const h = pick([2, 3, 4]); const w = pick([1, 2, 3, 5]);
+      const F = f.planeWallForce(1000, h / 2, h * w) / 1000;
+      return {
+        q: `שער אנכי מלבני ברוחב $${w}$ m מחזיק מים בגובה $${h}$ m (פני המים בראש השער). מה הכוח ההידרוסטטי הכולל על השער?`,
+        answer: F, unit: 'kN',
+        steps: [`h_c=h/2=${h / 2}\\ \\text{m},\\quad A=${h * w}\\ \\text{m}^2`, `F=\\rho g h_c A=1000\\cdot9.81\\cdot${h / 2}\\cdot${h * w}=${fmt(F * 1000, 4)}\\ \\text{N}`, `\\text{acts at } \\tfrac{2}{3}h=${fmt((2 * h) / 3)}\\ \\text{m below surface}`],
+        hint: 'הכוח שווה ללחץ במרכז הכובד של השטח כפול השטח. נקודת הפעולה נמוכה יותר.',
+        diagram: { fn: 'tank', args: [{ h: `${h} m` }] }, source: `${SRC_C}, פרק 3`,
+      };
+    },
+  },
+  'gf-float': {
+    subtopic: 'f-buoy', difficulty: 1,
+    make() {
+      const b = pick([{ n: 'עץ אורן', rho: 500 }, { n: 'עץ אלון', rho: 750 }, { n: 'קרח', rho: 917 }, { n: 'פוליאתילן', rho: 950 }]);
+      const H = pick([10, 20, 30, 40]);
+      const d = H * f.submergedFraction(b.rho, 1000);
+      return {
+        q: `גוש ${b.n} ($\\rho=${b.rho}$ kg/m³) בגובה $${H}$ cm צף במים מתוקים, כשהפאה הגדולה מקבילה למים. מה העומק השקוע?`,
+        answer: d, unit: 'cm',
+        steps: [`W=F_B:\\ \\rho_b g A H=\\rho_w g A d`, `d=H\\frac{\\rho_b}{\\rho_w}=${H}\\cdot\\frac{${b.rho}}{1000}=${fmt(d)}\\ \\text{cm}`],
+        diagram: { fn: 'floating', args: [{ frac: b.rho / 1000 }] }, source: `${SRC_C}, פרק 3`,
+      };
+    },
+  },
+  'gf-apparent': {
+    subtopic: 'f-buoy', difficulty: 2,
+    make() {
+      const m = pick([{ n: 'פלדה', rho: 7850 }, { n: 'אלומיניום', rho: 2700 }, { n: 'נחושת', rho: 8960 }]);
+      const V = pick([1, 2, 5, 10]); // liters
+      const W = m.rho * (V / 1000) * 9.81; const FB = f.buoyancy(1000, V / 1000); const Wa = W - FB;
+      return {
+        q: `גוש ${m.n} ($\\rho=${m.rho}$ kg/m³) בנפח $${V}$ L תלוי על חוט ושקוע כולו במים. מה הכוח בחוט?`,
+        answer: Wa, unit: 'N',
+        steps: [`W=\\rho_s g V=${fmt(W, 4)}\\ \\text{N}`, `F_B=\\rho_w g V=${fmt(FB, 4)}\\ \\text{N}`, `T=W-F_B=${fmt(Wa, 4)}\\ \\text{N}`],
+        source: `${SRC_C}, פרק 3`,
+      };
+    },
+  },
+  'gf-continuity': {
+    subtopic: 'f-continuity', difficulty: 1,
+    make() {
+      const d1 = pick([50, 80, 100]); const d2 = pick([20, 25, 40]); const V1 = pick([1, 1.5, 2, 3]);
+      const V2 = V1 * (d1 / d2) ** 2;
+      return {
+        q: `מים זורמים בצינור בקוטר $${d1}$ mm במהירות $${V1}$ m/s, והצינור מצטמצם לקוטר $${d2}$ mm. מה המהירות בחלק הצר?`,
+        answer: V2, unit: 'm/s',
+        steps: [`A_1V_1=A_2V_2`, `V_2=V_1\\left(\\frac{d_1}{d_2}\\right)^2=${V1}\\cdot\\left(\\frac{${d1}}{${d2}}\\right)^2=${fmt(V2)}\\ \\text{m/s}`],
+        diagram: { fn: 'pipeContraction', args: [{}] }, source: `${SRC_C}, פרק 5`,
+      };
+    },
+  },
+  'gf-flow': {
+    subtopic: 'f-continuity', difficulty: 1,
+    make() {
+      const Q = pick([2, 5, 10, 20]); const d = pick([25, 40, 50, 80]);
+      const V = (Q / 1000) / f.area.circle(d / 1000);
+      return {
+        q: `ספיקה של $${Q}$ L/s עוברת בצינור בקוטר פנימי $${d}$ mm. מה מהירות הזרימה הממוצעת?`,
+        answer: V, unit: 'm/s',
+        steps: [`A=\\frac{\\pi d^2}{4}=${fmt(f.area.circle(d / 1000), 4)}\\ \\text{m}^2`, `V=\\frac{Q}{A}=\\frac{${Q / 1000}}{${fmt(f.area.circle(d / 1000), 4)}}=${fmt(V)}\\ \\text{m/s}`],
+        hint: '1 L = 0.001 m³.',
+        source: `${SRC_C}, פרק 5`,
+      };
+    },
+  },
+  'gf-bernoulli': {
+    subtopic: 'f-bernoulli', difficulty: 2,
+    make() {
+      const p1 = pick([150, 200, 250, 300]); const d1 = pick([80, 100]); const d2 = pick([40, 50]); const V1 = pick([1, 1.5, 2]);
+      const V2 = V1 * (d1 / d2) ** 2; const p2 = f.bernoulliP2(p1 * 1000, V1, 0, V2, 0, 1000) / 1000;
+      return {
+        q: `צינור מים אופקי מצטמצם מ-$${d1}$ mm ל-$${d2}$ mm. לפני ההיצרות $P_1=${p1}$ kPa ו-$V_1=${V1}$ m/s. בהזנחת הפסדים, מה הלחץ בחלק הצר?`,
+        answer: p2, unit: 'kPa',
+        steps: [`V_2=V_1(d_1/d_2)^2=${fmt(V2)}\\ \\text{m/s}`, `P_2=P_1+\\tfrac12\\rho(V_1^2-V_2^2)`, `=${p1 * 1000}+500(${fmt(V1 * V1)}-${fmt(V2 * V2)})=${fmt(p2 * 1000, 4)}\\ \\text{Pa}`, `=${fmt(p2)}\\ \\text{kPa}`],
+        hint: 'קודם רציפות למציאת V₂, ואחר כך ברנולי.',
+        diagram: { fn: 'pipeContraction', args: [{}] }, source: `${SRC_C}, פרק 5`,
+      };
+    },
+  },
+  'gf-torricelli': {
+    subtopic: 'f-bernoulli', difficulty: 1,
+    make() {
+      const h = pick([1, 2, 3, 5, 8]);
+      const V = f.torricelli(h);
+      return {
+        q: `במיכל פתוח גדול, פני המים נמצאים $${h}$ m מעל חור קטן בדופן. בהזנחת הפסדים, מה מהירות הסילון?`,
+        answer: V, unit: 'm/s',
+        steps: [`P_1=P_2=P_{atm},\\quad V_1\\approx0`, `V=\\sqrt{2gh}=\\sqrt{2\\cdot9.81\\cdot${h}}=${fmt(V)}\\ \\text{m/s}`],
+        diagram: { fn: 'torricelliTank', args: [] }, source: `${SRC_C}, פרק 5`,
+      };
+    },
+  },
+  'gf-pitot': {
+    subtopic: 'f-bernoulli', difficulty: 2,
+    make() {
+      const dp = pick([200, 300, 500, 800, 1200]);
+      const V = f.pitotVelocity(dp, 1.204);
+      return {
+        q: `צינור פיטו באוויר ($\\rho=1.204$ kg/m³) מודד הפרש בין לחץ עצירה ללחץ סטטי של $${dp}$ Pa. מה מהירות האוויר בקמ"ש?`,
+        answer: V * 3.6, unit: 'km/h',
+        steps: [`V=\\sqrt{\\frac{2(P_0-P)}{\\rho}}=\\sqrt{\\frac{2\\cdot${dp}}{1.204}}=${fmt(V)}\\ \\text{m/s}`, `\\times3.6=${fmt(V * 3.6)}\\ \\text{km/h}`],
+        diagram: { fn: 'pitot', args: [] }, source: `${SRC_C}, פרק 5`,
+      };
+    },
+  },
+  'gf-venturi': {
+    subtopic: 'f-bernoulli', difficulty: 3,
+    make() {
+      const d1 = pick([100, 150]); const d2 = pick([50, 60, 75]); const dp = pick([10, 20, 30, 50]);
+      const Q = f.venturiQ(d1 / 1000, d2 / 1000, dp * 1000, 1000) * 1000;
+      const beta = d2 / d1;
+      return {
+        q: `מד ונטורי במים: קוטר כניסה $${d1}$ mm, קוטר צוואר $${d2}$ mm, הפרש לחצים $${dp}$ kPa. בהנחה של זרימה אידאלית ($C_d=1$), מה הספיקה?`,
+        answer: Q, unit: 'L/s',
+        steps: [`\\beta=d_2/d_1=${fmt(beta)}`, `Q=A_2\\sqrt{\\frac{2\\Delta P}{\\rho(1-\\beta^4)}}`, `=${fmt(f.area.circle(d2 / 1000), 4)}\\sqrt{\\frac{2\\cdot${dp * 1000}}{1000(1-${fmt(beta ** 4, 4)})}}=${fmt(Q / 1000, 4)}\\ \\text{m}^3/\\text{s}`, `=${fmt(Q)}\\ \\text{L/s}`],
+        diagram: { fn: 'pipeContraction', args: [{ venturi: true }] }, source: `${SRC_C}, פרק 8`,
+      };
+    },
+  },
+  'gf-reynolds': {
+    subtopic: 'f-reynolds', difficulty: 1,
+    make() {
+      const fl = pick([
+        { n: 'מים ב-20°C', rho: 998, mu: 1.002e-3 },
+        { n: 'שמן מנוע', rho: 888, mu: 0.8 },
+        { n: 'אוויר ב-20°C', rho: 1.204, mu: 1.825e-5 },
+      ]);
+      const V = pick([0.5, 1, 2, 5]); const d = pick([10, 25, 50, 100]);
+      const Re = f.reynolds(fl.rho, V, d / 1000, fl.mu);
+      const reg = { laminar: 'למינרית', transitional: 'מעבר', turbulent: 'טורבולנטית' }[f.flowRegime(Re)];
+      return {
+        q: `${fl.n} ($\\rho=${fl.rho}$ kg/m³, $\\mu=${fl.mu}$ Pa·s) זורם במהירות $${V}$ m/s בצינור בקוטר $${d}$ mm. מה מספר ריינולדס?`,
+        answer: Re, unit: '',
+        steps: [`Re=\\frac{\\rho VD}{\\mu}=\\frac{${fl.rho}\\cdot${V}\\cdot${d / 1000}}{${fl.mu}}=${fmt(Re, 4)}`, `\\Rightarrow\\ \\text{${reg === 'למינרית' ? 'laminar' : reg === 'מעבר' ? 'transitional' : 'turbulent'}}`],
+        hint: 'בצינור עגול: מתחת ל-2300 למינרית, מעל 4000 טורבולנטית.',
+        diagram: { fn: 'velocityProfiles', args: [] }, source: `${SRC_C}, פרק 8`,
+      };
+    },
+  },
+  'gf-laminar': {
+    subtopic: 'f-pipe', difficulty: 3,
+    make() {
+      const mu = pick([0.1, 0.2, 0.3]); const rho = 900; const d = pick([10, 15, 20]); const V = pick([0.3, 0.5, 1]); const L = pick([5, 10, 20]);
+      const Re = f.reynolds(rho, V, d / 1000, mu); const fr = f.frictionLaminar(Re);
+      const dp = f.darcyPressureDrop(fr, L, d / 1000, V, rho) / 1000;
+      return {
+        q: `שמן ($\\rho=900$ kg/m³, $\\mu=${mu}$ Pa·s) זורם ב-$${V}$ m/s בצינור בקוטר $${d}$ mm ובאורך $${L}$ m. מה מפל הלחץ?`,
+        answer: dp, unit: 'kPa',
+        steps: [`Re=\\frac{\\rho VD}{\\mu}=${fmt(Re)}\\ \\Rightarrow\\ \\text{laminar}`, `f=\\frac{64}{Re}=${fmt(fr, 4)}`, `\\Delta P=f\\frac{L}{D}\\frac{\\rho V^2}{2}=${fmt(dp * 1000, 4)}\\ \\text{Pa}=${fmt(dp)}\\ \\text{kPa}`],
+        hint: 'קודם לבדוק ש-Re קטן מ-2300.',
+        source: `${SRC_C}, פרק 8`,
+      };
+    },
+  },
+  'gf-darcy': {
+    subtopic: 'f-pipe', difficulty: 2,
+    make() {
+      const fr = pick([0.018, 0.02, 0.022, 0.025]); const L = pick([50, 100, 200]); const d = pick([50, 80, 100]); const V = pick([1, 1.5, 2, 2.5]);
+      const hf = f.darcyHeadLoss(fr, L, d / 1000, V);
+      return {
+        q: `בצינור מים באורך $${L}$ m ובקוטר $${d}$ mm המהירות $${V}$ m/s. מדיאגרמת Moody התקבל $f=${fr}$. מה הפסד העומד (head loss)?`,
+        answer: hf, unit: 'm',
+        steps: [`h_f=f\\frac{L}{D}\\frac{V^2}{2g}=${fr}\\cdot\\frac{${L}}{${d / 1000}}\\cdot\\frac{${V}^2}{2\\cdot9.81}=${fmt(hf)}\\ \\text{m}`, `\\Delta P=\\rho g h_f=${fmt((1000 * 9.81 * hf) / 1000)}\\ \\text{kPa}`],
+        diagram: { fn: 'moody', args: [{}] }, source: `${SRC_C}, פרק 8`,
+      };
+    },
+  },
+  'gf-haaland': {
+    subtopic: 'f-pipe', difficulty: 3,
+    make() {
+      const d = pick([25, 50, 100]); const V = pick([1, 2, 3]); const eps = 0.045;
+      const Re = f.reynolds(998, V, d / 1000, 1.002e-3); const fr = f.frictionHaaland(Re, eps / d);
+      return {
+        q: `מים ב-20°C ($\\rho=998$, $\\mu=1.002\\times10^{-3}$) זורמים ב-$${V}$ m/s בצינור פלדה מסחרית ($\\varepsilon=0.045$ mm) בקוטר $${d}$ mm. חשב את מקדם החיכוך לפי Haaland.`,
+        answer: fr, unit: '', tol: 0.02,
+        steps: [`Re=${fmt(Re, 4)},\\quad \\varepsilon/D=${fmt(eps / d, 3)}`, `\\frac{1}{\\sqrt f}=-1.8\\log\\left[\\left(\\frac{\\varepsilon/D}{3.7}\\right)^{1.11}+\\frac{6.9}{Re}\\right]`, `f=${fmt(fr, 4)}`],
+        hint: 'Haaland היא נוסחה מפורשת שקרובה לקולברוק בטווח של כ-2%.',
+        diagram: { fn: 'moody', args: [{ point: [Re, fr] }] }, source: `${SRC_C}, פרק 8`,
+      };
+    },
+  },
+  'gf-minor': {
+    subtopic: 'f-pipe', difficulty: 2,
+    make() {
+      const n90 = pick([2, 3, 4]); const V = pick([1.5, 2, 2.5, 3]);
+      const K = n90 * 0.3 + 0.2 + 0.5; // 0.3 per flanged 90° elbow (regular), gate valve open 0.2, sharp entrance 0.5
+      const hm = f.minorHeadLoss(K, V);
+      return {
+        q: `במערכת יש כניסה חדה ($K=0.5$), $${n90}$ ברכיים מאוגנות של 90° ($K=0.3$ כל אחת) ומגוף פתוח לגמרי ($K=0.2$). המהירות $${V}$ m/s. מה סך ההפסדים המקומיים בעומד?`,
+        answer: hm, unit: 'm',
+        steps: [`\\sum K=0.5+${n90}\\cdot0.3+0.2=${fmt(K)}`, `h_m=\\sum K\\frac{V^2}{2g}=${fmt(K)}\\cdot\\frac{${V}^2}{19.62}=${fmt(hm)}\\ \\text{m}`],
+        source: `${SRC_C}, פרק 8`,
+      };
+    },
+  },
+  'gf-pump-power': {
+    subtopic: 'f-pumps', difficulty: 1,
+    make() {
+      const Q = pick([5, 10, 20, 50]); const H = pick([10, 20, 30, 50]); const eta = pick([0.6, 0.7, 0.75, 0.8]);
+      const P = f.pumpShaftPower(1000, Q / 1000, H, eta) / 1000;
+      return {
+        q: `משאבת מים מספקת $${Q}$ L/s לעומד של $${H}$ m בנצילות $${eta * 100}\\%$. מה הספק הציר הנדרש?`,
+        answer: P, unit: 'kW',
+        steps: [`P_{hyd}=\\rho gQH=1000\\cdot9.81\\cdot${Q / 1000}\\cdot${H}=${fmt(P * eta * 1000, 4)}\\ \\text{W}`, `P_{shaft}=\\frac{P_{hyd}}{\\eta}=${fmt(P * 1000, 4)}\\ \\text{W}=${fmt(P)}\\ \\text{kW}`],
+        diagram: { fn: 'pumpCurve', args: [{}] }, source: `${SRC_C}, פרק 14`,
+      };
+    },
+  },
+  'gf-affinity': {
+    subtopic: 'f-pumps', difficulty: 2,
+    make() {
+      const N1 = pick([1450, 2900]); const N2 = N1 === 1450 ? pick([1750, 2000, 2900]) : pick([1450, 2000, 2400]);
+      const H1 = pick([20, 30, 40]); const P1 = pick([3, 5, 7.5]);
+      const ask = pick(['H', 'P']); const r = f.affinity(10, H1, P1, N1, N2);
+      return {
+        q: `משאבה צנטריפוגלית מסתובבת ב-$${N1}$ rpm ונותנת עומד $${H1}$ m בהספק $${P1}$ kW. משנים את המהירות ל-$${N2}$ rpm (אותו קוטר מאיץ). מה ${ask === 'H' ? 'העומד החדש' : 'ההספק החדש'}?`,
+        answer: ask === 'H' ? r.H : r.P, unit: ask === 'H' ? 'm' : 'kW',
+        steps: [`Q\\propto N,\\quad H\\propto N^2,\\quad P\\propto N^3`, ask === 'H' ? `H_2=${H1}\\left(\\frac{${N2}}{${N1}}\\right)^2=${fmt(r.H)}\\ \\text{m}` : `P_2=${P1}\\left(\\frac{${N2}}{${N1}}\\right)^3=${fmt(r.P)}\\ \\text{kW}`],
+        source: `${SRC_C}, פרק 14`,
+      };
+    },
+  },
+  'gf-npsh': {
+    subtopic: 'f-pumps', difficulty: 3,
+    make() {
+      const zs = pick([-4, -3, -2, 1, 2]); const hl = pick([0.5, 1, 1.5]);
+      const N = f.npshAvailable(101325, 2339, 998, zs, hl);
+      return {
+        q: `משאבה יונקת מים ב-20°C ממיכל פתוח ($P_{atm}=101.3$ kPa, $P_v=2.34$ kPa, $\\rho=998$). פני המים נמצאים ${zs < 0 ? `$${-zs}$ m **מתחת**` : `$${zs}$ m **מעל**`} לפתח היניקה, והפסדי היניקה $${hl}$ m. מה ה-NPSH הזמין?`,
+        answer: N, unit: 'm',
+        steps: [`NPSH_A=\\frac{P_{atm}-P_v}{\\rho g}+z_s-h_L`, `=\\frac{101325-2339}{998\\cdot9.81}+(${zs})-${hl}=${fmt(N)}\\ \\text{m}`],
+        hint: 'z חיובי כשהמיכל מעל המשאבה. צריך NPSH זמין גדול מה-NPSH הנדרש של המשאבה, עם מרווח.',
+        source: `${SRC_C}, פרק 14`,
+      };
+    },
+  },
+  'gf-drag': {
+    subtopic: 'f-drag', difficulty: 2,
+    make() {
+      const v = pick([50, 80, 100, 120, 130]); const Cd = pick([0.25, 0.3, 0.35]); const A = pick([2.0, 2.2, 2.5]);
+      const ask = pick(['F', 'P']); const V = f.kmh(v);
+      const F = f.dragForce(1.204, V, Cd, A); const P = F * V / 1000;
+      return {
+        q: `מכונית עם $C_D=${Cd}$ ושטח חזית $${A}$ m² נוסעת ב-$${v}$ km/h באוויר ($\\rho=1.204$ kg/m³) בלי רוח. מה ${ask === 'F' ? 'כוח הגרר' : 'ההספק הדרוש להתגבר על הגרר'}?`,
+        answer: ask === 'F' ? F : P, unit: ask === 'F' ? 'N' : 'kW',
+        steps: [`V=${v}/3.6=${fmt(V)}\\ \\text{m/s}`, `F_D=\\tfrac12\\rho V^2C_DA=${fmt(F, 4)}\\ \\text{N}`, `P=F_DV=${fmt(P * 1000, 4)}\\ \\text{W}=${fmt(P)}\\ \\text{kW}`],
+        hint: 'הכוח עולה עם V², וההספק עם V³.',
+        diagram: { fn: 'dragCar', args: [] }, source: `${SRC_C}, פרק 11`,
+      };
+    },
+  },
+  'gf-jet': {
+    subtopic: 'f-momentum', difficulty: 2,
+    make() {
+      const d = pick([10, 20, 30, 50]); const V = pick([10, 15, 20, 30]);
+      const F = f.jetForceFlatPlate(1000, f.area.circle(d / 1000), V);
+      return {
+        q: `סילון מים בקוטר $${d}$ mm ובמהירות $${V}$ m/s פוגע בניצב בפלטה שטוחה נייחת, ומתפזר לצדדים. מה הכוח על הפלטה?`,
+        answer: F, unit: 'N',
+        steps: [`\\dot m=\\rho AV=${fmt(1000 * f.area.circle(d / 1000) * V, 4)}\\ \\text{kg/s}`, `F=\\dot m V=\\rho AV^2=${fmt(F, 4)}\\ \\text{N}`],
+        hint: 'כל התנע בכיוון הסילון "נעלם" בפגיעה, כי המים יוצאים בניצב.',
+        diagram: { fn: 'jetPlate', args: [] }, source: `${SRC_C}, פרק 6`,
+      };
+    },
+  },
+});
+
 export function makeQuestion(genId) {
   const g = generators[genId];
   const out = g.make();
-  return { id: genId, type: 'numeric', subtopic: g.subtopic, difficulty: g.difficulty, tol: 0.02, ...out };
+  return { id: genId, type: 'numeric', subtopic: g.subtopic, difficulty: g.difficulty, ...out, tol: out.tol || 0.02 };
 }
