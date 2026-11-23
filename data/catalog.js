@@ -10,6 +10,8 @@ import design from './design.js';
 import gdt from './gdt.js';
 import mfg from './mfg.js';
 import dynamics from './dynamics.js';
+import fea from './fea.js';
+import cad from './cad.js';
 
 export const domains = [
   { id: 'strength', module: strength },
@@ -21,8 +23,8 @@ export const domains = [
   { id: 'gdt', module: gdt },
   { id: 'dfm', module: mfg },
   { id: 'dynamics', module: dynamics },
-  { id: 'fea', title: 'FEA וסימולציה', icon: '🧮', summary: 'רשת, תנאי שפה, אימות תוצאות', soon: true },
-  { id: 'cad', title: 'CAD ו-SOLIDWORKS', icon: '🖥️', summary: 'מידול, הרכבות, שרטוטים', soon: true },
+  { id: 'fea', module: fea },
+  { id: 'cad', module: cad },
 ];
 
 export function allDomains() {

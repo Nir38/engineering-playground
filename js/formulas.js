@@ -552,6 +552,42 @@ export const unbalanceForce = (m_unb, e, w) => m_unb * e * w * w;
 // random vibration: flat PSD [g²/Hz] over a band [Hz]
 export const grmsFlat = (psd, f1, f2) => Math.sqrt(psd * (f2 - f1));
 
+// =====================================================================
+// FEA & CAD
+// =====================================================================
+// Gaussian elimination with partial pivoting: solve A x = b
+export function solveLinear(A, b) {
+  const n = b.length, M = A.map((row, i) => [...row, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = c + 1; r < n; r++) { const fct = M[r][c] / M[c][c]; for (let k = c; k <= n; k++) M[r][k] -= fct * M[c][k]; }
+  }
+  const x = Array(n).fill(0);
+  for (let r = n - 1; r >= 0; r--) { let s = M[r][n]; for (let k = r + 1; k < n; k++) s -= M[r][k] * x[k]; x[r] = s / M[r][r]; }
+  return x;
+}
+// axial bar elements in series, node 0 fixed, point loads at nodes 1..n: returns nodal displacements
+export function barChainFEA(ks, loads) {
+  const n = ks.length; const K = Array.from({ length: n }, () => Array(n).fill(0));
+  ks.forEach((k, e) => { // element e connects node e and e+1 (node 0 removed)
+    const i = e - 1, j = e;
+    if (i >= 0) { K[i][i] += k; K[i][j] -= k; K[j][i] -= k; }
+    K[j][j] += k;
+  });
+  return solveLinear(K, loads);
+}
+export const barElementK = (E, A, L) => (E * A) / L;
+// mesh refinement: element count grows as (h_old/h_new)^dim
+export const meshCountFactor = (ratio, dim) => ratio ** dim;
+// Richardson extrapolation with refinement ratio r and order p
+export const richardson = (fFine, fCoarse, p = 2, r = 2) => fFine + (fFine - fCoarse) / (r ** p - 1);
+export const pctDiff = (a, ref) => (100 * (a - ref)) / ref;
+export const bucklingLoad = (loadFactor, applied) => loadFactor * applied;
+// CAD: mass properties
+export const massFromVolume = (V_cm3, rho_g_cm3) => V_cm3 * rho_g_cm3; // g
+export const centroid1D = (items) => items.reduce((a, [m, x]) => a + m * x, 0) / items.reduce((a, [m]) => a + m, 0);
+
 // ---------- Helpers ----------
 export const deg = (rad) => (rad * 180) / PI;
 export const rad = (d) => (d * PI) / 180;

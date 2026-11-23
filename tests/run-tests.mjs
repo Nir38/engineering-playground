@@ -504,7 +504,7 @@ const ex = [
     ['dy-newton F', 0.4 * 10, 4, 1e-12], ['dy-energy P [kW]', f.shaftPower(300, 3000) / 1000, 94.2, 1e-3],
     ['dy-energy ≈128 PS (metric hp = 735.5 W)', f.shaftPower(300, 3000) / 735.5, 128, 3e-3], ['dy-energy impact', f.impactSpeed(2), 6.26, 1e-3],
     ['dy-rotation I', f.inertia.disk(20, 0.2), 0.4, 1e-12], ['dy-rotation E [kJ]', f.rotationalEnergy(0.4, f.rpmToRad(3000)) / 1000, 19.7, 2e-3],
-    ['dy-sdof fn', f.naturalFreqHz(20000, 5), 10.1, 5e-3], // lesson rounds 10.07 to 10.1 ['dy-sdof fn from 1 mm', f.freqFromStaticDeflection(0.001), 15.8, 3e-3],
+    ['dy-sdof fn', f.naturalFreqHz(20000, 5), 10.1, 5e-3], /* lesson rounds 10.07 to 10.1 */ ['dy-sdof fn from 1 mm', f.freqFromStaticDeflection(0.001), 15.8, 3e-3],
     ['dy-sdof 15.76 constant', Math.sqrt(9810) / (2 * Math.PI), 15.76, 1e-3],
     ['dy-damping ζ', f.dampingRatio(40, 20000, 5), 0.063, 4e-3], ['dy-damping δ', f.logDecrement(10, 8), 0.223, 2e-3], ['dy-damping ζ from δ', f.zetaFromLogDec(f.logDecrement(10, 8)), 0.036, 2e-2],
     ['dy-forced M at r=1, ζ=0.05', f.magnification(1, 0.05), 10, 1e-12], ['dy-isolation T', f.transmissibility(3, 0.05), 0.13, 1e-2],
@@ -540,6 +540,33 @@ const ex = [
     check('simulated forced amplitude = M · F0/k', near(amp / (F0 / k), f.magnification(r, 0.1), 5e-3), `${amp / (F0 / k)}`); }
 }
 
+// ---------- FEA & CAD ----------
+{
+  const k1 = f.barElementK(200000, 100, 500), k2 = f.barElementK(200000, 50, 500);
+  const u = f.barChainFEA([k1, k2], [0, 10000]);
+  const ex8 = [
+    ['fe-1d k1', k1, 40000, 1e-12], ['fe-1d k2', k2, 20000, 1e-12], ['fe-1d u1', u[0], 0.25, 1e-9], ['fe-1d u2', u[1], 0.75, 1e-9],
+    ['fe-mesh Richardson', f.richardson(105, 100), 106.7, 1e-3], ['fe-mesh 3D halving ×8', f.meshCountFactor(2, 3), 8, 1e-12],
+    ['fe-types buckling', f.bucklingLoad(2.3, 10), 23, 1e-12],
+    ['cad-mass m', f.massFromVolume(85, 2.70), 229.5, 1e-9], ['cad-mass x̄', f.centroid1D([[2, 0], [1, 150], [0.5, 300]]), 85.7, 1e-3],
+  ];
+  ex8.forEach(([n, got, want, tol]) => check(n, near(got, want, tol), `got ${got}, lesson says ${want}`));
+  // independent: series springs carrying the same end force, and a 3-element chain with loads at every node
+  for (let t = 0; t < 50; t++) {
+    const ks = [1, 2, 3].map(() => 1000 + Math.random() * 50000), P = [0, 0, 5000 + Math.random() * 1e4];
+    const uu = f.barChainFEA(ks, P); let acc = 0;
+    const hand = ks.map((k) => (acc += P[2] / k));
+    if (!hand.every((h, i) => near(h, uu[i], 1e-9))) { check('FEA chain = series springs', false, JSON.stringify({ ks, uu, hand })); break; }
+    if (t === 49) check('FEA chain = series springs (50 random)', true);
+  }
+  { // loads at every node: element force = sum of loads beyond it
+    const ks = [30000, 10000, 20000], P = [1000, 2000, 4000], uu = f.barChainFEA(ks, P);
+    const N = [P[0] + P[1] + P[2], P[1] + P[2], P[2]]; let acc = 0; const hand = ks.map((k, i) => (acc += N[i] / k));
+    check('FEA chain with distributed nodal loads', hand.every((h, i) => near(h, uu[i], 1e-9)), JSON.stringify({ uu, hand }));
+  }
+  check('Richardson exact for p=2 error', near(f.richardson(10 + 1 / 16, 10 + 1 / 4), 10, 1e-12));
+  check('pctDiff sign', f.pctDiff(95, 100) === -5 && f.pctDiff(110, 100) === 10);
+}
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {
   const sub = (id) => domains.flatMap((d) => (d.module ? d.module.subtopics : [])).find((s) => s.id === id);
@@ -581,7 +608,7 @@ for (const id of Object.keys(generators)) {
   for (let i = 0; i < 300; i++) {
     const q = makeQuestion(id);
     if (!isFinite(q.answer)) { ok = false; why = 'answer not finite'; break; }
-    if (!['g-mohr', 'gt-firstlaw', 'gx-fit'].includes(id) && q.answer <= 0) { ok = false; why = `answer ${q.answer} <= 0`; break; }
+    if (!['g-mohr', 'gt-firstlaw', 'gx-fit', 'gfe-verify'].includes(id) && q.answer <= 0) { ok = false; why = `answer ${q.answer} <= 0`; break; }
     if (!q.steps || !q.steps.length || !q.source || !q.q) { ok = false; why = 'missing steps/source/q'; break; }
     if (!subIds.has(q.subtopic)) { ok = false; why = `unknown subtopic ${q.subtopic}`; break; }
     // a lost backslash in a JS string turns \t into a TAB and \c into "c": catch both

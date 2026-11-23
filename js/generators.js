@@ -2202,6 +2202,144 @@ Object.assign(generators, {
   },
 });
 
+// =====================================================================
+// FEA & CAD
+// =====================================================================
+const SRC_LOGAN = 'Logan, A First Course in the Finite Element Method';
+const SRC_COOK = 'Cook et al., Concepts and Applications of Finite Element Analysis';
+const SRC_SW = 'SOLIDWORKS Help (Dassault Systèmes)';
+Object.assign(generators, {
+  'gfe-bar': {
+    subtopic: 'fe-1d', difficulty: 2,
+    make() {
+      const A1 = pick([100, 200]); const A2 = pick([50, 100]); const L = pick([200, 400, 500]); const P = pick([5, 10, 20]); const E = pick([[70000, 'אלומיניום'], [200000, 'פלדה']]);
+      const k1 = f.barElementK(E[0], A1, L), k2 = f.barElementK(E[0], A2, L);
+      const u = f.barChainFEA([k1, k2], [0, P * 1000]); const ask = pick([0, 1]);
+      return {
+        q: `מוט מ${E[1]} ($E=${E[0] / 1000}$ GPa) בנוי משני אלמנטים באורך $${L}$ mm כל אחד: שטח $${A1}$ mm² ואז $${A2}$ mm². הקצה השמאלי מקובע, ובקצה הימני כוח $${P}$ kN. מה התזוזה ${ask ? 'בקצה' : 'בצומת האמצעי'}?`,
+        answer: u[ask], unit: 'mm',
+        steps: [`k_1=\\frac{EA_1}{L}=${fmt(k1, 5)},\\quad k_2=\\frac{EA_2}{L}=${fmt(k2, 5)}\\ \\text{N/mm}`, `\\begin{bmatrix}k_1+k_2&-k_2\\\\-k_2&k_2\\end{bmatrix}\\begin{Bmatrix}u_1\\\\u_2\\end{Bmatrix}=\\begin{Bmatrix}0\\\\P\\end{Bmatrix}`, `u_1=${fmt(u[0], 4)},\\quad u_2=${fmt(u[1], 4)}\\ \\text{mm}`],
+        hint: 'בדיוק כמו קפיצים בטור: אותו כוח עובר בשני האלמנטים, והתזוזות מצטברות.',
+        diagram: { fn: 'barElements', args: [{ n: 2 }] }, source: SRC_LOGAN,
+      };
+    },
+  },
+  'gfe-springs': {
+    subtopic: 'fe-1d', difficulty: 3,
+    make() {
+      const ks = [pick([1000, 2000]), pick([500, 1000, 3000]), pick([500, 1000])]; const F1 = pick([0, 100, 200]); const F3 = pick([100, 200, 300]);
+      const u = f.barChainFEA(ks, [F1, 0, F3]); const node = pick([1, 2, 3]);
+      return {
+        q: `שלושה קפיצים בטור: $k_1=${ks[0]}$, $k_2=${ks[1]}$, $k_3=${ks[2]}$ N/mm. צומת 0 מקובע. כוחות: $F_1=${F1}$ N בצומת 1 ו-$F_3=${F3}$ N בצומת 3. מה התזוזה של צומת ${node}?`,
+        answer: u[node - 1], unit: 'mm',
+        steps: [`\\text{forces in elements: }N_1=${F1 + F3},\\ N_2=${F3},\\ N_3=${F3}\\ \\text{N}`, `u_1=\\frac{N_1}{k_1}=${fmt(u[0], 4)},\\ u_2=u_1+\\frac{N_2}{k_2}=${fmt(u[1], 4)},\\ u_3=u_2+\\frac{N_3}{k_3}=${fmt(u[2], 4)}`],
+        hint: 'מטריצת הקשיחות נותנת את אותה תוצאה כמו שיווי משקל של כל קטע. כך FEA פותר מבנים גדולים.',
+        diagram: { fn: 'barElements', args: [{ n: 3 }] }, source: SRC_LOGAN,
+      };
+    },
+  },
+  'gfe-mesh': {
+    subtopic: 'fe-mesh', difficulty: 1,
+    make() {
+      const r = pick([2, 3]); const dim = pick([2, 3]); const n0 = pick([5000, 20000, 50000]);
+      return {
+        q: `רשת ${dim === 2 ? 'דו-ממדית' : 'תלת-ממדית'} של $${n0.toLocaleString('en-US')}$ אלמנטים. מקטינים את גודל האלמנט פי $${r}$ בכל המודל. בערך כמה אלמנטים יהיו?`,
+        answer: n0 * f.meshCountFactor(r, dim), unit: 'אלמנטים',
+        steps: [`N_{new}\\approx N\\cdot r^{${dim}}=${n0}\\cdot${r}^${dim}=${fmt(n0 * f.meshCountFactor(r, dim), 6)}`],
+        hint: 'לכן מעדנים רק איפה שצריך (mesh control), ולא את כל המודל.',
+        diagram: { fn: 'meshRefine', args: [] }, source: SRC_COOK,
+      };
+    },
+  },
+  'gfe-richardson': {
+    subtopic: 'fe-mesh', difficulty: 3,
+    make() {
+      const f2 = pick([100, 150, 200]); const d = pick([3, 5, 8]); const f1 = f2 + d;
+      const ex = f.richardson(f1, f2, 2, 2);
+      return {
+        q: `במחקר התכנסות, מאמץ מקסימלי $${f2}$ MPa ברשת גסה ו-$${f1}$ MPa ברשת עדינה פי 2. בהנחה של התכנסות מסדר 2, מה ההערכה לערך "המתכנס" (Richardson)?`,
+        answer: ex, unit: 'MPa',
+        steps: [`f_{\\infty}\\approx f_{fine}+\\frac{f_{fine}-f_{coarse}}{r^p-1}=${f1}+\\frac{${d}}{2^2-1}=${fmt(ex, 4)}`],
+        hint: 'אם הערכים לא מתייצבים (קופצים כל פעם), כנראה יש סינגולריות, ואין ערך מתכנס.',
+        diagram: { fn: 'convergencePlot', args: [] }, source: SRC_COOK,
+      };
+    },
+  },
+  'gfe-verify': {
+    subtopic: 'fe-verify', difficulty: 2,
+    make() {
+      const P = pick([500, 1000]); const L = pick([300, 500]); const b = pick([20, 30]); const h = pick([30, 40]);
+      const hand = f.beam['cant-point'].defl(P, L, 200000, f.I.rect(b, h)); const fea = +(hand * pick([0.97, 1.02, 1.04, 1.1])).toFixed(3);
+      const d = f.pctDiff(fea, hand);
+      return {
+        q: `FEA של שלוחת פלדה ($E=200$ GPa, ${L} mm, חתך $${b}\\times${h}$, $P=${P}$ N בקצה) נתן שקיעה של $${fea}$ mm. מה ההפרש באחוזים מהחישוב הידני?`,
+        answer: d, unit: '%', tol: 0.05,
+        steps: [`\\delta_{hand}=\\frac{PL^3}{3EI}=${fmt(hand, 4)}\\ \\text{mm}`, `\\Delta=\\frac{${fea}-${fmt(hand, 4)}}{${fmt(hand, 4)}}\\cdot100=${fmt(d, 3)}\\%`],
+        hint: 'הפרש של כמה אחוזים סביר (גזירה, תנאי הקיבוע). 10% ומעלה: לבדוק יחידות, חומר ותנאי שפה.',
+        diagram: { fn: 'beam', args: ['cant-point', {}] }, source: SRC_COOK,
+      };
+    },
+  },
+  'gfe-buckle': {
+    subtopic: 'fe-types', difficulty: 1,
+    make() {
+      const LF = pick([0.8, 1.5, 2.3, 4.6]); const P = pick([5, 10, 20]);
+      return {
+        q: `ניתוח קריסה (eigenvalue) עם עומס מופעל של $${P}$ kN החזיר מקדם עומס (load factor) $${LF}$. מה עומס הקריסה הצפוי?${LF < 1 ? ' האם המבנה בטוח?' : ''}`,
+        answer: f.bucklingLoad(LF, P), unit: 'kN',
+        steps: [`P_{cr}=LF\\cdot P=${LF}\\cdot${P}=${fmt(f.bucklingLoad(LF, P), 4)}\\ \\text{kN}`, LF < 1 ? `LF<1\\Rightarrow\\text{buckles before reaching the applied load}` : `LF>1\\Rightarrow\\text{margin }${fmt(LF, 3)}`],
+        hint: 'ניתוח לינארי של קריסה נותן חסם עליון. פגמים אמיתיים מורידים את העומס, ולכן מוסיפים מקדם ביטחון גדול.',
+        source: SRC_COOK,
+      };
+    },
+  },
+  'gcd-dof': {
+    subtopic: 'cad-assembly', difficulty: 2,
+    make() {
+      const sc = pick([
+        { q: 'פין שמוכנס לחור עם mate של Concentric בלבד', a: 2, s: ['\\text{start: }6', '\\text{Concentric: }-4\\ (2\\text{ translations},\\ 2\\text{ rotations})', '\\Rightarrow 2:\\ \\text{slide + spin}'] },
+        { q: 'פין בחור: Concentric + Coincident בין פני הראש לפני החלק', a: 1, s: ['6-4=2', '\\text{Coincident face: removes the slide}', '\\Rightarrow 1:\\ \\text{spin about the axis}'] },
+        { q: 'קופסה על שולחן עם mate של Coincident בין התחתית לשולחן בלבד', a: 3, s: ['\\text{Coincident plane-plane: }-3\\ (1\\text{ translation},\\ 2\\text{ rotations})', '\\Rightarrow 3:\\ \\text{2 slides + 1 rotation}'] },
+        { q: 'קופסה על שולחן: Coincident לתחתית + Coincident של דופן לקיר ניצב', a: 1, s: ['6-3=3', '\\text{second plane: removes 1 slide + 1 rotation}', '\\Rightarrow 1:\\ \\text{slide along the wall}'] },
+      ]);
+      return {
+        q: `${sc.q}. כמה דרגות חופש נשארות לחלק?`,
+        answer: sc.a, unit: 'DOF', tol: 1e-9,
+        steps: sc.s,
+        hint: 'לחלק חופשי יש 6 דרגות חופש. mate מסיר רק דרגות שעוד לא הוסרו.',
+        diagram: { fn: 'dofCube', args: [] }, source: SRC_SW,
+      };
+    },
+  },
+  'gcd-mass': {
+    subtopic: 'cad-mass', difficulty: 1,
+    make() {
+      const m = pick([['אלומיניום 6061', 2.70], ['פלדה', 7.85], ['נירוסטה 304', 8.0], ['ABS', 1.05], ['טיטניום Ti-6Al-4V', 4.43]]); const V = pick([12.5, 40, 85, 150, 320]);
+      return {
+        q: `Mass Properties ב-SOLIDWORKS מראה נפח של $${V}$ cm³. החומר: ${m[0]} ($\\rho=${m[1]}$ g/cm³). מה המסה?`,
+        answer: f.massFromVolume(V, m[1]), unit: 'g',
+        steps: [`m=\\rho V=${m[1]}\\cdot${V}=${fmt(f.massFromVolume(V, m[1]), 5)}\\ \\text{g}`],
+        hint: 'אם המסה בתוכנה נראית לא הגיונית, החומר כנראה לא הוגדר. ברירת המחדל של SOLIDWORKS היא צפיפות 1 g/cm³.',
+        source: SRC_SW,
+      };
+    },
+  },
+  'gcd-com': {
+    subtopic: 'cad-mass', difficulty: 2,
+    make() {
+      const parts = [[pick([1, 2, 3]), 0], [pick([0.5, 1, 2]), pick([100, 150, 200])], [pick([0.2, 0.5]), pick([250, 300])]];
+      const x = f.centroid1D(parts);
+      return {
+        q: `שלושה חלקים לאורך ציר X: מסה $${parts[0][0]}$ kg ב-$x=0$, $${parts[1][0]}$ kg ב-$x=${parts[1][1]}$ mm, ו-$${parts[2][0]}$ kg ב-$x=${parts[2][1]}$ mm. איפה מרכז המסה?`,
+        answer: x, unit: 'mm',
+        steps: [`\\bar x=\\frac{\\sum m_ix_i}{\\sum m_i}=\\frac{${parts.map(([m, xx]) => `${m}\\cdot${xx}`).join('+')}}{${parts.reduce((a, [m]) => a + m, 0)}}=${fmt(x, 4)}\\ \\text{mm}`],
+        hint: 'חשוב ליציבות, לתכן תושבות, ולמכשירים ניידים (איפה תופסים).',
+        source: SRC_SW,
+      };
+    },
+  },
+});
+
 export function makeQuestion(genId) {
   const g = generators[genId];
   const out = g.make();

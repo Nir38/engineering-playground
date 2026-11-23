@@ -1552,6 +1552,110 @@ export function psdPlot(opts = {}) {
   return svg(320, 180, s, 'random vibration PSD');
 }
 
+// =====================================================================
+// FEA & CAD
+// =====================================================================
+export function barElements(opts = {}) {
+  const n = opts.n ?? 2;
+  let s = wall(40, 40, 100);
+  const w = 220 / n;
+  for (let e = 0; e < n; e++) {
+    const x = 40 + e * w, h = e % 2 ? 16 : 24;
+    s += `<rect x="${x}" y="${70 - h / 2}" width="${w}" height="${h}" class="${e % 2 ? 'd-coat' : 'd-section'}"/>` + t(x + w / 2, 70 - h / 2 - 8, `k${e + 1} = EA/L`, 'd-text-accent');
+  }
+  for (let i = 0; i <= n; i++) s += `<circle cx="${40 + i * w}" cy="70" r="5" class="d-load-fill"/>` + t(40 + i * w, 100, `u${i}`, 'd-text');
+  s += arrow(260, 70, 296, 70) + t(296, 60, 'P', 'd-text-load', 'end');
+  s += t(160, 128, '[K]{u} = {F}', 'd-text-accent') + t(160, 146, 'כל אלמנט הוא קפיץ, והצמתים מחברים ביניהם', 'd-text');
+  return svg(320, 154, s, 'bar elements');
+}
+
+export function meshRefine() {
+  const grid = (x0, n, hole) => {
+    let s = `<rect x="${x0}" y="30" width="120" height="100" class="d-section"/>`;
+    for (let i = 1; i < n; i++) s += line(x0 + (120 * i) / n, 30, x0 + (120 * i) / n, 130, 'd-muted') + line(x0, 30 + (100 * i) / n, x0 + 120, 30 + (100 * i) / n, 'd-muted');
+    return s + `<circle cx="${x0 + 60}" cy="80" r="${hole}" class="d-bg-stroke"/>`;
+  };
+  let s = grid(20, 4, 18) + grid(180, 12, 18);
+  s += t(80, 150, 'רשת גסה', 'd-text') + t(240, 150, 'רשת עדינה ליד הריכוז', 'd-text-accent');
+  s += t(160, 18, 'מעדנים רשת איפה שהמאמץ משתנה מהר', 'd-text');
+  return svg(320, 160, s, 'mesh refinement');
+}
+
+// convergence: a converging result vs a singular one, to scale
+export function convergencePlot() {
+  const x0 = 46, y0 = 150, W = 250, H = 120;
+  const X = (i) => x0 + (i / 6) * W, Y = (v) => y0 - (v / 220) * H;
+  let s = axes(x0, y0, W, H, 'מספר אלמנטים', 'σ max');
+  let p = '', q = '';
+  for (let i = 0; i <= 6; i++) { const conv = 150 - 60 * Math.exp(-0.9 * i), sing = 90 + 22 * i; p += `${i ? 'L' : 'M'}${X(i)},${Y(conv)} `; q += `${i ? 'L' : 'M'}${X(i)},${Y(sing)} `; s += `<circle cx="${X(i)}" cy="${Y(conv)}" r="3" class="d-accent-fill"/><circle cx="${X(i)}" cy="${Y(sing)}" r="3" class="d-load-fill"/>`; }
+  s += `<path d="${p}" class="d-curve" fill="none"/><path d="${q}" class="d-curve-hot" fill="none"/>`;
+  s += t(X(6), Y(150) + 16, 'מתכנס: התוצאה אמינה', 'd-text-accent', 'end') + t(X(5.6), Y(213) - 4, 'סינגולריות: לא מתכנס', 'd-text-load', 'end');
+  return svg(320, 176, s, 'mesh convergence');
+}
+
+export function singularity() {
+  let s = `<path d="M40,30 L160,30 L160,90 L280,90 L280,150 L40,150 Z" class="d-section"/>`;
+  s += `<circle cx="160" cy="90" r="22" class="d-area-m"/><circle cx="160" cy="90" r="10" class="d-hot"/>`;
+  s += t(176, 70, 'פינה חדה: σ → ∞', 'd-text-load', 'start') + t(176, 84, 'ככל שמעדנים', 'd-text-load', 'start');
+  s += `<path d="M228,30 L252,30 A24,24 0 0,1 276,54" class="d-curve" fill="none" stroke-dasharray="4 3"/>`;
+  s += t(248, 22, 'עם רדיוס: מתכנס', 'd-text-accent');
+  s += t(160, 168, 'גם כוח בנקודה או תמיכה בנקודה יוצרים סינגולריות', 'd-text');
+  return svg(320, 176, s, 'stress singularity');
+}
+
+export function symmetryModel() {
+  let s = `<rect x="40" y="40" width="240" height="80" class="d-ghost"/><rect x="160" y="40" width="120" height="80" class="d-section"/>`;
+  s += `<circle cx="160" cy="80" r="20" class="d-bg-stroke"/>` + line(160, 24, 160, 136, 'd-accent', 'stroke-dasharray="6 4"');
+  for (let y = 50; y <= 110; y += 20) s += `<path d="M160,${y} l-8,6 l0,-12 z" class="d-accent-fill"/>`;
+  s += t(160, 18, 'מישור סימטריה', 'd-text-accent') + t(100, 84, 'לא ממודל', 'd-text') + t(230, 84, 'חצי מודל');
+  s += t(160, 156, 'בתנאי סימטריה: אין תזוזה בניצב למישור', 'd-text');
+  return svg(320, 164, s, 'symmetry model');
+}
+
+export function modeShapes() {
+  let s = '';
+  [[1, 'מוד 1', 46], [2, 'מוד 2', 110]].forEach(([n, name, y]) => {
+    s += line(30, y, 290, y, 'd-muted', 'stroke-dasharray="3 3"') + `<path d="M30,${y - 8} v16 M290,${y - 8} v16" class="d-line"/>`;
+    let p = ''; for (let i = 0; i <= 60; i++) { const u = i / 60; p += `${i ? 'L' : 'M'}${30 + u * 260},${y - 22 * Math.sin(n * Math.PI * u)} `; }
+    s += `<path d="${p}" class="d-curve" fill="none"/>` + t(30, y - 28, name, 'd-text-accent', 'start');
+  });
+  s += t(160, 146, 'ניתוח מודלי: תדרים טבעיים וצורות התנודה', 'd-text');
+  return svg(320, 156, s, 'mode shapes');
+}
+
+export function dofCube() {
+  let s = `<path d="M110,60 L190,60 L190,130 L110,130 Z" class="d-section"/><path d="M110,60 L140,36 L220,36 L190,60 M190,130 L220,106 L220,36" class="d-section"/>`;
+  s += arrow(160, 96, 270, 96, 'd-load') + arrow(160, 96, 160, 8, 'd-load') + arrow(160, 96, 108, 140, 'd-load');
+  s += t(274, 100, 'X', 'd-text-load', 'start') + t(166, 14, 'Y', 'd-text-load', 'start') + t(100, 148, 'Z', 'd-text-load', 'end');
+  s += `<path d="M240,86 a10,14 0 1,1 0,20" class="d-accent" fill="none" marker-end="url(#arra)"/>`;
+  s += t(160, 170, '6 דרגות חופש: 3 תזוזות + 3 סיבובים', 'd-text-accent');
+  return svg(320, 178, s, '6 degrees of freedom');
+}
+
+// first- vs third-angle projection symbols (ISO 5456-2). The truncated cone's large end is
+// always on the left. First angle: cone, then circles to its right. Third angle: circles, then cone.
+export function projectionSymbols() {
+  const cone = (cx) => `<path d="M${cx - 18},38 L${cx + 18},48 L${cx + 18},62 L${cx - 18},72 Z" class="d-section"/>`;
+  const circles = (cx) => `<circle cx="${cx}" cy="55" r="17" class="d-bg-stroke"/><circle cx="${cx}" cy="55" r="7" class="d-bg-stroke"/>`;
+  let s = cone(196) + circles(244) + t(220, 100, 'זווית ראשונה (ISO E)', 'd-text-accent') + t(220, 116, 'נפוץ באירופה', 'd-text');
+  s += circles(56) + cone(104) + t(80, 100, 'זווית שלישית (ASME)', 'd-text-load') + t(80, 116, 'נפוץ בארה"ב', 'd-text');
+  s += t(160, 144, 'תמיד בודקים את הסמל בכותרת השרטוט', 'd-text-accent');
+  return svg(320, 152, s, 'projection method symbols');
+}
+
+export function featureTree() {
+  const items = [['Sketch1', 'סקיצה מוגדרת לגמרי'], ['Extrude1', 'גוף בסיס'], ['Cut-Extrude1', 'כיס'], ['Hole Wizard', 'קדחים סטנדרטיים'], ['Fillet1', 'רדיוסים בסוף']];
+  let s = '';
+  items.forEach(([n, d], i) => {
+    const y = 20 + i * 28;
+    s += `<rect x="190" y="${y}" width="110" height="22" rx="4" class="d-support"/>` + t(245, y + 15, n, 'd-text');
+    s += t(180, y + 15, d, 'd-text-accent', 'end');
+    if (i) s += line(200, y - 6, 200, y, 'd-muted');
+  });
+  s += t(160, 168, 'הורה ← ילד: שינוי למעלה זורם למטה', 'd-text-load');
+  return svg(320, 176, s, 'feature tree');
+}
+
 export const registry = {
   beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar,
   tank, hydraulicPress, floating, pipeContraction, torricelliTank, pitot, velocityProfiles, moody, pumpCurve, dragCar, jetPlate,
@@ -1565,6 +1669,7 @@ export const registry = {
   fitDiagram, stackChain, fcf, datums321, gdtSymbols, positionZone, mmcBonus, roughness, gdtSym,
   turning, milling, sheetBend, moldPart, amLayers, costCurves, cpkCurve, npiFlow, fishbone,
   massSpringDamper, freeResponse, resonanceCurve, transmissibilityCurve, unbalanceRotor, inertiaShapes, brakingGraph, psdPlot,
+  barElements, meshRefine, convergencePlot, singularity, symmetryModel, modeShapes, dofCube, projectionSymbols, featureTree,
 };
 
 // content uses {fn:'beam', args:['ss-udl',{diagrams:true}]}
