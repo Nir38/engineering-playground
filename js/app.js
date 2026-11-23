@@ -2,8 +2,9 @@
 import { allDomains } from '../data/catalog.js';
 import { generators, makeQuestion, fmt } from './generators.js';
 import { draw } from './diagrams.js';
+import { esc, rich } from './text.js';
 
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }
@@ -19,9 +20,6 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } c
 // ---------------- helpers ----------------
 const $ = (sel, el = document) => el.querySelector(sel);
 const view = $('#view');
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-// text: escape, **bold**, [[link]] -> plain name; math stays for KaTeX auto-render
-const rich = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\[\[(.+?)\]\]/g, '$1');
 const tex = (s, display = true) => {
   try { return window.katex ? window.katex.renderToString(s, { displayMode: display, throwOnError: false }) : esc(s); } catch (e) { return esc(s); }
 };
@@ -93,7 +91,7 @@ function home() {
   const right = Object.values(state.q).reduce((n, s) => n + s.right, 0);
   const mistakes = mistakePool().length;
   const next = nextSubtopic();
-  view.innerHTML = `
+  view.innerHTML = `${quizBanner()}
     <div class="card hero">
       <h2>${greeting()} 👋</h2>
       <div class="muted">${READY.length === 1 ? 'תחום פעיל אחד' : `${READY.length} תחומים פעילים`} · ${totalQ} שאלות · ${totalG} סוגי תרגילי חישוב, עם מספרים חדשים בכל פעם</div>
@@ -119,6 +117,10 @@ function greeting() {
   const h = new Date().getHours();
   return h < 5 ? 'לילה טוב' : h < 12 ? 'בוקר טוב' : h < 17 ? 'צהריים טובים' : h < 21 ? 'ערב טוב' : 'לילה טוב';
 }
+function quizBanner() {
+  if (!quiz || quiz.i >= quiz.items.length) return '';
+  return `<a class="resume-banner" href="#/quiz/run">↩ חזרה לבוחן · שאלה ${quiz.i + 1} מתוך ${quiz.items.length}</a>`;
+}
 function nextSubtopic() {
   for (const d of READY) for (const s of d.subtopics) if (!state.seen[s.id]) return { domain: d, sub: s };
   return null;
@@ -135,13 +137,13 @@ function domainList() {
 // ---------------- views: learn ----------------
 function learnHome() {
   setTitle('לימוד');
-  view.innerHTML = `<p class="muted">בחר תחום. כל תת-נושא כולל אינטואיציה, משוואות, שרטוט, דוגמה פתורה, השלכות מעשיות ומקורות.</p>${domainList()}`;
+  view.innerHTML = `${quizBanner()}<p class="muted">בחר תחום. כל תת-נושא כולל אינטואיציה, משוואות, שרטוט, דוגמה פתורה, השלכות מעשיות ומקורות.</p>${domainList()}`;
 }
 function domainView(id) {
   const d = READY.find((x) => x.id === id);
   if (!d) return (location.hash = '#/learn');
   setTitle(d.title);
-  view.innerHTML = `
+  view.innerHTML = `${quizBanner()}
     <div class="card"><div class="row"><span style="font-size:2rem">${d.icon}</span><div class="grow"><h2>${esc(d.title)}</h2><div class="en">${esc(d.en)}</div></div></div>
       <div class="btn-row"><button class="btn primary" id="quizAll">בוחן על כל התחום</button></div></div>
     ${d.subtopics.map((s, i) => {
@@ -160,11 +162,12 @@ function lessonView(did, sid) {
   state.seen[s.id] = state.seen[s.id] || new Date().toISOString().slice(0, 10); save();
   setTitle(s.title);
   const nQ = s.questions.length + (s.generators || []).length;
-  view.innerHTML = `
+  view.innerHTML = `${quizBanner()}
     <div class="card"><h2>${esc(s.title)}</h2><div class="en">${esc(s.en)} · ${esc(d.title)}</div></div>
     <div class="card lesson-text"><h3>💡 האינטואיציה</h3><p>${rich(L.intuition)}</p>${diagramHtml(L.diagram)}</div>
+    ${(L.visuals || []).length ? `<div class="card"><h3>👁️ המחשה</h3>${L.visuals.map((v) => `<figure class="visual">${diagramHtml(v.spec)}<figcaption>${rich(v.caption)}</figcaption></figure>`).join('')}</div>` : ''}
     <div class="card"><h3>∑ המשוואות</h3><div class="eq-list">${L.equations.map((e) => `<div class="eq">${tex(e.tex)}<div class="label">${rich(e.label)}</div></div>`).join('')}</div></div>
-    ${L.example ? `<div class="card"><h3>✍️ דוגמה פתורה</h3><p class="lesson-text">${rich(L.example.q)}</p>
+    ${L.example ? `<div class="card"><h3>✍️ דוגמה פתורה</h3><p class="lesson-text">${rich(L.example.q)}</p>${diagramHtml(L.example.diagram)}
       <div class="steps" id="steps"></div>
       <div class="btn-row"><button class="btn" id="nextStep">הצעד הבא</button><button class="btn" id="allSteps">הצג הכל</button></div></div>` : ''}
     <div class="card lesson-text"><h3>🔧 השלכות מעשיות</h3><ul>${L.implications.map((x) => `<li>${rich(x)}</li>`).join('')}</ul></div>
@@ -193,7 +196,7 @@ function neighborLinks(d, s) {
 // ---------------- search ----------------
 function searchView() {
   setTitle('חיפוש');
-  view.innerHTML = `<input class="search-input" id="q" type="search" placeholder="חפש נושא, מושג או נוסחה (למשל: קריסה, Goodman)" autocomplete="off"><div id="res" style="margin-top:12px"></div>`;
+  view.innerHTML = `${quizBanner()}<input class="search-input" id="q" type="search" placeholder="חפש נושא, מושג או נוסחה (למשל: קריסה, Goodman)" autocomplete="off"><div id="res" style="margin-top:12px"></div>`;
   const input = $('#q');
   const run = () => {
     const q = input.value.trim().toLowerCase();
@@ -213,7 +216,7 @@ let builder = { subs: new Set(), count: 10, mode: 'quiz', diff: 0 };
 function quizBuilder() {
   setTitle('תרגול');
   const modes = [['quiz', 'בוחן'], ['trivia', 'טריוויה ⏱️'], ['mistakes', 'חזרה על טעויות']];
-  view.innerHTML = `
+  view.innerHTML = `${quizBanner()}
     <div class="card"><h3>סוג תרגול</h3><div class="chips" id="modes">${modes.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${builder.mode === v}">${l}</button>`).join('')}</div>
       <p class="muted small" id="modeHelp" style="margin:8px 0 0"></p></div>
     <div class="card"><div class="row"><h3 class="grow">נושאים</h3><button class="link-btn" id="selAll">בחר הכל</button></div>
@@ -320,7 +323,7 @@ function quizRun() {
     };
     $('#numForm').onsubmit = submit; $('#check').onclick = submit;
     if (q.hint) $('#hintBtn').onclick = () => { $('#hintBox').innerHTML = `<div class="hint">💡 ${rich(q.hint)}</div>`; $('#hintBtn').hidden = true; mathify($('#hintBox')); };
-    setTimeout(() => $('#num') && $('#num').focus(), 50);
+    if (!quiz.results[quiz.i]) setTimeout(() => $('#num') && !$('#num').disabled && $('#num').focus(), 50);
   }
   if (q.type === 'open') $('#reveal').onclick = () => {
     $('#reveal').parentElement.remove();
@@ -329,6 +332,8 @@ function quizRun() {
     $('#selfGood').onclick = () => answer(true, { self: true }); $('#selfBad').onclick = () => answer(false, { self: true });
     mathify($('#fb'));
   };
+  const done = quiz.results[quiz.i];
+  if (done) { showAnswered(q, done.ok, done.detail); mathify(); return; } // returning to an answered question
   if (quiz.opts.mode === 'trivia') {
     let left = 20;
     quiz.timer = setInterval(() => {
@@ -348,13 +353,26 @@ function answer(ok, detail) {
   const ss = state.sub[q.sub] || { right: 0, wrong: 0 };
   ok ? ss.right++ : ss.wrong++; state.sub[q.sub] = ss;
   save();
+  showAnswered(q, ok, detail);
+  $('#nextQ').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+// draws the "answered" state; also used when coming back to an answered question
+function showAnswered(q, ok, detail) {
+  if (q.type === 'open' && !$('#fb .feedback')) {
+    const rv = $('#reveal'); if (rv) rv.parentElement.remove();
+    $('#fb').innerHTML = `<div class="feedback info"><h3>תשובה לדוגמה</h3><div>${rich(q.model)}</div><div class="source-line">מקור: ${rich(q.source || '')}</div></div>`;
+  }
+  view.querySelectorAll('#selfGood, #selfBad').forEach((b) => (b.disabled = true));
   // lock inputs and mark
   view.querySelectorAll('.option').forEach((b) => {
     b.disabled = true;
     if (q.type === 'mcq') { const i = Number(b.dataset.i); if (i === q.answer) b.classList.add('correct'); else if (i === detail.pick) b.classList.add('wrong'); }
     if (q.type === 'tf') { const v = b.dataset.v === 'true'; if (v === q.answer) b.classList.add('correct'); else if (v === detail.pickTf) b.classList.add('wrong'); }
   });
-  if (q.type === 'numeric') { $('#num').disabled = true; $('#check').disabled = true; const hb = $('#hintBtn'); if (hb) hb.hidden = true; }
+  if (q.type === 'numeric') {
+    if (detail.value !== undefined) $('#num').value = detail.value;
+    $('#num').disabled = true; $('#check').disabled = true; const hb = $('#hintBtn'); if (hb) hb.hidden = true;
+  }
   let fb = '';
   if (q.type !== 'open') {
     const head = detail.timeout ? '⏱️ נגמר הזמן' : ok ? '✔ נכון!' : '✘ לא מדויק';
@@ -372,7 +390,6 @@ function answer(ok, detail) {
   $('#nextQ').onclick = () => { quiz.i++; quizRun(); window.scrollTo(0, 0); };
   $('#report').onclick = () => reportSheet(q);
   mathify($('#fb'));
-  $('#nextQ').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 function finalize() {
   const right = quiz.results.filter((r) => r && r.ok).length;
@@ -435,7 +452,7 @@ function progressView() {
       <div class="bar ${p === null ? '' : p >= 60 ? 'good' : 'bad'}"><i style="width:${p || 0}%"></i></div></div>`;
   }).join('')}</div>`).join('');
   const hist = state.history.slice(0, 10).map((h) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--border)"><span class="grow">${h.date.slice(0, 10)} · ${{ quiz: 'בוחן', trivia: 'טריוויה', mistakes: 'חזרה' }[h.mode] || ''}</span><b>${Math.round((10 * h.right) / h.total)}/10</b><span class="muted">(${h.right}/${h.total})</span></div>`).join('');
-  view.innerHTML = `
+  view.innerHTML = `${quizBanner()}
     ${rows}
     <div class="card"><h3>בחנים אחרונים</h3>${hist || '<p class="muted small">עוד לא עשית בוחן.</p>'}</div>
     <div class="card"><h3>דיווחי טעויות (${state.reports.length})</h3>

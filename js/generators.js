@@ -394,6 +394,98 @@ export const generators = {
 };
 
 // =====================================================================
+// PULLEYS & ROPE TENSION (strength domain)
+// =====================================================================
+const SRC_HS = 'Hibbeler, Engineering Mechanics: Statics';
+const SRC_HD = 'Hibbeler, Engineering Mechanics: Dynamics';
+Object.assign(generators, {
+  'gp-tackle': {
+    subtopic: 'pulleys', difficulty: 1,
+    make() {
+      const n = pick([2, 3, 4, 5, 6]); const m = pick([100, 150, 200, 300, 500]); const eta = pick([1, 1, 0.9, 0.85]);
+      const W = m * 9.81; const F = f.tackleForce(W, n, eta);
+      return {
+        q: `מערכת גלגלות (block and tackle) מרימה מסה של $${m}$ kg. ${n} מקטעי חבל מחזיקים את הגלגלת הנעה${eta < 1 ? `, והנצילות הכוללת $${eta * 100}\\%$` : ', בהזנחת חיכוך ומשקל החבל'}. באיזה כוח צריך למשוך?`,
+        answer: F, unit: 'N',
+        steps: [`W=mg=${m}\\cdot9.81=${fmt(W, 4)}\\ \\text{N}`, `F=\\frac{W}{n${eta < 1 ? '\\,\\eta' : ''}}=\\frac{${fmt(W, 4)}}{${n}${eta < 1 ? `\\cdot${eta}` : ''}}=${fmt(F, 4)}\\ \\text{N}`],
+        hint: 'סופרים כמה מקטעי חבל נושאים את הגלגלת הנעה. המתיחות בכולם שווה.',
+        diagram: { fn: 'tackle', args: [n, { W: `${m} kg` }] }, source: `${SRC_HS}, פרק 6`,
+      };
+    },
+  },
+  'gp-atwood': {
+    subtopic: 'pulleys', difficulty: 2,
+    make() {
+      const m1 = pick([3, 4, 5, 6, 8]); const m2 = pick([1, 1.5, 2, 2.5]); const ask = pick(['a', 'T']);
+      const a = f.atwoodAccel(m1, m2); const T = f.atwoodTension(m1, m2);
+      return {
+        q: `מכונת Atwood: מסות של $${m1}$ kg ו-$${m2}$ kg תלויות משני צדי גלגלת אידיאלית. מה ${ask === 'a' ? 'התאוצה של המערכת' : 'המתיחות בחוט'}?`,
+        answer: ask === 'a' ? a : T, unit: ask === 'a' ? 'm/s²' : 'N',
+        steps: [`m_1:\\ m_1g-T=m_1a,\\quad m_2:\\ T-m_2g=m_2a`, `a=\\frac{(m_1-m_2)g}{m_1+m_2}=${fmt(a, 4)}\\ \\text{m/s}^2`, `T=\\frac{2m_1m_2g}{m_1+m_2}=${fmt(T, 4)}\\ \\text{N}`],
+        hint: 'המתיחות בחוט נמצאת בין שני המשקלים. היא לא שווה לאף אחד מהם, כי יש תאוצה.',
+        diagram: { fn: 'atwood', args: [] }, source: `${SRC_HD}, פרק 13`,
+      };
+    },
+  },
+  'gp-cables': {
+    subtopic: 'pulleys', difficulty: 2,
+    make() {
+      const m = pick([20, 50, 100, 200]); const th = pick([10, 15, 20, 30, 45, 60]);
+      const W = m * 9.81; const T = f.twoCableTension(W, th);
+      return {
+        q: `מסה של $${m}$ kg תלויה באמצע בין שני כבלים סימטריים. כל כבל יוצר זווית של $${th}^\\circ$ עם האופק. מה המתיחות בכל כבל?`,
+        answer: T, unit: 'N',
+        steps: [`\\sum F_y=0:\\ 2T\\sin\\theta=W`, `T=\\frac{W}{2\\sin${th}^\\circ}=\\frac{${fmt(W, 4)}}{2\\cdot${fmt(Math.sin(f.rad(th)), 4)}}=${fmt(T, 4)}\\ \\text{N}`],
+        hint: 'ככל שהכבלים שטוחים יותר (θ קטנה), המתיחות גדלה מאוד. זה למה אי אפשר למתוח חבל כביסה ישר לגמרי.',
+        diagram: { fn: 'twoCables', args: [th] }, source: `${SRC_HS}, פרק 3`,
+      };
+    },
+  },
+  'gp-capstan': {
+    subtopic: 'pulleys', difficulty: 3,
+    make() {
+      const turns = pick([0.5, 1, 1.5, 2, 3]); const mu = pick([0.2, 0.25, 0.3]); const Tl = pick([5, 10, 20]);
+      const th = turns * 2 * Math.PI; const Th = Tl / Math.exp(mu * th);
+      return {
+        q: `חבל נכרך $${turns}$ סיבובים סביב עמוד עגינה (μ=${mu}). בצד הספינה המתיחות $${Tl}$ kN. באיזה כוח צריך המלח להחזיק את הקצה השני?`,
+        answer: Th * 1000, unit: 'N',
+        steps: [`\\theta=${turns}\\cdot2\\pi=${fmt(th, 4)}\\ \\text{rad}`, `T_{tight}=T_{slack}\\,e^{\\mu\\theta}\\Rightarrow T_{slack}=\\frac{${Tl * 1000}}{e^{${mu}\\cdot${fmt(th, 4)}}}=${fmt(Th * 1000, 4)}\\ \\text{N}`],
+        hint: 'הזווית ברדיאנים. כל סיבוב שלם מכפיל את היחס ב-e^(2πμ).',
+        diagram: { fn: 'capstanDrum', args: [] }, source: `${SRC_HS}, פרק 8`,
+      };
+    },
+  },
+  'gp-rope-stress': {
+    subtopic: 'pulleys', difficulty: 2,
+    make() {
+      const n = pick([1, 2, 4]); const m = pick([500, 1000, 2000]); const d = pick([6, 8, 10, 12]);
+      const T = (m * 9.81) / n; const s = T / f.area.circle(d);
+      return {
+        q: `עגורן מרים $${m}$ kg עם ${n === 1 ? 'כבל יחיד' : `${n} מקטעי כבל שנושאים את הוו`}. כבל הפלדה בקוטר אפקטיבי $${d}$ mm (חתך מלא מקורב). מה המאמץ בכבל?`,
+        answer: s, unit: 'MPa',
+        steps: [`T=\\frac{mg}{n}=${fmt(T, 4)}\\ \\text{N}`, `A=\\frac{\\pi d^2}{4}=${fmt(f.area.circle(d), 4)}\\ \\text{mm}^2`, `\\sigma=\\frac{T}{A}=${fmt(s)}\\ \\text{MPa}`],
+        hint: 'כבל אמיתי עשוי חוטים, ושטח המתכת שלו קטן מעיגול מלא. בתכן משתמשים בכוח השבר שהיצרן נותן ובמקדם ביטחון.',
+        diagram: { fn: 'tackle', args: [Math.max(n, 1), { W: `${m} kg` }] }, source: `${SRC_HS}, פרק 3; Hibbeler, Mechanics of Materials, פרק 1`,
+      };
+    },
+  },
+  'gp-incline': {
+    subtopic: 'pulleys', difficulty: 3,
+    make() {
+      const m1 = pick([5, 10, 20]); const al = pick([20, 30, 45]); const m2 = pick([5, 8, 10, 15]);
+      const a = f.inclineAccel(m1, al, m2);
+      if (a <= 0) return this.make();
+      return {
+        q: `גוף של $${m1}$ kg על מישור משופע חלק בזווית $${al}^\\circ$ קשור בחוט דרך גלגלת בראש המדרון למסה תלויה של $${m2}$ kg. מה התאוצה?`,
+        answer: a, unit: 'm/s²',
+        steps: [`m_2g-T=m_2a,\\quad T-m_1g\\sin\\alpha=m_1a`, `a=\\frac{(m_2-m_1\\sin\\alpha)g}{m_1+m_2}=${fmt(a, 4)}\\ \\text{m/s}^2`],
+        source: `${SRC_HD}, פרק 13`,
+      };
+    },
+  },
+});
+
+// =====================================================================
 // FLUIDS. Water ρ = 1000 kg/m³ and g = 9.81 m/s² unless the question says otherwise.
 // =====================================================================
 const SRC_C = 'Çengel & Cimbala, Fluid Mechanics';

@@ -13,8 +13,15 @@ const defs = `<defs>
 <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" class="d-muted" stroke-width="1.2"/></pattern>
 </defs>`;
 
-const t = (x, y, s, cls = 'd-text', anchor = 'middle') =>
-  `<text x="${x}" y="${y}" class="${cls}" text-anchor="${anchor}">${s}</text>`;
+// Labels with Hebrew get an RTL base direction so mixed Hebrew/Latin reads correctly.
+// In RTL, text-anchor "start" is the right edge, so start/end are swapped to keep
+// the same visual anchor the caller asked for.
+const HEB = /[֐-׿]/;
+const t = (x, y, s, cls = 'd-text', anchor = 'middle') => {
+  if (!HEB.test(s)) return `<text x="${x}" y="${y}" class="${cls}" text-anchor="${anchor}">${s}</text>`;
+  const a = anchor === 'start' ? 'end' : anchor === 'end' ? 'start' : 'middle';
+  return `<text x="${x}" y="${y}" class="${cls}" text-anchor="${a}" direction="rtl">${s}</text>`;
+};
 const line = (x1, y1, x2, y2, cls = 'd-line', extra = '') =>
   `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="${cls}" ${extra}/>`;
 const arrow = (x1, y1, x2, y2, cls = 'd-load', m = 'arr') =>
@@ -189,7 +196,7 @@ export function stressElement(sx, sy, txy) {
     s += arrow(c - h - 8, 80 - 22 * d, c - h - 8, 80 + 22 * d, 'd-accent', 'arra');
     s += arrow(c - 22 * d, 80 - h - 8, c + 22 * d, 80 - h - 8, 'd-accent', 'arra');
     s += arrow(c + 22 * d, 80 + h + 8, c - 22 * d, 80 + h + 8, 'd-accent', 'arra');
-    s += t(c - h - 14, 80 + 4, `τ=${txy}`, 'd-text-accent', 'end');
+    s += t(c - h - 18, 80 + h + 22, `τ=${txy}`, 'd-text-accent', 'end');
   }
   return svg(320, 160, s, 'stress element');
 }
@@ -503,7 +510,7 @@ export function galvanicSeries(opts = {}) {
     const x = x0 + 10 + (i * (W - 20)) / (items.length - 1);
     s += `<circle cx="${x}" cy="47" r="4" class="d-support"/>` + t(x, i % 2 ? 80 : 30, n, (opts.hi || []).includes(n) ? 'd-text-load' : 'd-text');
   });
-  s += t(x0, 104, '← אנודי (מתאכל)', 'd-text-load', 'start') + t(x0 + W, 104, 'קתודי (מוגן) →', 'd-text-accent', 'end');
+  s += t(x0, 104, 'אנודי: מתאכל', 'd-text-load', 'start') + t(x0 + W, 104, 'קתודי: מוגן', 'd-text-accent', 'end');
   return svg(320, 112, s, 'galvanic series');
 }
 
@@ -542,10 +549,235 @@ export function bars(opts = {}) {
   return svg(320, 30 + data.length * rowH + 6, s, 'bar chart');
 }
 
+// =====================================================================
+// PULLEYS & ROPES
+// =====================================================================
+const wheel = (x, y, r = 14) => `<circle cx="${x}" cy="${y}" r="${r}" class="d-support"/><circle cx="${x}" cy="${y}" r="2.5" class="d-line"/>`;
+const rope = (x1, y1, x2, y2) => line(x1, y1, x2, y2, 'd-rope');
+const ceiling = (x1, x2, y) => `<rect x="${x1}" y="${y - 8}" width="${x2 - x1}" height="8" fill="url(#hatch)"/>` + line(x1, y, x2, y);
+
+// block and tackle: n rope segments (1..6) hold the moving block. The rope runs
+// free end -> over a top sheave -> down/up between the blocks -> dead end.
+export function tackle(n = 4, opts = {}) {
+  n = Math.max(1, Math.min(6, n));
+  const r = 12, gap = 2 * r, x0 = 92, yT = 46, yB = 128;
+  const X = (j) => x0 + j * gap; // segment j (j = -1 is the free end)
+  let s = ceiling(40, 240, 18);
+  // fixed block frame and moving block frame
+  s += `<rect x="${X(-1) - 6}" y="${yT - 16}" width="${X(n - 1) - X(-1) + 12}" height="32" rx="6" class="d-ghost"/>` + line((X(-1) + X(n - 1)) / 2, 18, (X(-1) + X(n - 1)) / 2, yT - 16, 'd-muted');
+  s += `<rect x="${X(0) - 6}" y="${yB - 16}" width="${Math.max(X(n - 1) - X(0), gap) + 12}" height="32" rx="6" class="d-ghost"/>`;
+  // sheaves: free end -> segment 0 over the top; then pairs alternate bottom/top
+  s += wheel((X(-1) + X(0)) / 2, yT, r);
+  for (let j = 0; j < n - 1; j++) s += wheel((X(j) + X(j + 1)) / 2, j % 2 === 0 ? yB : yT, r);
+  // rope segments between the blocks
+  for (let j = 0; j < n; j++) s += rope(X(j), yT, X(j), yB);
+  // dead end: tie to the block on the side the last segment ends
+  const lastTop = n % 2 === 1 ? false : true; // n even -> last wheel bottom -> segment ends at top
+  s += `<circle cx="${X(n - 1)}" cy="${lastTop ? yT - 4 : yB + 4}" r="3" class="d-load-fill"/>`;
+  // free end pulled down
+  s += rope(X(-1), yT, X(-1), yB + 30) + arrow(X(-1), yB + 30, X(-1), yB + 52) + t(X(-1) - 8, yB + 50, opts.F || 'F', 'd-text-load', 'end');
+  // load
+  const cx = (X(0) + Math.max(X(n - 1), X(0) + gap)) / 2;
+  s += line(cx, yB + 16, cx, yB + 30) + `<rect x="${cx - 22}" y="${yB + 30}" width="44" height="26" class="d-section"/>` + t(cx, yB + 48, opts.W || 'W', 'd-text-load');
+  s += t(258, 78, `n = ${n}`, 'd-text-accent', 'start') + t(258, 96, 'F = W/n', 'd-text-accent', 'start') + t(258, 114, 'חבל: פי n', 'd-text', 'start');
+  return svg(320, 196, s, 'block and tackle');
+}
+
+export function atwood() {
+  let s = ceiling(110, 210, 16) + line(160, 16, 160, 36, 'd-muted') + wheel(160, 50, 22);
+  s += rope(138, 50, 138, 130) + rope(182, 50, 182, 100);
+  s += `<rect x="120" y="130" width="36" height="40" class="d-section"/>` + t(138, 155, 'm₁', 'd-text');
+  s += `<rect x="166" y="100" width="32" height="30" class="d-section"/>` + t(182, 120, 'm₂', 'd-text');
+  s += arrow(108, 140, 108, 172, 'd-accent', 'arra') + t(100, 160, 'a', 'd-text-accent', 'end');
+  s += arrow(212, 128, 212, 96, 'd-accent', 'arra') + t(220, 116, 'a', 'd-text-accent', 'start');
+  s += t(138, 92, 'T', 'd-text-load') + t(182, 80, 'T', 'd-text-load');
+  return svg(320, 180, s, 'Atwood machine');
+}
+
+export function twoCables(theta = 30) {
+  const cx = 160, top = 24, L = 110, th = (theta * Math.PI) / 180;
+  const dx = L * Math.cos(th), dy = L * Math.sin(th);
+  let s = ceiling(cx - dx - 20, cx + dx + 20, top);
+  s += rope(cx - dx, top, cx, top + dy) + rope(cx + dx, top, cx, top + dy);
+  s += line(cx, top + dy, cx, top + dy + 18) + `<rect x="${cx - 18}" y="${top + dy + 18}" width="36" height="26" class="d-section"/>` + t(cx, top + dy + 36, 'W', 'd-text-load');
+  s += `<path d="M${cx - dx + 30},${top} A30,30 0 0,1 ${cx - dx + 30 * Math.cos(th) - 0},${top + 30 * Math.sin(th)}" class="d-accent" fill="none"/>`;
+  s += t(cx - dx + 38, top + 16, `θ=${theta}°`, 'd-text-accent', 'start');
+  s += t(cx - dx / 2 - 10, top + dy / 2 + 14, 'T', 'd-text-load', 'end') + t(cx + dx / 2 + 10, top + dy / 2 + 14, 'T', 'd-text-load', 'start');
+  s += t(cx, top + dy + 64, 'T = W / (2 sin θ)', 'd-text-accent');
+  return svg(320, Math.max(150, top + dy + 74), s, 'two cables');
+}
+
+export function capstanDrum() {
+  let s = `<circle cx="160" cy="80" r="40" class="d-section"/><circle cx="160" cy="80" r="4" class="d-line"/>`;
+  s += `<path d="M120,80 A40,40 0 1,1 160,120" class="d-rope-arc" fill="none"/>`;
+  s += rope(120, 80, 120, 150) + arrow(120, 150, 120, 172) + t(108, 168, 'T₁ (גדול)', 'd-text-load', 'end');
+  s += rope(160, 120, 260, 120) + arrow(260, 120, 290, 120) + t(286, 110, 'T₂', 'd-text-load', 'end');
+  s += `<path d="M160,62 A18,18 0 1,1 142,80" class="d-accent" fill="none" stroke-dasharray="3 3"/>` + t(160, 36, 'θ (רדיאנים)', 'd-text-accent');
+  s += t(220, 160, 'T₁ = T₂·e^(μθ)', 'd-text-accent');
+  return svg(320, 180, s, 'capstan');
+}
+
+// =====================================================================
+// INTUITION VISUALS
+// =====================================================================
+export function poissonBar() {
+  let s = `<rect x="50" y="40" width="160" height="40" class="d-ghost"/>`;
+  s += `<rect x="40" y="46" width="180" height="28" class="d-beam"/>`;
+  s += arrow(40, 60, 12, 60) + arrow(220, 60, 248, 60);
+  s += arrow(130, 30, 130, 44, 'd-accent', 'arra') + arrow(130, 90, 130, 76, 'd-accent', 'arra');
+  s += t(130, 108, 'נמתח לאורך ← מתכווץ לרוחב', 'd-text') + t(262, 64, 'ν ≈ 0.3', 'd-text-accent', 'start');
+  return svg(320, 118, s, 'Poisson effect');
+}
+
+export function torsionDistribution() {
+  const prof = (cx, inner, title) => {
+    let s = `<circle cx="${cx}" cy="70" r="44" class="d-section"/>` + (inner ? `<circle cx="${cx}" cy="70" r="${inner}" class="d-bg-stroke"/>` : '');
+    s += line(cx, 70, cx + 44, 70, 'd-muted');
+    s += `<path d="M${cx + (inner || 0)},70 L${cx + 44},70 L${cx + 44},${70 - 40} L${cx + (inner || 0)},${70 - (40 * (inner || 0)) / 44} Z" class="d-area-m"/>`;
+    return s + t(cx, 136, title) + t(cx + 46, 26, 'τmax', 'd-text-load', 'start');
+  };
+  return svg(320, 146, prof(80, 0, 'מלא: המרכז כמעט לא עובד') + prof(230, 26, 'חלול: כל החומר עובד'), 'torsion distribution');
+}
+
+export function bendingFibers() {
+  let s = `<path d="M40,56 Q160,96 280,56 L280,96 Q160,136 40,96 Z" class="d-beam"/>`;
+  s += `<path d="M40,76 Q160,116 280,76" class="d-accent" fill="none" stroke-dasharray="6 4"/>` + t(284, 80, 'N.A.', 'd-text-accent', 'start');
+  s += arrow(46, 48, 84, 58, 'd-load') + arrow(274, 48, 236, 58, 'd-load');
+  s += arrow(84, 116, 46, 106, 'd-accent', 'arra') + arrow(236, 116, 274, 106, 'd-accent', 'arra');
+  s += t(160, 26, 'למעלה: לחיצה, הסיבים מתקצרים', 'd-text-load');
+  s += t(160, 152, 'למטה: מתיחה, הסיבים מתארכים', 'd-text-accent');
+  return svg(320, 162, s, 'bending fibers');
+}
+
+// load vs strength scatter: two bell curves; overlap = failure probability
+export function safetyDistributions() {
+  const x0 = 20, y0 = 120, W = 280;
+  const bell = (mu, sd, h) => { let p = ''; for (let i = 0; i <= 80; i++) { const x = mu - 4 * sd + (8 * sd * i) / 80; p += `${i ? 'L' : 'M'}${x0 + x * W},${y0 - h * Math.exp(-0.5 * ((x - mu) / sd) ** 2)} `; } return p; };
+  let s = line(x0, y0, x0 + W, y0, 'd-muted');
+  s += `<path d="${bell(0.32, 0.07, 80)}" class="d-curve2" fill="none"/>` + t(x0 + 0.32 * W, y0 - 86, 'עומס (מאמץ)', 'd-text');
+  s += `<path d="${bell(0.68, 0.08, 80)}" class="d-curve" fill="none"/>` + t(x0 + 0.68 * W, y0 - 86, 'חוזק', 'd-text-accent');
+  s += `<rect x="${x0 + 0.47 * W}" y="${y0 - 14}" width="${0.06 * W}" height="14" class="d-area-m"/>` + t(x0 + 0.5 * W, y0 + 16, 'חפיפה = סיכוי לכשל', 'd-text-load');
+  s += line(x0 + 0.32 * W, y0 + 26, x0 + 0.68 * W, y0 + 26, 'd-accent') + t(x0 + 0.5 * W, y0 + 40, 'n = חוזק ממוצע / עומס ממוצע', 'd-text-accent');
+  return svg(320, 168, s, 'safety factor distributions');
+}
+
+export function fractureSurface() {
+  let s = `<circle cx="110" cy="80" r="62" class="d-section"/>`;
+  for (let r = 12; r <= 66; r += 9) s += `<path d="M${110 - r},${142} A${r},${r} 0 0,1 ${110 + r},${142}" class="d-muted" fill="none" transform="translate(0,0)" clip-path="url(#fs)"/>`;
+  s += `<defs><clipPath id="fs"><circle cx="110" cy="80" r="62"/></clipPath></defs>`;
+  s += `<path d="M64,38 Q110,30 156,38 Q170,60 168,72 L52,72 Q50,60 64,38 Z" class="d-area-m"/>`;
+  s += `<circle cx="110" cy="142" r="4" class="d-load-fill"/>` + t(110, 162, 'נקודת התחלה', 'd-text-load');
+  s += t(200, 60, 'אזור גס: שבר סופי', 'd-text', 'start') + t(200, 110, 'קווי חוף: הסדק גדל', 'd-text-accent', 'start');
+  s += t(200, 126, 'בכל מחזור קצת', 'd-text-accent', 'start');
+  return svg(320, 172, s, 'fatigue fracture surface');
+}
+
+export function streamlinesHole() {
+  let s = `<rect x="20" y="20" width="280" height="120" class="d-section"/><circle cx="160" cy="80" r="20" class="d-bg-stroke"/>`;
+  for (const y of [32, 46, 60, 100, 114, 128]) {
+    const bend = y < 80 ? -1 : 1, dist = Math.abs(y - 80);
+    const k = Math.max(0, 34 - dist) * 0.9;
+    s += `<path d="M20,${y} C110,${y} 130,${y + bend * k} 160,${y + bend * k} S210,${y} 300,${y}" class="d-curve" fill="none" stroke-width="1.4"/>`;
+  }
+  s += t(160, 156, 'קווי הכוח נדחסים סביב החור ← מאמץ שיא בשפה', 'd-text-load');
+  return svg(320, 164, s, 'force flow around a hole');
+}
+
+export function couette() {
+  let s = `<rect x="40" y="30" width="240" height="10" class="d-support"/><rect x="40" y="120" width="240" height="10" fill="url(#hatch)"/>` + line(40, 120, 280, 120);
+  s += arrow(220, 22, 270, 22, 'd-load') + t(214, 26, 'V', 'd-text-load', 'end');
+  s += `<rect x="40" y="40" width="240" height="80" class="d-water"/>`;
+  for (let i = 1; i <= 6; i++) { const y = 120 - i * 11.4; s += arrow(60, y, 60 + i * 26, y, 'd-accent', 'arra'); }
+  s += line(60, 120, 60 + 7 * 26 * 0.98, 40, 'd-muted', 'stroke-dasharray="3 3"');
+  s += t(290, 84, 'h', 'd-text', 'start') + t(160, 146, 'השכבות מחליקות זו על זו', 'd-text') + t(160, 162, 'τ = μ·V/h', 'd-text-accent');
+  return svg(320, 170, s, 'Couette flow');
+}
+
+// Bernoulli as stacked energy bars at two points: total stays equal
+export function energyBars(opts = {}) {
+  const pts = opts.points || [{ n: '1 (רחב)', P: 60, K: 10, Z: 20 }, { n: '2 (צר)', P: 30, K: 40, Z: 20 }];
+  let s = '';
+  const H = 110, base = 140, scale = H / 100;
+  pts.forEach((p, i) => {
+    const x = 70 + i * 120; let y = base;
+    const seg = (v, cls, lbl) => { const h = v * scale; y -= h; return `<rect x="${x}" y="${y}" width="60" height="${h}" class="${cls}"/>` + (h > 12 ? t(x + 30, y + h / 2 + 4, lbl, 'd-text') : ''); };
+    s += seg(p.Z, 'd-bar-z', 'ρgz') + seg(p.K, 'd-bar-k', '½ρV²') + seg(p.P, 'd-bar-p', 'P');
+    s += t(x + 30, base + 16, p.n);
+  });
+  s += line(60, base - 90 * scale, 260, base - 90 * scale, 'd-load', 'stroke-dasharray="5 4"') + t(160, base - 90 * scale - 6, 'הסכום זהה בשתי הנקודות', 'd-text-load');
+  return svg(320, 165, s, 'Bernoulli energy bars');
+}
+
+export function jominy() {
+  const x0 = 40, y0 = 140, W = 250, H = 120;
+  let s = arrow(x0, y0, x0 + W + 6, y0, 'd-muted', 'arrm') + arrow(x0, y0, x0, 10, 'd-muted', 'arrm');
+  s += t(x0 + W, y0 + 16, 'מרחק מהקצה המצונן', 'd-text', 'end') + t(x0 - 4, 16, 'HRC', 'd-text', 'end');
+  s += `<path d="M${x0},${y0 - 110} C${x0 + 40},${y0 - 110} ${x0 + 60},${y0 - 30} ${x0 + W},${y0 - 22}" class="d-curve2" fill="none"/>` + t(x0 + 70, y0 - 46, 'פלדת פחמן (1040)', 'd-text', 'start');
+  s += `<path d="M${x0},${y0 - 112} C${x0 + 150},${y0 - 108} ${x0 + 190},${y0 - 80} ${x0 + W},${y0 - 66}" class="d-curve" fill="none"/>` + t(x0 + 120, y0 - 112, 'פלדת סגסוגת (4140)', 'd-text-accent', 'start');
+  s += t(x0 + W / 2, y0 + 32, 'אותה קשיות בקצה, אבל הסגסוגת מוקשית לעומק', 'd-text-load');
+  return svg(320, 180, s, 'Jominy hardenability');
+}
+
+export function caseProfile() {
+  let s = `<circle cx="80" cy="80" r="56" class="d-area-m"/><circle cx="80" cy="80" r="44" class="d-section"/>` + t(80, 84, 'ליבה רקיעה') + t(80, 152, 'קליפה קשה', 'd-text-load');
+  const x0 = 170, y0 = 130;
+  s += arrow(x0, y0, 305, y0, 'd-muted', 'arrm') + arrow(x0, y0, x0, 20, 'd-muted', 'arrm') + t(300, y0 + 14, 'עומק', 'd-text', 'end') + t(x0 - 4, 26, 'HRC', 'd-text', 'end');
+  s += `<path d="M${x0},40 L${x0 + 30},42 C${x0 + 50},44 ${x0 + 60},96 ${x0 + 90},100 L${x0 + 130},101" class="d-curve" fill="none"/>`;
+  s += t(x0 + 6, 34, '60', 'd-text-load', 'start') + t(x0 + 128, 94, '~30', 'd-text', 'end');
+  return svg(320, 165, s, 'case hardening profile');
+}
+
+export function anodizeGrowth() {
+  let s = `<rect x="40" y="70" width="240" height="70" class="d-section"/>` + t(160, 115, 'אלומיניום');
+  s += line(40, 70, 280, 70, 'd-load', 'stroke-dasharray="5 4"') + t(160, 156, 'הקו המקווקו: פני השטח לפני הציפוי', 'd-text-load');
+  s += `<rect x="40" y="50" width="240" height="40" class="d-coat"/>`;
+  s += t(160, 64, '50% צומח החוצה', 'd-text') + t(160, 85, '50% חודר פנימה', 'd-text');
+  s += arrow(296, 50, 296, 90, 'd-muted', 'arrm') + arrow(296, 90, 296, 50, 'd-muted', 'arrm') + t(300, 74, 't', 'd-text', 'start');
+  s += t(160, 30, 'פין: d+t   קדח: d−t', 'd-text-accent');
+  return svg(320, 164, s, 'anodize growth');
+}
+
+export function passiveLayer() {
+  const panel = (x, title, scratched, healed) => {
+    let s = `<rect x="${x}" y="60" width="86" height="56" class="d-section"/>`;
+    s += line(x, 58, x + 86, 58, 'd-accent', `stroke-width="4"${scratched ? ` stroke-dasharray="34 14"` : ''}`);
+    if (healed) s += line(x + 34, 58, x + 48, 58, 'd-accent', 'stroke-width="2"');
+    return s + t(x + 43, 136, title);
+  };
+  let s = panel(14, 'שכבת Cr₂O₃', false, false) + panel(117, 'שריטה', true, false) + panel(220, 'מתחדשת בחמצן', true, true);
+  s += t(160, 30, 'נירוסטה: מעל 10.5% Cr השכבה מתחדשת לבד', 'd-text-accent');
+  s += arrow(102, 88, 114, 88, 'd-muted', 'arrm') + arrow(205, 88, 217, 88, 'd-muted', 'arrm');
+  return svg(320, 146, s, 'passive layer');
+}
+
+export function hazProfile() {
+  let s = `<rect x="20" y="40" width="280" height="40" class="d-section"/><path d="M145,40 L160,26 L175,40 L175,80 L145,80 Z" class="d-area-m"/>` + t(160, 20, 'תפר', 'd-text-load');
+  s += `<rect x="105" y="40" width="40" height="40" class="d-haz"/><rect x="175" y="40" width="40" height="40" class="d-haz"/>` + t(125, 96, 'HAZ') + t(195, 96, 'HAZ');
+  const y0 = 170;
+  s += line(20, y0, 300, y0, 'd-muted') + t(24, y0 - 52, 'Sy', 'd-text', 'start');
+  s += `<path d="M20,${y0 - 50} L100,${y0 - 50} C120,${y0 - 50} 125,${y0 - 24} 145,${y0 - 22} L175,${y0 - 22} C195,${y0 - 24} 200,${y0 - 50} 220,${y0 - 50} L300,${y0 - 50}" class="d-curve" fill="none"/>`;
+  s += t(160, y0 - 28, '6061-T6: בערך חצי', 'd-text-load') + t(60, y0 - 56, '275 MPa', 'd-text-accent');
+  return svg(320, 180, s, 'HAZ strength profile');
+}
+
+export function galvanicCell() {
+  let s = `<rect x="20" y="90" width="280" height="40" class="d-water"/>` + t(120, 120, 'אלקטרוליט: לחות, מי מלח');
+  s += `<rect x="40" y="40" width="200" height="50" class="d-section"/>` + t(140, 70, 'קתודה גדולה (נירוסטה)');
+  s += `<rect x="240" y="50" width="34" height="80" class="d-anode"/>` + t(257, 44, 'אנודה', 'd-text-load');
+  s += t(257, 150, 'בורג קטן', 'd-text-load');
+  s += `<path d="M250,96 l4,6 l4,-6 M262,110 l4,6 l4,-6" class="d-load" fill="none"/>`;
+  s += arrow(236, 60, 200, 60, 'd-accent', 'arra') + t(214, 54, 'e⁻', 'd-text-accent');
+  s += t(160, 18, 'אנודה קטנה + קתודה גדולה = קורוזיה מהירה', 'd-text-load');
+  return svg(320, 158, s, 'galvanic cell');
+}
+
 export const registry = {
   beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar,
   tank, hydraulicPress, floating, pipeContraction, torricelliTank, pitot, velocityProfiles, moody, pumpCurve, dragCar, jetPlate,
   ironCarbon, hardness, galvanicSeries, heatTreat, bars,
+  tackle, atwood, twoCables, capstanDrum,
+  poissonBar, torsionDistribution, bendingFibers, safetyDistributions, fractureSurface, streamlinesHole,
+  couette, energyBars, jominy, caseProfile, anodizeGrowth, passiveLayer, hazProfile, galvanicCell,
 };
 
 // content uses {fn:'beam', args:['ss-udl',{diagrams:true}]}

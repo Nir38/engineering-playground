@@ -27,6 +27,10 @@ export default {
           { tex: r`G=\frac{E}{2(1+\nu)}`, label: 'מודול גזירה' },
         ],
         diagram: { fn: 'axialBar', args: [{}] },
+        visuals: [
+          { spec: { fn: 'poissonBar', args: [] }, caption: r`כשמותחים גומייה היא נהיית דקה יותר. זה יחס פואסון: במתכות, על כל 1% התארכות, הרוחב קטן בכ-0.3%.` },
+          { spec: { fn: 'bars', args: [{ data: [['פלדה', 200], ['טיטניום', 114], ['אלומיניום', 69]], label: 'E [GPa]' }] }, caption: r`קשיחות (E) היא תכונה של החומר: פלדה קשיחה פי 3 מאלומיניום, וכל טיפול תרמי לא ישנה את זה.` },
+        ],
         example: {
           q: r`מוט פלדה בקוטר 20 mm נמתח בכוח 31.4 kN. מה המאמץ והעיבור? ($E=200$ GPa)`,
           steps: [r`A=\frac{\pi\cdot 20^2}{4}=314.2\ \text{mm}^2`, r`\sigma=\frac{31400}{314.2}\approx 100\ \text{MPa}`, r`\varepsilon=\frac{100}{200000}=5\times10^{-4}`],
@@ -97,6 +101,9 @@ export default {
           { tex: r`\sigma=E\,\alpha\,\Delta T`, label: 'מאמץ במוט מרוסן לגמרי' },
         ],
         diagram: { fn: 'axialBar', args: [{}] },
+        visuals: [
+          { spec: { fn: 'constrainedBar', args: [] }, caption: r`מוט כלוא בין קירות "רוצה" להתארך בחימום ולא יכול, אז הקירות לוחצים עליו. כך מתעקמות מסילות רכבת בשרב.` },
+        ],
         example: {
           q: r`מוט פלדה בקוטר 20 mm ובאורך 1 m נמתח ב-20 kN. מה ההתארכות?`,
           steps: [r`A=314.2\ \text{mm}^2`, r`\Delta L=\frac{20000\cdot1000}{314.2\cdot200000}=0.318\ \text{mm}`],
@@ -119,6 +126,49 @@ export default {
     },
     // ===================================================================
     {
+      id: 'pulleys', title: 'גלגלות ומתיחות בחוט', en: 'Pulleys & Rope Tension',
+      lesson: {
+        intuition: r`חבל יכול רק **למשוך**, ובחבל אידיאלי (בלי משקל, על גלגלות בלי חיכוך) המתיחות **זהה לכל אורכו**. גלגלת קבועה רק משנה את כיוון הכוח. גלגלת נעה מחלקת את המשקל בין כמה מקטעי חבל. אם $n$ מקטעים מחזיקים את המשא, כל אחד נושא $W/n$. אבל אין ארוחות חינם: מושכים פי $n$ יותר חבל, והעבודה נשמרת.`,
+        equations: [
+          { tex: r`F=\frac{W}{n}`, label: 'מערכת גלגלות אידיאלית (n: מקטעים שנושאים את הגלגלת הנעה)' },
+          { tex: r`F\cdot s_F=W\cdot s_W\Rightarrow s_F=n\,s_W`, label: 'שימור עבודה: מושכים פי n חבל' },
+          { tex: r`T=\frac{W}{2\sin\theta}`, label: 'משקל על שני כבלים סימטריים (θ מהאופק)' },
+          { tex: r`a=\frac{(m_1-m_2)g}{m_1+m_2},\quad T=\frac{2m_1m_2g}{m_1+m_2}`, label: 'מכונת Atwood' },
+          { tex: r`T_{tight}=T_{slack}\,e^{\mu\theta}`, label: 'חיכוך חבל על תוף (capstan), θ ברדיאנים' },
+          { tex: r`R=2T\sin\frac{\beta}{2}`, label: 'עומס על ציר הגלגלת כשהחבל נכרך בזווית β' },
+        ],
+        diagram: { fn: 'tackle', args: [4, {}] },
+        visuals: [
+          { spec: { fn: 'twoCables', args: [15] }, caption: r`כבל כמעט שטוח: ב-15° המתיחות כמעט פי 2 מהמשקל, וב-5° כמעט פי 6. לכן אי אפשר למתוח חבל כביסה ישר לגמרי.` },
+          { spec: { fn: 'capstanDrum', args: [] }, caption: r`מלח מחזיק ספינה בכמה כריכות סביב עמוד: ב-2 סיבובים עם $\mu=0.3$ היחס הוא בערך פי 43.` },
+          { spec: { fn: 'atwood', args: [] }, caption: r`המתיחות בחוט נמצאת **בין** שני המשקלים: היא מאיטה את הכבד ומאיצה את הקל.` },
+        ],
+        example: {
+          q: r`מערכת גלגלות עם 4 מקטעים מרימה 200 kg. מה הכוח, וכמה חבל מושכים כדי להרים את המשא ב-1 m? ומה המתיחות בשני כבלים ב-30° שנושאים 1000 N?`,
+          steps: [r`F=\frac{200\cdot9.81}{4}=490.5\ \text{N}`, r`s_F=4\cdot1=4\ \text{m}`, r`T=\frac{1000}{2\sin30^\circ}=1000\ \text{N}`],
+          diagram: { fn: 'tackle', args: [4, { W: '200 kg' }] },
+        },
+        implications: [
+          r`חיכוך בגלגלות ומשקל החבל מקטינים את היתרון. במציאות משתמשים בנצילות: $F=W/(n\eta)$.`,
+          r`הציר של גלגלת קבועה נושא **פעמיים** את המתיחות כשהחבל עובר 180°. את זה בודקים בתכן הציר והמיסב.`,
+          r`מתיחות בחוט היא בדיוק עומס צירי: $\sigma=T/A$. כבל פלדה מתוכנן לפי כוח השבר של היצרן ומקדם ביטחון גבוה (בעגורנים לפי תקן).`,
+          r`חיכוך חבל ($e^{\mu\theta}$) עובד גם לטובתנו: בלם רצועה, רצועות הנעה, ועמוד עגינה.`,
+        ],
+        sources: ['Hibbeler, Engineering Mechanics: Statics, פרקים 3, 6 ו-8', 'Hibbeler, Engineering Mechanics: Dynamics, פרק 13'],
+      },
+      questions: [
+        { id: 'pl1', type: 'mcq', difficulty: 1, q: 'מה עושה גלגלת קבועה יחידה?', options: ['מקטינה את הכוח פי 2', 'משנה רק את כיוון הכוח', 'מגדילה את הכוח', 'מבטלת את המשקל'], answer: 1, explain: r`המתיחות זהה משני הצדדים. היתרון המכני מגיע רק מגלגלות נעות.`, source: 'Hibbeler, Statics, פרק 6' },
+        { id: 'pl2', type: 'mcq', difficulty: 1, q: 'במערכת גלגלות עם 4 מקטעים שנושאים את המשא, כמה חבל מושכים כדי להרים אותו ב-50 cm?', options: ['50 cm', '1 m', '2 m', '4 m'], answer: 2, explain: r`$s_F=n\,s_W=4\cdot0.5=2$ m. הכוח קטן פי 4, הדרך גדלה פי 4.`, source: 'Hibbeler, Statics, פרק 6' },
+        { id: 'pl3', type: 'tf', difficulty: 2, q: 'במכונת Atwood המתיחות בחוט שווה למשקל של המסה הכבדה.', answer: false, explain: r`יש תאוצה, ולכן $m_2g<T<m_1g$.`, source: 'Hibbeler, Dynamics, פרק 13' },
+        { id: 'pl4', type: 'mcq', difficulty: 2, q: 'שני כבלים מחזיקים משקל. מה קורה למתיחות כשהזווית מהאופק קטנה מ-60° ל-10°?', options: ['קטנה', 'כמעט לא משתנה', 'גדלה פי 5 בערך', 'מתאפסת'], answer: 2, explain: r`$T\propto1/\sin\theta$: $\sin60^\circ/\sin10^\circ\approx5$.`, source: 'Hibbeler, Statics, פרק 3' },
+        { id: 'pl5', type: 'mcq', difficulty: 2, q: 'חבל עובר 180° סביב גלגלת קבועה עם מתיחות T. מה העומס על הציר?', options: ['T', '2T', 'T/2', '0'], answer: 1, explain: r`שני הקצוות מושכים באותו כיוון: $R=2T\sin(\beta/2)=2T$. ב-90° זה $\sqrt2\,T$.`, source: 'Hibbeler, Statics, פרק 3' },
+        { id: 'pl6', type: 'mcq', difficulty: 3, q: 'מוסיפים עוד סיבוב אחד של חבל סביב עמוד עגינה (μ=0.3). פי כמה גדל הכוח שאפשר להחזיק?', options: ['פי 2', 'פי 1.3', 'פי 6.6', 'פי 30'], answer: 2, explain: r`$e^{0.3\cdot2\pi}=e^{1.885}\approx6.6$. כל סיבוב מכפיל, ולכן הגידול מעריכי.`, source: 'Hibbeler, Statics, פרק 8' },
+        { id: 'pl7', type: 'open', difficulty: 2, q: 'שאלת ראיון: למה מתיחות בחבל אידיאלי זהה לכל אורכו, ומתי זה לא נכון?', model: r`חלק קטן של חבל חסר מסה: סכום הכוחות עליו חייב להיות אפס (אחרת התאוצה אינסופית), ולכן המתיחות בשני קצותיו שווה. גלגלת חסרת חיכוך ומסה רק מסובבת את הכיוון. זה לא נכון כש: לחבל יש משקל משמעותי (כבל ארוך תלוי, catenary), יש חיכוך בגלגלת או בתוף ($e^{\mu\theta}$), לגלגלת יש אינרציה סיבובית בתאוצה, או שהחבל אלסטי ומתארך.`, source: 'Hibbeler, Statics, פרק 3' },
+      ],
+      generators: ['gp-tackle', 'gp-cables', 'gp-atwood', 'gp-capstan', 'gp-rope-stress', 'gp-incline'],
+    },
+    // ===================================================================
+    {
       id: 'torsion', title: 'פיתול בצירים', en: 'Torsion',
       lesson: {
         intuition: r`ציר שמעביר מומנט מתפתל. מאמץ הגזירה גדל ליניארית מאפס במרכז עד מקסימום בפני השטח. לכן החומר שבמרכז כמעט לא עובד, וציר חלול חסכוני במשקל.`,
@@ -131,6 +181,9 @@ export default {
           { tex: r`P=T\omega,\quad \omega=\frac{2\pi n}{60}`, label: 'הספק ומהירות [rpm]' },
         ],
         diagram: { fn: 'shaft', args: [{}] },
+        visuals: [
+          { spec: { fn: 'torsionDistribution', args: [] }, caption: r`בציר מלא המרכז כמעט לא עובד. ציר חלול מוריד את החומר הזה וחוסך משקל רב, כמעט בלי לאבד חוזק.` },
+        ],
         example: {
           q: r`מנוע 10 kW ב-1450 rpm מניע ציר מלא בקוטר 25 mm. מה $\tau_{max}$?`,
           steps: [r`\omega=\frac{2\pi\cdot1450}{60}=151.8\ \text{rad/s}`, r`T=\frac{10000}{151.8}=65.9\ \text{N}\cdot\text{m}`, r`\tau_{max}=\frac{16\cdot65900}{\pi\cdot25^3}=21.5\ \text{MPa}`],
@@ -167,6 +220,10 @@ export default {
           { tex: r`\frac{dV}{dx}=-w,\quad \frac{dM}{dx}=V`, label: 'קשר עומס-גזירה-מומנט' },
         ],
         diagram: { fn: 'section', args: ['I', {}] },
+        visuals: [
+          { spec: { fn: 'bendingFibers', args: [] }, caption: r`כפפו סרגל: הצד העליון מתקצר, התחתון מתארך, ובאמצע יש קו שלא משתנה, הציר הניטרלי.` },
+          { spec: { fn: 'section', args: ['rect', {}] }, caption: r`המאמץ גדל ליניארית עם המרחק מהציר הניטרלי, ולכן חומר רחוק מהציר הוא "החומר שעובד".` },
+        ],
         example: {
           q: r`חתך מלבני $40\times100$ mm (גובה 100) עם מומנט 5 kN·m. מה $\sigma_{max}$?`,
           steps: [r`I=\frac{40\cdot100^3}{12}=3.33\times10^6\ \text{mm}^4`, r`\sigma=\frac{5\times10^6\cdot50}{3.33\times10^6}=75\ \text{MPa}`],
@@ -201,6 +258,9 @@ export default {
           { tex: r`\tau_{max,circ}=\frac{4}{3}\frac{V}{A}`, label: 'עיגול מלא' },
         ],
         diagram: { fn: 'section', args: ['rect', { shear: true }] },
+        visuals: [
+          { spec: { fn: 'beam', args: ['ss-center', { diagrams: true }] }, caption: r`כוח הגזירה V גדול ליד התמיכות. לכן בקורות קצרות ועמוסות בודקים גזירה ליד הסמכים.` },
+        ],
         example: {
           q: r`$V=20$ kN בחתך מלבני $40\times100$ mm. מה $\tau_{max}$?`,
           steps: [r`\tau_{max}=1.5\cdot\frac{20000}{4000}=7.5\ \text{MPa}`],
@@ -232,6 +292,9 @@ export default {
           { tex: r`\delta=\frac{5wL^4}{384EI}`, label: 'נתמכת פשוט, עומס מפוזר' },
         ],
         diagram: { fn: 'beam', args: ['cant-point', { diagrams: true }] },
+        visuals: [
+          { spec: { fn: 'bars', args: [{ data: [['שלוחה + P בקצה', 16], ['נתמכת + P באמצע', 1]], label: 'שקיעה יחסית (אותו P ו-L)' }] }, caption: r`אותו כוח ואותו אורך: שלוחה שוקעת פי 16 מקורה על שתי תמיכות. איך תומכים חשוב לא פחות ממה בונים.` },
+        ],
         example: {
           q: r`שלוחה מפלדה באורך 1000 mm, חתך $30\times50$ mm, כוח 1000 N בקצה. מה השקיעה?`,
           steps: [r`I=\frac{30\cdot50^3}{12}=312{,}500\ \text{mm}^4`, r`\delta=\frac{1000\cdot1000^3}{3\cdot200000\cdot312500}=5.33\ \text{mm}`],
@@ -265,6 +328,9 @@ export default {
           { tex: r`\tan2\theta_p=\frac{2\tau_{xy}}{\sigma_x-\sigma_y}`, label: 'זווית המישור הראשי' },
         ],
         diagram: { fn: 'mohrCircle', args: [80, 20, 30] },
+        visuals: [
+          { spec: { fn: 'stressElement', args: [80, 20, 30] }, caption: r`זה מצב המאמץ בצירי x-y. סובבו את הריבוע, ובזווית מסוימת הגזירה נעלמת: שם נמצאים המאמצים הראשיים.` },
+        ],
         example: {
           q: r`$\sigma_x=80$, $\sigma_y=20$, $\tau_{xy}=30$ MPa. מצא את המאמצים הראשיים.`,
           steps: [r`C=50,\quad R=\sqrt{30^2+30^2}=42.4`, r`\sigma_1=92.4,\quad \sigma_2=7.6\ \text{MPa}`, r`\tau_{max}=42.4\ \text{MPa},\quad 2\theta_p=45^\circ`],
@@ -331,6 +397,9 @@ export default {
           { tex: r`\sigma_{cr}=S_y-\frac{1}{E}\left(\frac{S_y\lambda}{2\pi}\right)^2`, label: 'Johnson (עמוד בינוני)' },
         ],
         diagram: { fn: 'columns', args: [] },
+        visuals: [
+          { spec: { fn: 'bars', args: [{ data: [['fixed-fixed', 4], ['fixed-pinned', 2.04], ['pinned-pinned', 1], ['fixed-free', 0.25]], label: 'עומס קריסה יחסי (1/K²)' }] }, caption: r`אותו עמוד, תמיכות שונות: קיבוע שני הקצוות נותן פי 4, ועמוד דגל חופשי בקצה רק רבע.` },
+        ],
         example: {
           q: r`עמוד פלדה עגול בקוטר 30 mm, אורך 2 m, פרקים בשני הקצוות. מה $P_{cr}$?`,
           steps: [r`I=\frac{\pi\cdot30^4}{64}=39{,}761\ \text{mm}^4`, r`P_{cr}=\frac{\pi^2\cdot200000\cdot39761}{2000^2}=19.6\ \text{kN}`, r`\lambda=\frac{2000}{7.5}=267>\lambda_c\approx126\ \Rightarrow\ \text{Euler valid}`],
@@ -363,6 +432,9 @@ export default {
           { tex: r`K_t\approx3`, label: 'חור עגול בפלטה רחבה מאוד במתיחה' },
         ],
         diagram: { fn: 'plateHole', args: [] },
+        visuals: [
+          { spec: { fn: 'streamlinesHole', args: [] }, caption: r`חשבו על הכוח כמו על מים שזורמים בנהר: סביב סלע (חור) הזרם נדחס ומואץ. שם המאמץ קופץ.` },
+        ],
         example: {
           q: r`פלטה ברוחב 60 mm ובעובי 10 mm, חור בקוטר 15 mm, כוח 20 kN, ונתון $K_t=2.4$. מה $\sigma_{max}$?`,
           steps: [r`A_{net}=(60-15)\cdot10=450\ \text{mm}^2`, r`\sigma_{nom}=20000/450=44.4\ \text{MPa}`, r`\sigma_{max}=2.4\cdot44.4=106.7\ \text{MPa}`],
@@ -397,6 +469,10 @@ export default {
           { tex: r`n_y=\frac{S_y}{\sigma_a+\sigma_m}`, label: 'Langer (כניעה במחזור הראשון)' },
         ],
         diagram: { fn: 'goodman', args: [250, 500, 350, 150, 100] },
+        visuals: [
+          { spec: { fn: 'fractureSurface', args: [] }, caption: r`כך נראה שבר עייפות: קווי חוף שמראים איך הסדק גדל לאט, ואזור גס שבו מה שנשאר נשבר בבת אחת.` },
+          { spec: { fn: 'snCurve', args: [] }, caption: r`פלדה מתחת לגבול העייפות יכולה לעבוד לנצח. לאלומיניום אין גבול, ולכן מתכננים לו מספר מחזורים.` },
+        ],
         example: {
           q: r`$S_e=250$, $S_y=350$, $S_{ut}=500$ MPa. נקודת עבודה: $\sigma_m=150$, $\sigma_a=100$ MPa. מה מקדם הביטחון?`,
           steps: [r`\text{Goodman: }\frac1n=\frac{100}{250}+\frac{150}{500}=0.7\Rightarrow n=1.43`, r`\text{Langer: }n_y=\frac{350}{100+150}=1.40`, r`n=\min(1.43,\,1.40)=1.40`],
@@ -428,7 +504,7 @@ export default {
           { tex: r`n=\frac{\text{strength}}{\text{stress}}=\frac{S}{\sigma}`, label: 'הגדרה' },
           { tex: r`n=\frac{F_{fail}}{F_{applied}}`, label: 'כשהקשר בין עומס למאמץ ליניארי' },
         ],
-        diagram: null,
+        diagram: { fn: 'safetyDistributions', args: [] },
         example: {
           q: r`בורג בקוטר 16 mm, כוח 20 kN, $S_y=640$ MPa. מה $n$?`,
           steps: [r`\sigma=\frac{20000}{201.1}=99.5\ \text{MPa}`, r`n=\frac{640}{99.5}=6.4`],

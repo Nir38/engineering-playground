@@ -58,7 +58,7 @@ export default {
           { tex: r`\text{SAE }10xx:\ xx=\%C\times100`, label: 'למשל 1045: פלדת פחמן עם 0.45% C' },
           { tex: r`41xx=\text{Cr-Mo},\quad 43xx=\text{Ni-Cr-Mo}`, label: '4140, 4340: פלדות מכונות' },
         ],
-        diagram: null,
+        diagram: { fn: 'jominy', args: [] },
         example: null,
         implications: [
           r`**St37 / S235, 1020:** זולות, רתיכות מצוין, לשלדות ומסגרות. מחלידות בלי הגנה.`,
@@ -87,7 +87,7 @@ export default {
           { tex: r`PREN=Cr+3.3\,Mo+16\,N`, label: 'עמידות לבורות (pitting)' },
           { tex: r`L:\ C<0.03\%`, label: 'Low carbon, לריתוך' },
         ],
-        diagram: null,
+        diagram: { fn: 'passiveLayer', args: [] },
         example: {
           q: r`השווה PREN של 304 (18% Cr) ושל 316 (17% Cr, 2.5% Mo), בהזנחת חנקן.`,
           steps: [r`PREN_{304}=18`, r`PREN_{316}=17+3.3\cdot2.5=25.3`],
@@ -120,6 +120,9 @@ export default {
           { tex: r`H32=\text{strain hardened + stabilized}`, label: 'לסדרות שלא מתקשות בחום (5052)' },
         ],
         diagram: { fn: 'bars', args: [{ data: [['5052-H32', 193], ['6061-T6', 275], ['2024-T3', 345], ['7075-T6', 503]], label: 'Sy [MPa]' }] },
+        visuals: [
+          { spec: { fn: 'hazProfile', args: [] }, caption: r`ריתוך "מוחק" את הטיפול התרמי סביב התפר: ב-6061-T6 החוזק שם יורד לבערך חצי.` },
+        ],
         example: {
           q: r`השווה את החוזק הסגולי של 6061-T6 ($S_y=275$, $\rho=2.70$) ושל 7075-T6 ($S_y=503$, $\rho=2.81$).`,
           steps: [r`6061:\ 275/2.70=102`, r`7075:\ 503/2.81=179`],
@@ -149,7 +152,7 @@ export default {
         equations: [
           { tex: r`\text{Ti-6Al-4V}:\ S_y\approx880\ \text{MPa},\ \rho=4.43`, label: 'חוזק סגולי גבוה מאוד' },
         ],
-        diagram: null,
+        diagram: { fn: 'bars', args: [{ data: [['פלדה', 7.85], ['טיטניום', 4.43], ['אלומיניום', 2.70], ['POM', 1.41], ['PEEK', 1.30], ['ABS', 1.05]], label: 'צפיפות [g/cm³]' }] },
         example: null,
         implications: [
           r`**Ti-6Al-4V:** שתלים, מערכות מוטסות. ביו-תואם ועמיד לקורוזיה, אבל יקר וקשה לעיבוד.`,
@@ -211,6 +214,11 @@ export default {
           { tex: r`\text{Stress relief}:\ 550\text{-}650^\circ C<A_1`, label: 'שחרור מאמצים אחרי ריתוך' },
         ],
         diagram: { fn: 'heatTreat', args: ['qt'] },
+        visuals: [
+          { spec: { fn: 'heatTreat', args: ['anneal'] }, caption: r`Annealing: קירור איטי בתוך התנור, החומר הכי רך ונוח לעיבוד.` },
+          { spec: { fn: 'heatTreat', args: ['normalize'] }, caption: r`נורמליזציה: קירור באוויר, גרגרים עדינים ומבנה אחיד.` },
+          { spec: { fn: 'heatTreat', args: ['relief'] }, caption: r`שחרור מאמצים: מתחת ל-A1, בלי לשנות את המבנה, רק "מרגיעים" את החלק.` },
+        ],
         example: null,
         implications: [
           r`הרפיה בטמפרטורה גבוהה יותר = פחות קשיות ויותר toughness. בוחרים לפי השימוש.`,
@@ -240,7 +248,7 @@ export default {
           { tex: r`\text{Nitriding}:\ N\ \text{diffusion, low T, no quench}`, label: 'ניטרציה: מעט עיוות' },
           { tex: r`\text{Induction}:\ \text{surface heating}\rightarrow\text{quench}`, label: 'הקשיה באינדוקציה: לפלדה עם פחמן בינוני' },
         ],
-        diagram: null,
+        diagram: { fn: 'caseProfile', args: [] },
         example: null,
         implications: [
           r`**צמנטציה:** מחדירים פחמן לפלדה דלת פחמן בטמפרטורה גבוהה, מצננים ומרפים. שכבה עמוקה יחסית.`,
@@ -267,7 +275,7 @@ export default {
           { tex: r`\text{Type III anodize}:\ 50\%\ \text{out},\ 50\%\ \text{in}`, label: 'כלל 50/50' },
           { tex: r`d_{shaft}=d+t,\quad d_{hole}=d-t`, label: 'שינוי קוטר באנודייז קשה (t = עובי השכבה)' },
         ],
-        diagram: null,
+        diagram: { fn: 'anodizeGrowth', args: [] },
         example: {
           q: r`פין אלומיניום בקוטר 20.000 mm עם אנודייז קשה בעובי 50 µm. מה הקוטר הסופי?`,
           steps: [r`\text{per side: }25\ \mu m\ \text{outward}`, r`d=20.000+0.050=20.050\ \text{mm}`],
@@ -300,6 +308,9 @@ export default {
           { tex: r`\frac{A_{cathode}}{A_{anode}}\ \text{large}\Rightarrow\text{fast attack}`, label: 'כלל יחס השטחים' },
         ],
         diagram: { fn: 'galvanicSeries', args: [{ hi: ['Al', 'נירוסטה'] }] },
+        visuals: [
+          { spec: { fn: 'galvanicCell', args: [] }, caption: r`בורג קטן מהמתכת הפעילה בפלטה גדולה מהאצילה: כל הזרם מתרכז בבורג, והוא נאכל מהר.` },
+        ],
         example: null,
         implications: [
           r`**לעולם לא אנודה קטנה בקתודה גדולה:** בורג אלומיניום בפלטת נירוסטה יתאכל מהר. בורג נירוסטה בגוף אלומיניום גדול מקובל.`,
@@ -360,7 +371,7 @@ export default {
           { tex: r`\Delta L=\alpha\,\Delta T\,L`, label: 'התפשטות תרמית' },
           { tex: r`\alpha_{steel}\approx12,\ \alpha_{SS}\approx17,\ \alpha_{Al}\approx23\ \times10^{-6}/K`, label: 'ערכים טיפוסיים' },
         ],
-        diagram: null,
+        diagram: { fn: 'hazProfile', args: [] },
         example: {
           q: r`פלדה עם $C=0.45$, $Mn=0.75$ (כמו 1045). מה ה-CE? ומה הפרש ההתארכות בין פס אלומיניום לפס פלדה באורך 1 m כשמחממים ב-50 K?`,
           steps: [r`CE=0.45+0.75/6=0.575>0.4\Rightarrow\text{preheat}`, r`\Delta=(23-12)\times10^{-6}\cdot50\cdot1000=0.55\ \text{mm}`],

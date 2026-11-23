@@ -1,0 +1,132 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>navigation check</title></head>
+<body style="margin:0;font:13px system-ui">
+<!-- Drives the real app in a phone-size iframe through every screen transition
+     and checks that buttons still respond afterwards. Result goes into the "out" block. -->
+<pre id="out">running…</pre>
+<iframe id="f" style="width:375px;height:800px;border:0"></iframe>
+<script type="module">
+  const out = document.getElementById('out'), fr = document.getElementById('f');
+  const log = [];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let W, D;
+  const $ = (s) => D.querySelector(s);
+  const go = async (h) => { W.location.hash = h; await sleep(200); };
+  const check = (name, cond) => log.push(`${cond ? 'PASS' : 'FAIL'} ${name}`);
+  const qIndex = () => { const t = $('.qhead .small'); return t ? t.textContent.trim() : ''; };
+  async function answerCurrent() {
+    if ($('.option:not([disabled])')) { $('.option:not([disabled])').click(); }
+    else if ($('#num') && !$('#num').disabled) { $('#num').value = '1'; $('#check').click(); }
+    else if ($('#reveal')) { $('#reveal').click(); await sleep(50); $('#selfGood').click(); }
+    await sleep(150);
+    return !!$('#nextQ');
+  }
+
+  window.onerror = (m, src, line) => { out.textContent = `ERROR ${m} @${line}\n${log.join('\n')}`; };
+  try {
+  fr.src = '../index.html#/';
+  await new Promise((r) => (fr.onload = r));
+  await sleep(500);
+  W = fr.contentWindow; D = fr.contentDocument;
+  W.confirm = () => true; W.prompt = () => null;
+  try { W.localStorage.clear(); } catch (e) {}
+
+  // 1. start a quiz from home, answer, go to the lesson, come back
+  await go('#/');
+  $('#quick10').click(); await sleep(300);
+  check('home → quick quiz opens question 1', qIndex() === '1/10');
+  check('question 1 can be answered', await answerCurrent());
+  const lessonLink = [...D.querySelectorAll('#after a')].find((a) => a.textContent.includes('לחומר'));
+  lessonLink.click(); await sleep(300);
+  check('"לחומר" opens the lesson', W.location.hash.startsWith('#/learn/'));
+  check('lesson shows "back to quiz" bar', !!$('.resume-banner'));
+  $('.resume-banner').click(); await sleep(300);
+  check('bar returns to the quiz', W.location.hash === '#/quiz/run' && qIndex() === '1/10');
+  check('answered question shows its feedback on return', !!$('#fb .feedback') && !!$('#nextQ'));
+  $('#nextQ').click(); await sleep(250);
+  check('"next" works after returning (question 2)', qIndex() === '2/10');
+  check('question 2 accepts an answer after returning', await answerCurrent());
+
+  // 2. browser back from lesson to quiz
+  [...D.querySelectorAll('#after a')].find((a) => a.textContent.includes('לחומר')).click(); await sleep(300);
+  W.history.back(); await sleep(400);
+  check('browser back returns to the quiz', W.location.hash === '#/quiz/run' && qIndex() === '2/10');
+  $('#nextQ').click(); await sleep(250);
+  check('"next" works after browser back (question 3)', qIndex() === '3/10');
+
+  // 3. leave an UNANSWERED question for another tab, then come back and answer
+  await go('#/progress');
+  await go('#/');
+  check('home shows "back to quiz" bar during a quiz', !!$('.resume-banner'));
+  $('.resume-banner').click(); await sleep(300);
+  check('unanswered question 3 still answerable', qIndex() === '3/10' && (await answerCurrent()));
+
+  // 4. finish the quiz
+  for (let k = 0; k < 12 && $('#nextQ'); k++) { $('#nextQ').click(); await sleep(200); if ($('#nextQ')) break; await answerCurrent(); }
+  while ($('#nextQ')) { $('#nextQ').click(); await sleep(200); if (!$('#nextQ')) await answerCurrent(); }
+  check('quiz reaches the summary', !!$('.score-ring'));
+  check('no "back to quiz" bar after finishing', (await go('#/'), !$('.resume-banner')));
+  W.history.back(); await sleep(300);
+  check('back from summary does not crash', !!$('#view').children.length);
+
+  // 5. trivia: leave mid-question and return, timer restarts, still answerable
+  await go('#/');
+  $('#trivia').click(); await sleep(300);
+  check('trivia shows timer', !!$('#timer'));
+  await go('#/learn');
+  await sleep(1200);
+  $('.resume-banner') && $('.resume-banner').click(); await sleep(300);
+  check('trivia question answerable after returning', await answerCurrent());
+  { const t1 = $('#timer')?.textContent; await sleep(1300); check('trivia timer stopped after answer', !!t1 && $('#timer')?.textContent === t1); }
+
+  // 6. quit with ✕
+  $('#quit').click(); await sleep(300);
+  check('✕ leaves the quiz to the builder', W.location.hash === '#/quiz');
+  check('no bar after quitting', !$('.resume-banner'));
+
+  // 7. builder → topic quiz; lesson "practice" button; report sheet
+  [...D.querySelectorAll('input[type=checkbox]')].slice(0, 2).forEach((c) => c.click());
+  $('#go').click(); await sleep(300);
+  check('builder starts a quiz', W.location.hash === '#/quiz/run' && /^1\//.test(qIndex()));
+  await answerCurrent(); $('#report').click(); await sleep(100);
+  check('report sheet opens', !D.getElementById('modal').hidden);
+  $('#cancel').click(); await sleep(100);
+  check('report sheet closes', D.getElementById('modal').hidden);
+  check('"next" works after the report sheet', ($('#nextQ').click(), await sleep(200), /^2\//.test(qIndex())));
+  await go('#/learn/strength/pulleys');
+  check('pulleys lesson exists', !!$('#practice'));
+  $('#practice').click(); await sleep(300);
+  check('lesson "practice" replaces the quiz with a topic quiz', /^1\//.test(qIndex()));
+
+  // 8. every lesson opens, neighbour links work, every domain list opens
+  const lessons = [...new Set([...D.querySelectorAll('a')].map((a) => a.getAttribute('href')))];
+  await go('#/learn');
+  const domainLinks = [...D.querySelectorAll('a.list-item')].map((a) => a.getAttribute('href'));
+  let okDomains = true, okLessons = true, okNext = true;
+  for (const h of domainLinks) {
+    await go(h); const subs = [...D.querySelectorAll('a.list-item')].map((a) => a.getAttribute('href'));
+    if (!subs.length) okDomains = false;
+    for (const sh of subs) {
+      await go(sh);
+      if (!$('#practice') || !$('.eq')) okLessons = false;
+      const next = [...D.querySelectorAll('.btn-row a.btn')].find((a) => a.textContent.includes('←'));
+      if (next) { const target = next.getAttribute('href'); next.click(); await sleep(150); if (W.location.hash !== target) okNext = false; }
+    }
+  }
+  check(`every domain opens (${domainLinks.length})`, okDomains && domainLinks.length >= 3);
+  check('every lesson renders equations and a practice button', okLessons);
+  check('"next lesson" links work', okNext);
+
+  // 9. search and theme
+  await go('#/search');
+  const inp = $('#q'); inp.value = 'גלגלת'; inp.dispatchEvent(new W.Event('input')); await sleep(100);
+  check('search finds the pulleys lesson', [...D.querySelectorAll('#res a')].some((a) => a.getAttribute('href').endsWith('/pulleys')));
+  const before = D.documentElement.getAttribute('data-theme'); $('#themeBtn').click(); await sleep(50);
+  check('theme button switches theme', D.documentElement.getAttribute('data-theme') !== before);
+
+  const fails = log.filter((l) => l.startsWith('FAIL'));
+  out.textContent = log.join('\n') + `\n\n${log.length - fails.length}/${log.length} passed`;
+  document.title = fails.length ? 'FAIL' : 'PASS';
+  } catch (e) { out.textContent = `ERROR ${e.message}\n${e.stack}\n\n${log.join('\n')}`; }
+</script>
+</body></html>

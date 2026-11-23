@@ -10,6 +10,7 @@ export const domains = [
   { id: 'fluids', module: fluids },
   { id: 'materials', module: materials },
   { id: 'thermo', title: 'תרמודינמיקה ומעבר חום', icon: '♨️', summary: 'מחזורים, הולכה, הסעה, קרינה', soon: true },
+  { id: 'electric', title: 'חשמל והנעה', icon: '⚡', summary: 'חוקי החשמל, AC מול DC, מנועי AC ו-DC, לוח חשמל ביתי, רשת ההולכה', soon: true },
   { id: 'design', title: 'תכן רכיבי מכונות', icon: '⚙️', summary: 'ברגים, מסבים, גלגלי שיניים, צירים', soon: true },
   { id: 'gdt', title: 'שרטוט, טולרנסים ו-GD&T', icon: '📐', summary: 'התאמות, טולרנסים גיאומטריים, Datums', soon: true },
   { id: 'dfm', title: 'ייצור ו-DFM', icon: '🏭', summary: 'עיבוד שבבי, פח, יציקה, הזרקה', soon: true },

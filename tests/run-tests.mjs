@@ -179,6 +179,26 @@ const ex = [
   ['f-drag +73% from 100 to 120', f.dragPower(1, f.kmh(120), 1, 1) / f.dragPower(1, f.kmh(100), 1, 1) - 1, 0.73, 1e-2],
   ['f-momentum example ṁ', 1000 * f.area.circle(0.02) * 20, 6.28, 1e-3],
   ['f-momentum example F', f.jetForceFlatPlate(1000, f.area.circle(0.02), 20), 126, 3e-3],
+  // pulleys lesson
+  ['pulleys example F', f.tackleForce(200 * 9.81, 4), 490.5, 1e-9],
+  ['pulleys example rope travel', f.tackleRopeTravel(1, 4), 4, 1e-12],
+  ['pulleys example two cables 30°', f.twoCableTension(1000, 30), 1000, 1e-9],
+  ['pulleys visual: 15° ≈ 2W', f.twoCableTension(1, 15), 1.93, 3e-3],
+  ['pulleys visual: 5° ≈ 6W', f.twoCableTension(1, 5), 5.74, 2e-3],
+  ['pulleys visual: capstan 2 turns μ=0.3 ≈ 43', Math.exp(0.3 * 4 * Math.PI), 43.4, 2e-3],
+  ['pulleys pl6: one turn μ=0.3 ≈ 6.6', Math.exp(0.3 * 2 * Math.PI), 6.6, 1e-2],
+  ['pulleys pl5: axle 180° = 2T', f.pulleyAxleLoad(1, 180), 2, 1e-12],
+  ['pulleys pl5: axle 90° = √2 T', f.pulleyAxleLoad(1, 90), Math.SQRT2, 1e-12],
+  ['pulleys pl4: sin60/sin10 ≈ 5', f.twoCableTension(1, 10) / f.twoCableTension(1, 60), 5, 0.01],
+  // numbers shown in lesson illustrations
+  ['visual: deflection cantilever/ss = 16', f.beam['cant-point'].defl(1, 1, 1, 1) / f.beam['ss-center'].defl(1, 1, 1, 1), 16, 1e-12],
+  ['visual: buckling fixed-pinned 1/K² = 2.04', 1 / 0.7 ** 2, 2.04, 1e-3],
+  ['visual: buckling fixed-free 1/K² = 0.25', 1 / 2 ** 2, 0.25, 1e-12],
+  ['visual: pump 80% speed → 51.2% power', f.affinity(1, 1, 100, 1, 0.8).P, 51.2, 1e-9],
+  ['visual: pump 60% speed → 21.6% power', f.affinity(1, 1, 100, 1, 0.6).P, 21.6, 1e-9],
+  ['visual: drag 80 km/h [kW]', f.dragPower(1.204, f.kmh(80), 0.3, 2.2) / 1000, 4.4, 1e-2],
+  ['visual: drag 140 km/h [kW]', f.dragPower(1.204, f.kmh(140), 0.3, 2.2) / 1000, 23.4, 2e-3],
+  ['visual: 100 → 140 km/h ≈ ×3', (140 / 100) ** 3, 2.74, 2e-3],
   // materials lessons
   ['m-structure example Wp', f.pearliteFraction(0.4), 0.51, 1e-2],
   ['m-structure example Wα', f.proeutectoidFerrite(0.4), 0.49, 1e-2],
@@ -204,6 +224,49 @@ const ex = [
   ['m-coatings example shaft', f.anodizedShaftDiameter(20, 0.05), 20.05, 1e-12],
   ['m-coatings hole 10 mm, 50 µm', f.anodizedHoleDiameter(10, 0.05), 9.95, 1e-12],
 ];
+
+// ---------- pulleys: independent cross-checks ----------
+{
+  // Atwood from Newton's 2nd law on each mass, solved as a linear system
+  const m1 = 6.3, m2 = 2.1, g = 9.81;
+  // m1 g - T = m1 a ; T - m2 g = m2 a  ->  a = (m1-m2)g/(m1+m2)
+  const a = f.atwoodAccel(m1, m2), T = f.atwoodTension(m1, m2);
+  check('Atwood satisfies both equations', near(m1 * g - T, m1 * a, 1e-12) && near(T - m2 * g, m2 * a, 1e-12));
+  // two cables: vector equilibrium
+  const W = 750, th = 22, Tc = f.twoCableTension(W, th);
+  check('two cables: ΣFy = 0', near(2 * Tc * Math.sin(f.rad(th)), W, 1e-12));
+  // capstan: integrate dT/dθ = μT numerically
+  let Tn = 100; const mu = 0.27, total = 3 * Math.PI, N = 200000;
+  for (let i = 0; i < N; i++) Tn += mu * Tn * (total / N);
+  check('capstan = integral of dT = μT dθ', near(Tn, f.capstan(100, mu, total), 1e-4));
+  // pulley axle load = vector sum of two equal tensions
+  const beta = 120, T0 = 500;
+  const vx = T0 + T0 * Math.cos(Math.PI - f.rad(beta)), vy = T0 * Math.sin(Math.PI - f.rad(beta));
+  check('axle load = |T1 + T2|', near(Math.hypot(vx, vy), f.pulleyAxleLoad(T0, beta), 1e-9));
+  // incline: equations of motion
+  const ma = 10, al = 30, mb = 8, ai = f.inclineAccel(ma, al, mb), Ti = mb * (g - ai);
+  check('incline: block equation', near(Ti - ma * g * Math.sin(f.rad(al)), ma * ai, 1e-9));
+}
+
+// ---------- text: every $math$ ends up inside an LTR-isolated span ----------
+{
+  const { rich } = await import('../js/text.js');
+  const all = [];
+  for (const d of domains.filter((x) => x.module)) for (const s of d.module.subtopics) {
+    all.push(s.lesson.intuition, ...s.lesson.implications, ...(s.lesson.visuals || []).map((v) => v.caption));
+    for (const q of s.questions) all.push(q.q, q.explain || '', q.model || '', ...(q.options || []));
+  }
+  for (const id of Object.keys(generators)) for (let i = 0; i < 20; i++) { const q = makeQuestion(id); all.push(q.q, q.hint || ''); }
+  let bad = '';
+  for (const t of all) {
+    const h = rich(t).replace(/<span class="ltr">[^<]*<\/span>/g, '');
+    if (h.includes('$')) { bad = t; break; }
+  }
+  check('rich(): every math segment is LTR-isolated', !bad, bad.slice(0, 80));
+  check('rich(): "$E=200$ GPa" keeps the unit with the number', rich('($E=200$ GPa)').includes('<span class="ltr">$E=200$ GPa</span>'));
+  check('rich(): "650-1100 MPa" isolated as one run', rich('של 650-1100 MPa אחרי').includes('<span class="ltr">650-1100 MPa</span>'));
+  check('rich(): Hebrew after math is not swallowed', rich('$x$ ואחר כך').includes('<span class="ltr">$x$</span> ואחר'));
+}
 
 // ---------- materials: independent cross-checks ----------
 {
@@ -262,7 +325,9 @@ for (const d of domains.filter((x) => x.module)) {
   for (const s of d.module.subtopics) {
     const L = s.lesson;
     check(`${s.id}: lesson parts`, L.intuition && L.equations.length && L.implications.length && L.sources.length);
-    const texts = [L.intuition, ...L.implications, ...L.equations.map((e) => e.label), L.example?.q || ''];
+    const texts = [L.intuition, ...L.implications, ...L.equations.map((e) => e.label), L.example?.q || '', ...(L.visuals || []).map((v) => v.caption)];
+    (L.visuals || []).forEach((v, i) => check(`${s.id}: visual ${i} renders`, !!registry[v.spec.fn] && draw(v.spec).startsWith('<svg') && !!v.caption));
+    if (L.example?.diagram) check(`${s.id}: example diagram renders`, draw(L.example.diagram).startsWith('<svg'));
     const pure = [...L.equations.map((e) => e.tex), ...(L.example?.steps || [])];
     const qs = s.questions;
     qs.forEach((q) => {

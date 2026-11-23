@@ -25,7 +25,7 @@ export default {
           { tex: r`P_{abs}=P_{gage}+P_{atm}`, label: 'לחץ מוחלט ומנומטרי' },
           { tex: r`SG=\frac{\rho}{\rho_{water}}`, label: 'משקל סגולי יחסי' },
         ],
-        diagram: null,
+        diagram: { fn: 'couette', args: [] },
         example: {
           q: r`פלטה נעה ב-2 m/s מעל שכבת שמן בעובי 1 mm עם $\mu=0.1$ Pa·s. מה מאמץ הגזירה על הפלטה?`,
           steps: [r`\frac{du}{dy}=\frac{2}{0.001}=2000\ \text{s}^{-1}`, r`\tau=0.1\cdot2000=200\ \text{Pa}`],
@@ -58,6 +58,9 @@ export default {
           { tex: r`y_p=h_c+\frac{I_{xc}}{h_c A}`, label: 'עומק מרכז הלחץ' },
         ],
         diagram: { fn: 'tank', args: [{}] },
+        visuals: [
+          { spec: { fn: 'hydraulicPress', args: [] }, caption: r`אותו לחץ בכל הנוזל: לוחצים קצת על שטח קטן, ומקבלים כוח גדול על שטח גדול. כך מרים מגבה מכונית שלמה.` },
+        ],
         example: {
           q: r`שער אנכי ברוחב 3 m מחזיק מים בגובה 2 m. מה הכוח ואיפה הוא פועל?`,
           steps: [r`h_c=1\ \text{m},\quad A=6\ \text{m}^2`, r`F=1000\cdot9.81\cdot1\cdot6=58.9\ \text{kN}`, r`y_p=1+\frac{3\cdot2^3/12}{1\cdot6}=1.33\ \text{m}=\tfrac23h`],
@@ -153,6 +156,11 @@ export default {
           { tex: r`Q=C_dA_2\sqrt{\frac{2\Delta P}{\rho(1-\beta^4)}}`, label: 'מד ונטורי, β = d₂/d₁' },
         ],
         diagram: { fn: 'pipeContraction', args: [{ venturi: true }] },
+        visuals: [
+          { spec: { fn: 'energyBars', args: [{}] }, caption: r`האנרגיה הכוללת קבועה: בהיצרות המהירות (½ρV²) עולה, ולכן הלחץ חייב לרדת.` },
+          { spec: { fn: 'torricelliTank', args: [] }, caption: r`מים שיוצאים מחור בעומק h זזים כמו אבן שנופלת מגובה h.` },
+          { spec: { fn: 'pitot', args: [] }, caption: r`צינור פיטו "עוצר" את הזרימה בפתח שלו. הפרש הלחץ שנוצר אומר כמה מהר המטוס טס.` },
+        ],
         example: {
           q: r`צינור אופקי: $P_1=200$ kPa, $V_1=2$ m/s, ובהיצרות $V_2=8$ m/s. מה $P_2$?`,
           steps: [r`P_2=P_1+\tfrac12\rho(V_1^2-V_2^2)`, r`=200{,}000+500(4-64)=170{,}000\ \text{Pa}=170\ \text{kPa}`],
@@ -255,6 +263,9 @@ export default {
           { tex: r`NPSH_A>NPSH_R`, label: 'תנאי למניעת קוויטציה (עם מרווח)' },
         ],
         diagram: { fn: 'pumpCurve', args: [{}] },
+        visuals: [
+          { spec: { fn: 'bars', args: [{ data: [['100%', 100], ['80%', 51.2], ['60%', 21.6]], label: 'הספק [%] לפי מהירות סיבוב' }] }, caption: r`P ∝ N³: מהפך תדר שמוריד את המהירות ל-80% חוסך כמעט חצי מהחשמל.` },
+        ],
         example: {
           q: r`משאבה מספקת 20 L/s לעומד 30 m בנצילות 75%. מה הספק הציר? ואם מכפילים את המהירות?`,
           steps: [r`P=\frac{1000\cdot9.81\cdot0.02\cdot30}{0.75}=7.85\ \text{kW}`, r`2N:\ Q\times2,\ H\times4,\ P\times8`],
@@ -289,6 +300,9 @@ export default {
           { tex: r`P=F_DV=\tfrac12\rho V^3C_DA`, label: 'הספק נגד גרר' },
         ],
         diagram: { fn: 'dragCar', args: [] },
+        visuals: [
+          { spec: { fn: 'bars', args: [{ data: [['80 km/h', 4.4], ['100 km/h', 8.5], ['120 km/h', 14.7], ['140 km/h', 23.4]], label: 'הספק נגד גרר [kW], CD=0.3, A=2.2 m²' }] }, caption: r`מ-100 ל-140 קמ"ש ההספק לגרר כמעט פי 3. זו הסיבה שצריכת הדלק קופצת בכביש מהיר.` },
+        ],
         example: {
           q: r`מכונית עם $C_D=0.3$ ושטח חזית 2.2 m² ב-100 km/h באוויר ב-20°C. מה הגרר וההספק? ומה ב-120 km/h?`,
           steps: [r`V=27.8\ \text{m/s}`, r`F_D=\tfrac12\cdot1.204\cdot27.8^2\cdot0.3\cdot2.2=307\ \text{N}`, r`P=307\cdot27.8=8.5\ \text{kW}`, r`120\ \text{km/h}:\ P\times(1.2)^3=14.7\ \text{kW}`],

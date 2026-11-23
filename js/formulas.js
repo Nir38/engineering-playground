@@ -130,6 +130,22 @@ export const criticalSlenderness = (E, Sy) => PI * Math.sqrt((2 * E) / Sy);
 export const johnsonStress = (Sy, E, slenderness) =>
   Sy - (1 / E) * ((Sy * slenderness) / (2 * PI)) ** 2;
 
+// ---------- Pulleys & rope tension (ideal: massless rope, frictionless pulleys) ----------
+// block and tackle with n rope segments holding the moving block
+export const tackleForce = (W, n, eta = 1) => W / (n * eta);
+export const tackleRopeTravel = (lift, n) => lift * n;
+// Atwood machine, m1 > m2
+export const atwoodAccel = (m1, m2, g = 9.81) => ((m1 - m2) * g) / (m1 + m2);
+export const atwoodTension = (m1, m2, g = 9.81) => (2 * m1 * m2 * g) / (m1 + m2);
+// weight hanging from two symmetric cables at angle θ above horizontal
+export const twoCableTension = (W, thetaDeg) => W / (2 * Math.sin(rad(thetaDeg)));
+// capstan / belt friction: T_tight = T_slack · e^{μθ}
+export const capstan = (Tslack, mu, thetaRad) => Tslack * Math.exp(mu * thetaRad);
+// resultant on a pulley axle when the rope wraps angle β (deg) with equal tension T
+export const pulleyAxleLoad = (T, wrapDeg) => 2 * T * Math.sin(rad(wrapDeg) / 2);
+// block on a frictionless incline (angle α) pulled over a pulley by a hanging mass m2
+export const inclineAccel = (m1, alphaDeg, m2, g = 9.81) => ((m2 - m1 * Math.sin(rad(alphaDeg))) * g) / (m1 + m2);
+
 // ---------- Stress concentration ----------
 export const peakStress = (Kt, sNom) => Kt * sNom;
 

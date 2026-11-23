@@ -8,15 +8,19 @@
 <style>body{padding:8px} .g{display:grid;grid-template-columns:1fr 1fr;gap:8px} .g div{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px} .g b{font-size:11px}</style>
 </head>
 <body>
+<!-- gallery.html?only=tackle,atwood shows a subset; no query shows every diagram -->
 <div class="g" id="g"></div>
 <script type="module">
   import { registry } from '../js/diagrams.js';
-  const specs = [
-    ['ironCarbon', [{ c0: 0.4 }]], ['hardness', []], ['galvanicSeries', [{}]], ['heatTreat', ['qt']], ['bars', [{ data: [['5052-H32', 193], ['6061-T6', 275], ['7075-T6', 503]], label: 'Sy' }]], ['tank', [{ h: '10 m' }]], ['floating', [{ frac: 0.6 }]], ['pipeContraction', [{ venturi: true }]],
-    ['torricelliTank', []], ['pitot', []], ['velocityProfiles', []], ['moody', [{ point: [1e5, 0.0218] }]],
-    ['pumpCurve', [{}]], ['dragCar', []], ['jetPlate', []], ['beam', ['ss-udl', { diagrams: true }]],
-  ];
-  document.getElementById('g').innerHTML = specs.map(([fn, a]) => `<div><b>${fn}</b>${registry[fn](...a)}</div>`).join('');
+  const args = {
+    beam: ['ss-udl', { diagrams: true }], section: ['I', {}], stressElement: [100, 0, 40], mohrCircle: [80, 20, 30],
+    goodman: [250, 500, 350, 150, 100], floating: [{ frac: 0.6 }], pipeContraction: [{ venturi: true }],
+    moody: [{ point: [1e5, 0.0218] }], ironCarbon: [{ c0: 0.4 }], heatTreat: ['qt'],
+    bars: [{ data: [['a', 1], ['b', 2]], label: 'x' }], tackle: [4], twoCables: [30],
+  };
+  const only = new URLSearchParams(location.search).get('only');
+  const names = only ? only.split(',') : Object.keys(registry);
+  document.getElementById('g').innerHTML = names.map((fn) => `<div><b>${fn}</b>${registry[fn](...(args[fn] || []))}</div>`).join('');
 </script>
 </body>
 </html>
