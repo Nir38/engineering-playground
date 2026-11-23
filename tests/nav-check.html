@@ -198,7 +198,27 @@
   $('[data-tool="select"]').click(); await sleep(40);
   await go('#/learn'); await go('#/play');
   check('truss mode and scene are kept', !!$('#pgTruss') && D.querySelectorAll('#pgTrussRes .pg-status.bad').length === 1);
-  $('[data-tpl="pratt"]').click(); await sleep(40); $('[data-mode="beam"]').click(); await sleep(60);
+  $('[data-tpl="pratt"]').click(); await sleep(40);
+
+  // 13. playground: fluids
+  $('[data-mode="fluid"]').click(); await sleep(100);
+  $('[data-act="sub"][data-v="buoy"]').click(); await sleep(60);
+  $('[data-act="rhoF"][data-v="1000"]').click(); await sleep(40); $('[data-act="shape"][data-v="box"]').click(); await sleep(40); $('[data-act="rho"][data-v="917"]').click(); await sleep(40);
+  check('fluid mode shows the buoyancy tank', !!$('#pgBuoy'));
+  $('[data-act="release"]').click(); await sleep(900);
+  check('ice released in water floats 91.7% submerged', $('#pgFlRes .pg-status.good')?.textContent.includes('91.7%'));
+  const bb = $('#pgBuoy [data-body] .pg-hit'), br = bb.getBoundingClientRect();
+  const pe3 = (type, el, y) => el.dispatchEvent(new W.PointerEvent(type, { bubbles: true, clientX: br.left + br.width / 2, clientY: y, pointerId: 13, isPrimary: true }));
+  pe3('pointerdown', bb, br.top + br.height / 2); pe3('pointermove', $('#pgFlCanvas'), br.top + br.height / 2 - 30); pe3('pointerup', $('#pgFlCanvas'), br.top + br.height / 2 - 30); await sleep(80);
+  check('lifting the body out needs a holding force', /\(למעלה\)/.test($('#pgFlRes').textContent) && !$('#pgFlRes').textContent.includes('כוח החזקה (למעלה)0 N'));
+  $('[data-act="rho"][data-v="7850"]').click(); await sleep(40); $('[data-act="release"]').click(); await sleep(900);
+  check('steel sinks to the bottom', !!$('#pgFlRes .pg-status.bad'));
+  $('[data-act="sub"][data-v="pres"]').click(); await sleep(60); $('[data-act="top"][data-v="0"]').click(); await sleep(40); $('[data-act="rho2"][data-v="1000"]').click(); await sleep(40);
+  const resTxt = $('#pgFlRes').textContent, m1 = resTxt.match(/בדיקה: F = ρ g h_c A = ([\d.]+) kN/), F1 = [...D.querySelectorAll('#pgFlRes .pg-max b')][4]?.textContent;
+  check('gate force equals ρ g h_c A for one fluid', !!m1 && F1 && Math.abs(parseFloat(F1) - parseFloat(m1[1])) < 1e-9, `${F1} vs ${m1 && m1[1]}`);
+  await go('#/learn'); await go('#/play');
+  check('fluid mode and screen are kept', !!$('#pgPres'));
+  $('[data-mode="beam"]').click(); await sleep(60);
 
   const fails = log.filter((l) => l.startsWith('FAIL'));
   out.textContent = log.join('\n') + `\n\n${log.length - fails.length}/${log.length} passed`;

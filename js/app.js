@@ -5,7 +5,7 @@ import { draw } from './diagrams.js';
 import { esc, rich } from './text.js';
 import { renderPlayground } from './playground.js';
 
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.4.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }

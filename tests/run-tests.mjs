@@ -11,6 +11,7 @@ import { domains } from '../data/catalog.js';
 import { beamChecks } from './beam-cases.mjs';
 import { pulleyChecks } from './pulley-cases.mjs';
 import { trussChecks } from './truss-cases.mjs';
+import { hydroChecks } from './hydro-cases.mjs';
 
 const require = createRequire(import.meta.url);
 const katex = require('../vendor/katex/katex.min.js');
@@ -574,6 +575,7 @@ const ex = [
 beamChecks(check, near);
 pulleyChecks(check, near);
 trussChecks(check, near);
+hydroChecks(check, near);
 
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {
