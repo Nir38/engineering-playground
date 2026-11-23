@@ -478,6 +478,43 @@ export function iso2768(cls, L) {
 // thermal size change when measured away from the 20 °C reference
 export const thermalSizeChange = (L, alpha, dT) => L * alpha * dT;
 
+// =====================================================================
+// MANUFACTURING & DFM (mm, min, m/min)
+// =====================================================================
+// machining
+export const spindleRpm = (Vc_m_min, D_mm) => (1000 * Vc_m_min) / (PI * D_mm);
+export const cuttingSpeed = (D_mm, rpm) => (PI * D_mm * rpm) / 1000;
+export const millFeedRate = (fz, z, rpm) => fz * z * rpm;                 // mm/min
+export const millMRR = (ae, ap, vf) => ae * ap * vf;                       // mm³/min
+export const turnMRR = (Vc_m_min, f_mm_rev, ap) => Vc_m_min * 1000 * f_mm_rev * ap; // mm³/min
+export const turnRa = (f, rNose) => (f * f) / (32 * rNose) * 1000;         // µm, theoretical
+export const machiningTime = (L, vf) => L / vf;                            // min
+// sheet metal (θ in degrees, inside radius R, thickness T)
+export const bendAllowance = (thetaDeg, R, K, T) => rad(thetaDeg) * (R + K * T);
+export const flatLength = (L1, L2, thetaDeg, R, K, T) => L1 + L2 + bendAllowance(thetaDeg, R, K, T); // legs to bend tangents
+// molding & casting
+export const clampForce = (projectedArea_mm2, cavityPressure_MPa) => projectedArea_mm2 * cavityPressure_MPa; // N
+export const coolingTimeRatio = (t2, t1) => (t2 / t1) ** 2;               // cooling ∝ wall²
+export const patternSize = (part, shrink) => part * (1 + shrink);
+// additive
+export const printTimeHours = (volume_cm3, rate_cm3_h) => volume_cm3 / rate_cm3_h;
+// DFA (Boothroyd-Dewhurst): 3 s ideal time per essential part
+export const dfaEfficiency = (Nmin, totalTime_s) => (3 * Nmin) / totalTime_s;
+// process capability
+export const cp = (USL, LSL, sigma) => (USL - LSL) / (6 * sigma);
+export const cpk = (USL, LSL, mean, sigma) => Math.min(USL - mean, mean - LSL) / (3 * sigma);
+export const rpn = (S, O, D) => S * O * D;
+// normal CDF (Abramowitz-Stegun 7.1.26, |err| < 1.5e-7) for out-of-spec fractions
+export function normCdf(z) {
+  const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2);
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-(z * z) / 2);
+  return z >= 0 ? 0.5 * (1 + y) : 0.5 * (1 - y);
+}
+export const ppmOutOfSpec = (USL, LSL, mean, sigma) => 1e6 * (normCdf((LSL - mean) / sigma) + 1 - normCdf((USL - mean) / sigma));
+// cost
+export const unitCost = (fixed, variable, N) => fixed / N + variable;
+export const breakEven = (F1, v1, F2, v2) => (F2 - F1) / (v1 - v2);
+
 // ---------- Helpers ----------
 export const deg = (rad) => (rad * 180) / PI;
 export const rad = (d) => (d * PI) / 180;

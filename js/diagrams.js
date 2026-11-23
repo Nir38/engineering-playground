@@ -1368,6 +1368,108 @@ export function roughness() {
   return svg(320, 198, s, 'surface roughness Ra');
 }
 
+// =====================================================================
+// MANUFACTURING & DFM
+// =====================================================================
+export function turning() {
+  let s = `<rect x="20" y="40" width="30" height="80" fill="url(#hatch)"/>` + line(50, 40, 50, 120);
+  s += `<rect x="50" y="56" width="200" height="48" rx="3" class="d-beam"/><rect x="170" y="62" width="80" height="36" class="d-section"/>`;
+  s += `<path d="M196,104 L210,124 L240,124 L226,104 Z" class="d-load-fill"/>` + t(244, 138, 'כלי', 'd-text-load', 'start');
+  s += `<path d="M120,48 A16,34 0 0,1 120,112" class="d-accent" fill="none" marker-end="url(#arra)"/>` + t(108, 36, 'n', 'd-text-accent');
+  s += arrow(232, 132, 200, 132, 'd-muted', 'arrm') + t(178, 136, 'f (הזנה)', 'd-text', 'end');
+  s += line(250, 98, 262, 98, 'd-muted') + line(250, 104, 262, 104, 'd-muted') + t(266, 104, 'ap', 'd-text', 'start');
+  s += t(160, 160, 'Vc = π·D·n / 1000  [m/min]', 'd-text-accent');
+  return svg(320, 168, s, 'turning');
+}
+
+export function milling() {
+  let s = `<rect x="30" y="100" width="260" height="40" class="d-section"/><rect x="130" y="80" width="70" height="20" class="d-beam"/>`;
+  s += `<rect x="150" y="20" width="30" height="60" class="d-support"/>`;
+  for (let y = 26; y < 78; y += 10) s += line(150, y, 180, y + 6, 'd-muted');
+  s += `<path d="M190,30 A12,8 0 1,1 190,46" class="d-accent" fill="none" marker-end="url(#arra)"/>` + t(206, 26, 'n', 'd-text-accent', 'start');
+  s += arrow(130, 90, 80, 90) + t(76, 86, 'vf', 'd-text-load', 'end');
+  s += t(165, 160, 'vf = fz · z · n ,  MRR = ae · ap · vf', 'd-text-accent');
+  return svg(320, 168, s, 'milling');
+}
+
+export function sheetBend() {
+  let s = `<path d="M30,120 L150,120 A30,30 0 0,0 180,90 L180,20" class="d-line" fill="none" stroke-width="10" stroke-linecap="square" opacity="0.25"/>`;
+  s += `<path d="M30,115 L150,115 A25,25 0 0,0 175,90 L175,20" class="d-line" fill="none"/><path d="M30,125 L150,125 A35,35 0 0,0 185,90 L185,20" class="d-line" fill="none"/>`;
+  s += `<path d="M30,119 L150,119 A29,29 0 0,0 179,90 L179,20" class="d-accent" fill="none" stroke-dasharray="5 3"/>`;
+  s += t(90, 108, 'L₁', 'd-text') + t(196, 56, 'L₂', 'd-text', 'start');
+  s += t(232, 112, 'ציר ניטרלי ב-K·T', 'd-text-accent', 'start') + t(232, 128, 'לא משנה אורך', 'd-text-accent', 'start');
+  s += t(150, 160, 'BA = θ · (R + K·T) ,  Flat = L₁ + L₂ + BA', 'd-text-load');
+  return svg(320, 170, s, 'sheet metal bend');
+}
+
+export function moldPart() {
+  let s = `<path d="M40,130 L60,40 L260,40 L280,130 L260,130 L246,58 L74,58 L60,130 Z" class="d-section"/>`;
+  s += `<rect x="156" y="58" width="9" height="56" class="d-coat"/>` + t(240, 146, 'צלע: 0.5-0.6 מעובי הדופן', 'd-text-accent');
+  s += line(60, 130, 60, 20, 'd-muted', 'stroke-dasharray="3 3"') + `<path d="M60,70 A60,60 0 0,1 51,70" class="d-load" fill="none"/>` + t(30, 30, 'זווית שחרור', 'd-text-load', 'start');
+  s += t(160, 30, 'דופן אחידה', 'd-text') + arrow(160, 152, 160, 134, 'd-muted', 'arrm') + t(90, 146, 'כיוון פתיחת התבנית', 'd-text');
+  return svg(320, 156, s, 'injection molded part');
+}
+
+export function amLayers() {
+  let s = '';
+  for (let i = 0; i < 9; i++) { const y = 130 - i * 11; const x2 = 150 + (i > 3 ? (i - 3) * 11 : 0); s += `<rect x="60" y="${y}" width="${x2 - 60}" height="10" rx="2" class="${i % 2 ? 'd-coat' : 'd-section'}"/>`; }
+  s += line(150, 96, 216, 30, 'd-load', 'stroke-dasharray="4 3"') + t(222, 40, 'עד 45° בלי תמיכה', 'd-text-load', 'start');
+  s += arrow(40, 140, 40, 40, 'd-accent', 'arra') + t(36, 34, 'Z', 'd-text-accent', 'end');
+  s += t(160, 160, 'חלש יותר בכיוון Z (בין השכבות)', 'd-text');
+  return svg(320, 168, s, 'additive layers');
+}
+
+// unit cost vs quantity for three processes (log quantity), crossovers visible
+export function costCurves() {
+  const procs = [['3D', 0, 40, 'd-curve2'], ['CNC', 300, 15, 'd-curve'], ['הזרקה', 20000, 1.5, 'd-curve-hot']];
+  const x0 = 46, y0 = 150, W = 250, H = 125;
+  const X = (N) => x0 + (Math.log10(N) / 5) * W, Y = (c) => y0 - Math.min(1, Math.log10(c) / 4.4) * H;
+  let s = axes(x0, y0, W, H, '', '₪/יח׳') + t(x0 + W / 2, y0 + 30, 'כמות (סקאלה לוגריתמית)', 'd-text');
+  procs.forEach(([n, F, v, cls]) => {
+    let p = ''; for (let i = 0; i <= 50; i++) { const N = 10 ** ((i / 50) * 5); p += `${i ? 'L' : 'M'}${X(N)},${Y(F / N + v)} `; }
+    s += `<path d="${p}" class="${cls}" fill="none"/>`;
+  });
+  [1, 10, 100, 1000, 1e4, 1e5].forEach((N, i) => (s += t(X(N), y0 + 14, ['1', '10', '100', '1k', '10k', '100k'][i])));
+  s += t(X(3), Y(40) - 6, '3D', 'd-text', 'start') + t(X(12), Y(300 / 12 + 15) - 8, 'CNC', 'd-text-accent', 'start') + t(X(3e4), Y(20000 / 3e4 + 1.5) - 8, 'הזרקה', 'd-text-load', 'start');
+  return svg(320, 186, s, 'unit cost vs quantity');
+}
+
+// process distribution against spec limits (to scale for given Cpk)
+export function cpkCurve(opts = {}) {
+  const LSL = opts.LSL ?? 9.95, USL = opts.USL ?? 10.05, mu = opts.mean ?? 10.02, sg = opts.sigma ?? 0.01;
+  const lo = LSL - (USL - LSL) * 0.3, hi = USL + (USL - LSL) * 0.3, x0 = 20, W = 280, y0 = 140;
+  const X = (v) => x0 + ((v - lo) / (hi - lo)) * W;
+  let p = ''; for (let i = 0; i <= 120; i++) { const v = lo + ((hi - lo) * i) / 120; p += `${i ? 'L' : 'M'}${X(v)},${y0 - 100 * Math.exp(-0.5 * ((v - mu) / sg) ** 2)} `; }
+  let s = line(x0, y0, x0 + W, y0, 'd-muted') + `<path d="${p}" class="d-cycle"/>`;
+  s += line(X(LSL), 20, X(LSL), y0, 'd-load', 'stroke-dasharray="5 3"') + line(X(USL), 20, X(USL), y0, 'd-load', 'stroke-dasharray="5 3"');
+  s += t(X(LSL), 16, 'LSL', 'd-text-load') + t(X(USL), 16, 'USL', 'd-text-load') + line(X(mu), y0, X(mu), y0 + 6, 'd-accent') + t(X(mu), y0 + 18, 'μ', 'd-text-accent');
+  const k = Math.min(USL - mu, mu - LSL) / (3 * sg);
+  s += t(160, 178, `Cpk = ${k.toFixed(2)}: הגבול הקרוב קובע`, 'd-text');
+  return svg(320, 186, s, 'process capability');
+}
+
+export function npiFlow() {
+  const steps = [['קונספט', 'דרישות'], ['תכן', 'PDR / CDR'], ['אב-טיפוס', 'EVT / DVT'], ['פיילוט', 'PVT, FAI'], ['ייצור', 'סדרתי']];
+  let s = '';
+  steps.forEach(([n, sub], i) => {
+    const x = 266 - i * 58;
+    s += `<rect x="${x - 25}" y="40" width="50" height="40" rx="6" class="${i === 3 ? 'd-cold' : 'd-section'}"/>` + t(x, 64, n, 'd-text');
+    s += t(x, 98, sub, 'd-text-accent');
+    if (i < steps.length - 1) s += arrow(x - 25, 60, x - 33, 60, 'd-muted', 'arrm');
+  });
+  s += t(160, 22, 'NPI: מרעיון לייצור, עם סקירות בכל שער', 'd-text');
+  s += t(160, 128, 'כל שינוי אחרי שחרור עובר ECO מבוקר', 'd-text-load');
+  return svg(320, 138, s, 'NPI flow');
+}
+
+export function fishbone() {
+  let s = arrow(20, 90, 250, 90, 'd-line') + `<rect x="252" y="72" width="60" height="36" rx="4" class="d-hot"/>` + t(282, 94, 'תקלה');
+  const cats = [['שיטה', 60, 30], ['מכונה', 140, 30], ['חומר', 220, 30], ['אדם', 60, 150], ['מדידה', 140, 150], ['סביבה', 220, 150]];
+  cats.forEach(([n, x, y]) => { s += line(x, y + (y < 90 ? 10 : -10), x + 30, 90, 'd-muted') + t(x, y < 90 ? y + 4 : y + 6, n, 'd-text-accent'); });
+  s += t(140, 170, 'Ishikawa: מחפשים סיבות בכל ענף, ואז 5 Why לשורש', 'd-text');
+  return svg(320, 178, s, 'Ishikawa diagram');
+}
+
 export const registry = {
   beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar,
   tank, hydraulicPress, floating, pipeContraction, torricelliTank, pitot, velocityProfiles, moody, pumpCurve, dragCar, jetPlate,
@@ -1379,6 +1481,7 @@ export const registry = {
   waterAnalogy, circuits, sineWave, threePhase, transformer, dcMotorCurve, inductionCurve, leadScrew, gears, homePanel, gridChain, cableSagSketch,
   shaftLayout, bearingLife, boltJoint, jointDiagram, helicalSpring, stribeck, keySection, filletWeld, beltDrive, pressFit,
   fitDiagram, stackChain, fcf, datums321, gdtSymbols, positionZone, mmcBonus, roughness, gdtSym,
+  turning, milling, sheetBend, moldPart, amLayers, costCurves, cpkCurve, npiFlow, fishbone,
 };
 
 // content uses {fn:'beam', args:['ss-udl',{diagrams:true}]}

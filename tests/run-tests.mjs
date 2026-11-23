@@ -463,6 +463,40 @@ const ex = [
   check('RSS ≤ worst case', [[0.1, 0.1], [0.3, 0.01, 0.02], [0.05, 0.05, 0.05, 0.05]].every((t) => f.stackRSS(t) <= f.stackWorst(t) + 1e-12));
 }
 
+// ---------- manufacturing ----------
+{
+  const ex6 = [
+    ['mf-machining rpm', f.spindleRpm(200, 50), 1273, 1e-3], ['mf-machining vf', f.millFeedRate(0.05, 4, f.spindleRpm(200, 50)), 255, 2e-3],
+    ['mf-machining Ra', f.turnRa(0.2, 0.8), 1.56, 3e-3], ['mf-machining f×2 → Ra×4', f.turnRa(0.4, 0.8) / f.turnRa(0.2, 0.8), 4, 1e-12],
+    ['mf-sheet BA', f.bendAllowance(90, 2, 0.4, 2), 4.40, 1e-3], ['mf-sheet flat', f.flatLength(40, 30, 90, 2, 0.4, 2), 74.4, 1e-3],
+    ['mf-molding clamp [ton]', f.clampForce(8000, 40) / 9810, 32.6, 2e-3], ['mf-molding clamp [kN]', f.clampForce(8000, 40) / 1000, 320, 1e-12],
+    ['mf-molding cooling 2→3', f.coolingTimeRatio(3, 2), 2.25, 1e-12],
+    ['mf-dfm efficiency', f.dfaEfficiency(4, 60), 0.2, 1e-12],
+    ['mf-quality Cp', f.cp(10.05, 9.95, 0.01), 1.67, 3e-3], ['mf-quality Cpk', f.cpk(10.05, 9.95, 10.02, 0.01), 1.0, 1e-9],
+    ['mf-quality ppm (≈1350)', f.ppmOutOfSpec(10.05, 9.95, 10.02, 0.01), 1350, 2e-3],
+    ['mf-quality Cpk 1.0 ≈ 1350 ppm one side', 1e6 * (1 - f.normCdf(3)), 1350, 2e-3],
+    ['mf-cost break-even', f.breakEven(0, 30, 20000, 2), 714, 1e-3],
+  ];
+  ex6.forEach(([n, got, want, tol]) => check(n, near(got, want, tol), `got ${got}, lesson says ${want}`));
+  // normal CDF against known values
+  check('normCdf(1.96) = 0.9750', near(f.normCdf(1.96), 0.975, 1e-4));
+  check('normCdf(3) = 0.99865', near(f.normCdf(3), 0.99865, 1e-5));
+  check('±3σ two-sided ≈ 2700 ppm', near(f.ppmOutOfSpec(3, -3, 0, 1), 2700, 1e-3));
+  check('±4σ (Cpk 1.33) ≈ 63 ppm', near(f.ppmOutOfSpec(4, -4, 0, 1), 63.3, 1e-2));
+  // turning roughness: simulate the scallop left by a circular nose of radius r at feed f, compute Ra numerically
+  { const fd = 0.2, rn = 0.8, N = 20000; const zs = [];
+    for (let i = 0; i < N; i++) { const x = -fd / 2 + (fd * (i + 0.5)) / N; zs.push(rn - Math.sqrt(rn * rn - x * x)); }
+    const mean = zs.reduce((a, b) => a + b, 0) / N; const Ra = (zs.reduce((a, z) => a + Math.abs(z - mean), 0) / N) * 1000;
+    // f²/32r is the usual approximation; the exact parabolic result is f²/(18√3·r) ≈ f²/31.2r (≈3% higher)
+    check('turning Ra ≈ f²/32r (vs simulated nose profile, within 4%)', near(Ra, f.turnRa(fd, rn), 0.04), `simulated ${Ra.toFixed(3)}`);
+    check('simulated Ra matches exact parabolic f²/(18√3 r)', near(Ra, (fd * fd) / (18 * Math.sqrt(3) * rn) * 1000, 0.01), `simulated ${Ra.toFixed(3)}`); }
+  // bend allowance = arc length of the neutral circle
+  check('BA = arc of radius R + K·T', near(f.bendAllowance(60, 3, 0.33, 1.5), (Math.PI / 3) * (3 + 0.33 * 1.5), 1e-12));
+  // break-even: unit costs equal at N*
+  { const N = f.breakEven(0, 30, 20000, 2); check('break-even: equal unit cost', near(f.unitCost(0, 30, N), f.unitCost(20000, 2, N), 1e-12)); }
+  check('Cpk = Cp when centred', near(f.cpk(10.05, 9.95, 10, 0.01), f.cp(10.05, 9.95, 0.01), 1e-12));
+}
+
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {
   const sub = (id) => domains.flatMap((d) => (d.module ? d.module.subtopics : [])).find((s) => s.id === id);

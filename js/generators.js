@@ -1868,6 +1868,168 @@ Object.assign(generators, {
   },
 });
 
+// =====================================================================
+// MANUFACTURING & DFM
+// =====================================================================
+const SRC_KA = 'Kalpakjian & Schmid, Manufacturing Engineering and Technology';
+const SRC_BD = 'Boothroyd, Dewhurst & Knight, Product Design for Manufacture and Assembly';
+const SRC_MO = 'Montgomery, Introduction to Statistical Quality Control';
+Object.assign(generators, {
+  'gq-rpm': {
+    subtopic: 'mf-machining', difficulty: 1,
+    make() {
+      const m = pick([['אלומיניום', pick([250, 300, 400])], ['פלדה', pick([120, 150, 200])], ['נירוסטה', pick([80, 100, 120])]]); const D = pick([10, 16, 20, 50, 80]);
+      const n = f.spindleRpm(m[1], D);
+      return {
+        q: `כרסום ב${m[0]} עם כלי בקוטר $${D}$ mm במהירות חיתוך $V_c=${m[1]}$ m/min (מהקטלוג של הכלי). מה מהירות הציר?`,
+        answer: n, unit: 'rpm',
+        steps: [`n=\\frac{1000\\,V_c}{\\pi D}=\\frac{1000\\cdot${m[1]}}{\\pi\\cdot${D}}=${fmt(n, 4)}\\ \\text{rpm}`],
+        hint: 'כלי קטן צריך הרבה סיבובים כדי להגיע לאותה מהירות היקפית. 1000 ממיר מטר למילימטר.',
+        diagram: { fn: 'milling', args: [] }, source: SRC_KA,
+      };
+    },
+  },
+  'gq-feed': {
+    subtopic: 'mf-machining', difficulty: 2,
+    make() {
+      const n = pick([2000, 3000, 5000, 8000]); const z = pick([2, 3, 4]); const fz = pick([0.03, 0.05, 0.08, 0.1]); const ae = pick([5, 10]); const ap = pick([2, 5, 10]); const ask = pick(['vf', 'mrr']);
+      const vf = f.millFeedRate(fz, z, n); const mrr = f.millMRR(ae, ap, vf) / 1000;
+      return {
+        q: `כרסום: $n=${n}$ rpm, כלי עם $${z}$ שיניים, הזנה לשן $f_z=${fz}$ mm. ${ask === 'vf' ? 'מה קצב ההזנה של השולחן?' : `רוחב חיתוך $a_e=${ae}$ mm ועומק $a_p=${ap}$ mm. מה קצב הסרת החומר?`}`,
+        answer: ask === 'vf' ? vf : mrr, unit: ask === 'vf' ? 'mm/min' : 'cm³/min',
+        steps: [`v_f=f_z\\,z\\,n=${fz}\\cdot${z}\\cdot${n}=${fmt(vf, 4)}\\ \\text{mm/min}`, `MRR=a_e\\,a_p\\,v_f=${ae}\\cdot${ap}\\cdot${fmt(vf, 4)}=${fmt(mrr * 1000, 5)}\\ \\text{mm}^3/\\text{min}=${fmt(mrr, 4)}\\ \\text{cm}^3/\\text{min}`],
+        hint: 'MRR קובע את זמן העיבוד, וזמן עיבוד הוא חלק גדול מעלות החלק.',
+        diagram: { fn: 'milling', args: [] }, source: SRC_KA,
+      };
+    },
+  },
+  'gq-ra': {
+    subtopic: 'mf-machining', difficulty: 2,
+    make() {
+      const fz = pick([0.05, 0.1, 0.15, 0.2, 0.3]); const r = pick([0.4, 0.8, 1.2]);
+      const Ra = f.turnRa(fz, r);
+      return {
+        q: `בחריטה עם הזנה $f=${fz}$ mm/rev וכלי עם רדיוס קצה $r=${r}$ mm, מה החספוס התאורטי Ra?`,
+        answer: Ra, unit: 'µm',
+        steps: [`R_a\\approx\\frac{f^2}{32\\,r}=\\frac{${fz}^2}{32\\cdot${r}}=${fmt(Ra / 1000, 4)}\\ \\text{mm}=${fmt(Ra, 4)}\\ \\mu m`],
+        hint: 'הזנה כפולה = חספוס פי 4. רדיוס קצה גדול = משטח חלק יותר.',
+        diagram: { fn: 'turning', args: [] }, source: SRC_KA,
+      };
+    },
+  },
+  'gq-bend': {
+    subtopic: 'mf-sheet', difficulty: 2,
+    make() {
+      const T = pick([1, 1.5, 2, 3]); const R = pick([1, 2, 3]); const K = pick([0.33, 0.4, 0.44]); const th = pick([90, 90, 60, 120]); const L1 = pick([30, 40, 50]); const L2 = pick([20, 25, 30]);
+      const BA = f.bendAllowance(th, R, K, T); const FL = f.flatLength(L1, L2, th, R, K, T); const ask = pick(['BA', 'FL']);
+      return {
+        q: `פח בעובי $T=${T}$ mm מכופף ב-$${th}^\\circ$ עם רדיוס פנימי $R=${R}$ mm ו-$K=${K}$. ${ask === 'BA' ? 'מה ה-Bend Allowance?' : `אורכי הרגליים עד נקודות המשיק של הכיפוף: $${L1}$ ו-$${L2}$ mm. מה אורך הפח הפרוש?`}`,
+        answer: ask === 'BA' ? BA : FL, unit: 'mm',
+        steps: [`BA=\\theta\\,(R+KT)=${fmt(f.rad(th), 4)}\\cdot(${R}+${K}\\cdot${T})=${fmt(BA, 4)}\\ \\text{mm}`, `L_{flat}=L_1+L_2+BA=${fmt(FL, 4)}\\ \\text{mm}`],
+        hint: 'הזווית ברדיאנים. K אומר איפה נמצא הציר הניטרלי (שלא משנה אורך) בתוך העובי.',
+        diagram: { fn: 'sheetBend', args: [] }, source: SRC_KA,
+      };
+    },
+  },
+  'gq-clamp': {
+    subtopic: 'mf-molding', difficulty: 2,
+    make() {
+      const a = pick([60, 80, 100, 150]); const b = pick([40, 60, 80]); const n = pick([1, 2, 4]); const p = pick([30, 40, 50]);
+      const F = f.clampForce(a * b * n, p) / 9810;
+      return {
+        q: `תבנית הזרקה עם $${n}$ חללים, לכל חלק שטח מוטל $${a}\\times${b}$ mm. לחץ החלל הממוצע המשוער $${p}$ MPa. מה כוח הסגירה הנדרש בטון?`,
+        answer: F, unit: 'ton',
+        steps: [`A=${n}\\cdot${a}\\cdot${b}=${a * b * n}\\ \\text{mm}^2`, `F=A\\,p=${fmt(a * b * n * p, 5)}\\ \\text{N}`, `=${fmt(F, 4)}\\ \\text{ton}`],
+        hint: 'השטח המוטל הוא מה שרואים כשמסתכלים על החלק בכיוון פתיחת התבנית. מוסיפים מרווח בבחירת מכונה.',
+        diagram: { fn: 'moldPart', args: [] }, source: SRC_KA,
+      };
+    },
+  },
+  'gq-cooling': {
+    subtopic: 'mf-molding', difficulty: 1,
+    make() {
+      const t1 = pick([1.5, 2, 2.5]); const t2 = pick([3, 4, 5]);
+      return {
+        q: `מגדילים עובי דופן בחלק מוזרק מ-$${t1}$ ל-$${t2}$ mm. בערך פי כמה יגדל זמן הקירור?`,
+        answer: f.coolingTimeRatio(t2, t1), unit: '',
+        steps: [`t_{cool}\\propto s^2\\Rightarrow\\left(\\frac{${t2}}{${t1}}\\right)^2=${fmt(f.coolingTimeRatio(t2, t1), 4)}`],
+        hint: 'זמן הקירור הוא לרוב החלק הגדול של המחזור. דופן עבה = מחזור ארוך = חלק יקר, ועוד שקעים (sink marks).',
+        source: SRC_KA,
+      };
+    },
+  },
+  'gq-print': {
+    subtopic: 'mf-am', difficulty: 1,
+    make() {
+      const V = pick([20, 50, 80, 120]); const infill = pick([0.2, 0.3, 0.5]); const rate = pick([10, 15, 20]);
+      const h = f.printTimeHours(V * infill, rate);
+      return {
+        q: `חלק בנפח $${V}$ cm³ מודפס ב-FDM במילוי $${infill * 100}\\%$ (בקירוב: זה החלק מהנפח שמודפס). המדפסת מניחה $${rate}$ cm³ לשעה. כמה זמן תימשך ההדפסה (בקירוב גס)?`,
+        answer: h, unit: 'h',
+        steps: [`V_{printed}\\approx${V}\\cdot${infill}=${fmt(V * infill, 4)}\\ \\text{cm}^3`, `t=\\frac{${fmt(V * infill, 4)}}{${rate}}=${fmt(h, 4)}\\ \\text{h}`],
+        hint: 'קירוב גס: בפועל הדפנות החיצוניות מודפסות מלאות, ויש גם תמיכות וזמן תנועה.',
+        diagram: { fn: 'amLayers', args: [] }, source: 'Gibson, Rosen & Stucker, Additive Manufacturing Technologies',
+      };
+    },
+  },
+  'gq-dfa': {
+    subtopic: 'mf-dfm', difficulty: 2,
+    make() {
+      const N = pick([3, 4, 5, 6]); const total = pick([45, 60, 90, 120]);
+      const E = f.dfaEfficiency(N, total);
+      return {
+        q: `במכלול יש $${N}$ חלקים "הכרחיים" (לפי שלוש שאלות DFA), וזמן ההרכבה הכולל $${total}$ s. מה יעילות התכן לפי Boothroyd-Dewhurst? תשובה באחוזים.`,
+        answer: E * 100, unit: '%',
+        steps: [`E=\\frac{3\\,N_{min}}{t_{total}}=\\frac{3\\cdot${N}}{${total}}=${fmt(E, 4)}`],
+        hint: 'חלק הכרחי: זז ביחס לאחרים, חייב חומר שונה, או חייב להיות נפרד לפירוק. כל השאר מועמד לאיחוד.',
+        source: SRC_BD,
+      };
+    },
+  },
+  'gq-cpk': {
+    subtopic: 'mf-quality', difficulty: 2,
+    make() {
+      const nom = pick([10, 20, 25]); const tol = pick([0.05, 0.1]); const sigma = pick([0.008, 0.01, 0.015]); const shift = pick([0, 0.01, 0.02]);
+      const mu = nom + shift; const USL = nom + tol, LSL = nom - tol;
+      const k = f.cpk(USL, LSL, mu, sigma); const c = f.cp(USL, LSL, sigma); const ask = pick(['cp', 'cpk']);
+      return {
+        q: `מידה $${nom}\\pm${tol}$ mm. בתהליך: ממוצע $${fmt(mu, 5)}$ mm וסטיית תקן $${sigma}$ mm. מה ${ask === 'cp' ? 'Cp' : 'Cpk'}?`,
+        answer: ask === 'cp' ? c : k, unit: '',
+        steps: [`C_p=\\frac{USL-LSL}{6\\sigma}=\\frac{${fmt(2 * tol, 4)}}{${fmt(6 * sigma, 4)}}=${fmt(c, 4)}`, `C_{pk}=\\frac{\\min(USL-\\mu,\\ \\mu-LSL)}{3\\sigma}=${fmt(k, 4)}`],
+        hint: 'Cp אומר אם התהליך "צר מספיק". Cpk מוסיף אם הוא גם ממורכז. דרישה נפוצה: Cpk ≥ 1.33.',
+        diagram: { fn: 'cpkCurve', args: [{ LSL, USL, mean: mu, sigma }] }, source: SRC_MO,
+      };
+    },
+  },
+  'gq-rpn': {
+    subtopic: 'mf-quality', difficulty: 1,
+    make() {
+      const S = pick([5, 7, 8, 9, 10]); const O = pick([2, 3, 4, 6]); const D = pick([2, 3, 5, 7]);
+      return {
+        q: `בניתוח FMEA, אופן כשל קיבל חומרה $S=${S}$, הסתברות $O=${O}$ ויכולת גילוי $D=${D}$ (כל אחד 1-10). מה ה-RPN?`,
+        answer: f.rpn(S, O, D), unit: '', tol: 1e-9,
+        steps: [`RPN=S\\cdot O\\cdot D=${S}\\cdot${O}\\cdot${D}=${f.rpn(S, O, D)}`],
+        hint: 'RPN גבוה = עדיפות לפעולה. אבל חומרה גבוהה מאוד (9-10, בטיחות) מטפלים בה בכל מקרה.',
+        source: 'AIAG & VDA FMEA Handbook',
+      };
+    },
+  },
+  'gq-breakeven': {
+    subtopic: 'mf-cost', difficulty: 2,
+    make() {
+      const tool = pick([15000, 25000, 40000, 60000]); const vInj = pick([1, 2, 3]); const vCnc = pick([20, 30, 45]);
+      const N = f.breakEven(0, vCnc, tool, vInj);
+      return {
+        q: `חלק עולה $${vCnc}$ ₪ ליחידה בעיבוד שבבי (בלי תבנית), או $${vInj}$ ₪ ליחידה בהזרקה עם תבנית של $${tool.toLocaleString('en-US')}$ ₪. מאיזו כמות ההזרקה משתלמת?`,
+        answer: N, unit: 'יח׳',
+        steps: [`${vCnc}\\,N=${tool}+${vInj}\\,N`, `N=\\frac{${tool}}{${vCnc}-${vInj}}=${fmt(N, 4)}`],
+        hint: 'בכמויות קטנות עלות התבנית "מתחלקת" על מעט חלקים. מעל נקודת האיזון התבנית משתלמת.',
+        diagram: { fn: 'costCurves', args: [] }, source: SRC_KA,
+      };
+    },
+  },
+});
+
 export function makeQuestion(genId) {
   const g = generators[genId];
   const out = g.make();
