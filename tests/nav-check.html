@@ -171,6 +171,35 @@
   $('[data-mode="beam"]').click(); await sleep(80);
   check('switching back to beams works', !!$('#pgCanvas') && !$('#pgConn'));
 
+  // 12. playground: trusses
+  $('[data-mode="truss"]').click(); await sleep(100);
+  $('[data-tpl="pratt"]').click(); await sleep(80);
+  check('Pratt template: determinate, top chord 16.67 kN', $('#pgTrussRes .pg-status.good') && $('#pgTrussRes').textContent.includes('16.67'));
+  // build a triangle by tapping the grid with the member tool (world m -> screen via the svg matrix)
+  const tap = (x, y) => {
+    const sv = $('#pgTruss'), p = sv.createSVGPoint(); p.x = 24 + 26 * x; p.y = 210 - 26 * y;
+    const q = p.matrixTransform(sv.getScreenCTM());
+    const o = { bubbles: true, clientX: q.x, clientY: q.y, pointerId: 11, isPrimary: true };
+    $('#pgTrussCanvas').dispatchEvent(new W.PointerEvent('pointerdown', o)); $('#pgTrussCanvas').dispatchEvent(new W.PointerEvent('pointerup', o));
+  };
+  $('[data-tpl="empty"]').click(); await sleep(60);
+  $('[data-tool="member"]').click(); await sleep(40);
+  for (const [x, y] of [[1, 1], [7, 1], [4, 4], [1, 1]]) { tap(x, y); await sleep(40); }
+  $('[data-tool="pin"]').click(); await sleep(40); tap(1, 1); await sleep(40);
+  $('[data-tool="roller"]').click(); await sleep(40); tap(7, 1); await sleep(40);
+  $('[data-tool="force"]').click(); await sleep(40); tap(4, 4); await sleep(60);
+  const rowsT = D.querySelectorAll('#pgTrussRes tbody tr').length;
+  check('tapping builds a triangle truss that solves', rowsT === 3 && !!$('#pgTrussRes .pg-status.good'), `rows ${rowsT}`);
+  // rafters at 45°: -P/(2 sin45) = 7.071 kN compression, tie 5 kN tension
+  const cellsN = [...D.querySelectorAll('#pgTrussRes tbody tr')].map((r) => r.cells[2].textContent.trim()).sort();
+  check('built triangle: rafters 7.071 kN, tie 5 kN', cellsN.join(',') === '5,7.071,7.071', cellsN.join(','));
+  $('[data-tool="del"]').click(); await sleep(40); tap(2.5, 2.5); await sleep(60);
+  check('deleting a member makes it a mechanism', !!$('#pgTrussRes .pg-status.bad'));
+  $('[data-tool="select"]').click(); await sleep(40);
+  await go('#/learn'); await go('#/play');
+  check('truss mode and scene are kept', !!$('#pgTruss') && D.querySelectorAll('#pgTrussRes .pg-status.bad').length === 1);
+  $('[data-tpl="pratt"]').click(); await sleep(40); $('[data-mode="beam"]').click(); await sleep(60);
+
   const fails = log.filter((l) => l.startsWith('FAIL'));
   out.textContent = log.join('\n') + `\n\n${log.length - fails.length}/${log.length} passed`;
   document.title = fails.length ? 'FAIL' : 'PASS';
