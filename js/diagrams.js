@@ -1,7 +1,7 @@
 // diagrams.js: original SVG drawings, drawn in code so they are sharp on a
 // phone, follow light/dark mode, and can be drawn to the numbers of a question.
 // Colors come from CSS classes defined in style.css (d-*), never hard-coded.
-import { frictionColebrook } from './formulas.js';
+import { frictionColebrook, FE_C } from './formulas.js';
 
 const svg = (w, h, body, label = '') =>
   `<svg class="diagram" viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}" xmlns="http://www.w3.org/2000/svg">${defs}${body}</svg>`;
@@ -452,9 +452,100 @@ export function jetPlate() {
   return svg(320, 140, s, 'jet on a plate');
 }
 
+// =====================================================================
+// MATERIALS
+// =====================================================================
+// Steel corner of the Fe-Fe3C diagram (0-2.2 wt% C, 500-1600 °C). Straight-line
+// schematic through the key points in Callister ch. 9; opts.c0 marks an alloy.
+export function ironCarbon(opts = {}) {
+  const x0 = 46, y0 = 190, W = 250, H = 175;
+  const X = (c) => x0 + (c / 2.2) * W, Y = (T) => y0 - ((T - 500) / 1100) * H;
+  let s = arrow(x0, y0, x0 + W + 8, y0, 'd-muted', 'arrm') + arrow(x0, y0, x0, 8, 'd-muted', 'arrm');
+  [0, 0.76, 1.5, 2.14].forEach((c) => (s += t(X(c), y0 + 14, String(c))));
+  [600, 727, 912, 1147, 1400].forEach((T) => (s += t(x0 - 4, Y(T) + 4, String(T), 'd-text', 'end')));
+  s += t(x0 + W, y0 + 28, 'wt% C', 'd-text', 'end') + t(x0 - 4, 12, '°C', 'd-text', 'end');
+  const L = (a, b, cls = 'd-curve') => line(X(a[0]), Y(a[1]), X(b[0]), Y(b[1]), cls);
+  s += L([0, 912], [0.76, 727]);                 // A3
+  s += L([0.76, 727], [2.14, 1147]);             // Acm
+  s += L([0.022, 727], [2.2, 727]);              // A1 (eutectoid line)
+  s += L([0, 912], [0.022, 727], 'd-curve2');    // α / α+γ
+  s += L([0.17, 1493], [2.14, 1147]);            // solidus (γ)
+  const liqAt = (c) => 1493 - ((c - 0.53) / (FE_C.eutecticC - 0.53)) * (1493 - FE_C.eutecticT);
+  s += L([0.53, 1493], [2.2, liqAt(2.2)], 'd-curve2'); // liquidus, straight toward 4.3% / 1147 °C
+  s += `<circle cx="${X(0.76)}" cy="${Y(727)}" r="4" class="d-load-fill"/>`;
+  s += t(X(0.95), Y(1000), 'γ (austenite)', 'd-text-accent') + t(X(0.12), Y(800), 'α+γ', 'd-text', 'start');
+  s += t(X(1.75), Y(880), 'γ+Fe₃C', 'd-text') + t(X(1.2), Y(600), 'α + Fe₃C (pearlite)', 'd-text');
+  s += t(X(1.7), Y(1480), 'L', 'd-text') + t(X(1.55), Y(1330), 'L+γ', 'd-text');
+  s += t(X(0.8), Y(727) - 5, 'eutectoid', 'd-text-load', 'start');
+  if (opts.c0 !== undefined) s += line(X(opts.c0), Y(1500), X(opts.c0), y0, 'd-load', 'stroke-dasharray="5 4"') + t(X(opts.c0), Y(1500) - 6, `C₀=${opts.c0}`, 'd-text-load');
+  return svg(320, 225, s, 'iron-carbon phase diagram');
+}
+
+export function hardness() {
+  let s = '';
+  // Brinell: ball
+  s += `<rect x="20" y="90" width="130" height="50" class="d-section"/><circle cx="85" cy="62" r="30" class="d-support"/>`;
+  s += `<path d="M64,90 Q85,106 106,90" class="d-bg-stroke"/>` + arrow(85, 8, 85, 28) + t(98, 18, 'P', 'd-text-load', 'start');
+  s += line(64, 118, 106, 118, 'd-accent') + t(85, 132, 'd', 'd-text-accent') + t(85, 158, 'Brinell: כדור D', 'd-text');
+  // Vickers: diamond pyramid
+  s += `<rect x="170" y="90" width="130" height="50" class="d-section"/><path d="M235,90 L215,52 L255,52 Z" class="d-support"/>`;
+  s += `<path d="M219,90 L235,104 L251,90" class="d-bg-stroke"/>` + arrow(235, 8, 235, 48) + t(248, 22, 'F', 'd-text-load', 'start');
+  s += line(219, 118, 251, 118, 'd-accent') + t(235, 132, 'd', 'd-text-accent') + t(235, 158, 'Vickers: פירמידה 136°', 'd-text');
+  return svg(320, 168, s, 'hardness tests');
+}
+
+export function galvanicSeries(opts = {}) {
+  const items = ['Mg', 'Zn', 'Al', 'פלדה', 'פליז/Cu', 'נירוסטה', 'Ti', 'גרפיט'];
+  const x0 = 20, W = 280;
+  let s = `<defs><linearGradient id="gs" x1="0" x2="1"><stop offset="0" class="gs-a"/><stop offset="1" class="gs-n"/></linearGradient></defs>`;
+  s += `<rect x="${x0}" y="40" width="${W}" height="14" rx="7" fill="url(#gs)"/>`;
+  items.forEach((n, i) => {
+    const x = x0 + 10 + (i * (W - 20)) / (items.length - 1);
+    s += `<circle cx="${x}" cy="47" r="4" class="d-support"/>` + t(x, i % 2 ? 80 : 30, n, (opts.hi || []).includes(n) ? 'd-text-load' : 'd-text');
+  });
+  s += t(x0, 104, '← אנודי (מתאכל)', 'd-text-load', 'start') + t(x0 + W, 104, 'קתודי (מוגן) →', 'd-text-accent', 'end');
+  return svg(320, 112, s, 'galvanic series');
+}
+
+// temperature-time sketches for the main heat treatments
+export function heatTreat(kind = 'qt') {
+  const x0 = 36, y0 = 150, W = 270;
+  let s = arrow(x0, y0, x0 + W, y0, 'd-muted', 'arrm') + arrow(x0, y0, x0, 10, 'd-muted', 'arrm');
+  s += t(x0 + W - 4, y0 + 14, 'זמן', 'd-text', 'end') + t(x0 - 4, 16, 'T', 'd-text', 'end');
+  const A1 = 82, A3 = 58;
+  s += line(x0, A1, x0 + W, A1, 'd-grid', 'stroke-dasharray="4 3"') + t(x0 + W, A1 - 4, 'A1 727°C', 'd-text', 'end');
+  s += line(x0, A3, x0 + W, A3, 'd-grid', 'stroke-dasharray="4 3"') + t(x0 + W, A3 - 4, 'A3', 'd-text', 'end');
+  const paths = {
+    anneal: [`M${x0},${y0} L80,40 L130,40 Q240,60 300,145`, 'Annealing: קירור איטי בתנור'],
+    normalize: [`M${x0},${y0} L80,40 L130,40 Q170,120 210,145`, 'Normalizing: קירור באוויר'],
+    qt: [`M${x0},${y0} L70,40 L110,40 L120,145 L150,145 L165,105 L230,105 L250,145`, 'Quench + Temper'],
+    relief: [`M${x0},${y0} L80,100 L170,100 Q240,110 300,145`, 'Stress relief: מתחת ל-A1'],
+  };
+  const [d, label] = paths[kind] || paths.qt;
+  s += `<path d="${d}" class="d-curve" fill="none"/>` + t(170, 172, label, 'd-text-accent');
+  if (kind === 'qt') s += t(113, 36, 'austenitize', 'd-text', 'middle') + t(122, 132, 'quench', 'd-text-load', 'start') + t(197, 100, 'temper', 'd-text');
+  return svg(320, 180, s, 'heat treatment');
+}
+
+// bar chart of a property per material (to scale)
+export function bars(opts = {}) {
+  const data = opts.data || [];
+  const max = Math.max(...data.map((d) => d[1])) * 1.1;
+  const x0 = 92, W = 200, rowH = 26;
+  let s = '';
+  data.forEach(([n, v], i) => {
+    const y = 14 + i * rowH;
+    s += t(x0 - 6, y + 13, n, 'd-text', 'end') + `<rect x="${x0}" y="${y}" width="${(v / max) * W}" height="17" rx="4" class="d-bar"/>`;
+    s += t(x0 + (v / max) * W + 4, y + 13, String(v), 'd-text', 'start');
+  });
+  s += t(x0 + W / 2, 14 + data.length * rowH + 10, opts.label || '', 'd-text-accent');
+  return svg(320, 30 + data.length * rowH + 6, s, 'bar chart');
+}
+
 export const registry = {
   beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar,
   tank, hydraulicPress, floating, pipeContraction, torricelliTank, pitot, velocityProfiles, moody, pumpCurve, dragCar, jetPlate,
+  ironCarbon, hardness, galvanicSeries, heatTreat, bars,
 };
 
 // content uses {fn:'beam', args:['ss-udl',{diagrams:true}]}

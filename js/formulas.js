@@ -222,6 +222,51 @@ export const dragPower = (rho, V, Cd, A) => dragForce(rho, V, Cd, A) * V;
 export const jetForceFlatPlate = (rho, A, V) => rho * A * V * V;
 export const kmh = (v) => v / 3.6; // km/h -> m/s
 
+// =====================================================================
+// MATERIALS
+// =====================================================================
+// Fe-Fe3C key points (Callister, ch. 9): wt% C, °C
+export const FE_C = { eutectoidC: 0.76, eutectoidT: 727, ferriteMaxC: 0.022, cementiteC: 6.7, austeniteMaxC: 2.14, eutecticC: 4.3, eutecticT: 1147, A3pure: 912 };
+// lever rule: fraction of phase/constituent "b" between compositions a and b at overall C0
+export const leverRule = (C0, Ca, Cb) => (C0 - Ca) / (Cb - Ca);
+// hypoeutectoid steel just below 727 °C (Callister eq. 9.20-9.21)
+export const pearliteFraction = (C0) => leverRule(C0, FE_C.ferriteMaxC, FE_C.eutectoidC);
+export const proeutectoidFerrite = (C0) => 1 - pearliteFraction(C0);
+// hypereutectoid: pearlite and proeutectoid cementite
+export const pearliteFractionHyper = (C1) => (FE_C.cementiteC - C1) / (FE_C.cementiteC - FE_C.eutectoidC);
+
+// Hardness. Brinell: P [kgf], D, d [mm]. Vickers: F [kgf], d = mean diagonal [mm].
+export const brinell = (P, D, d) => (2 * P) / (PI * D * (D - Math.sqrt(D * D - d * d)));
+export const vickers = (F, d) => (2 * F * Math.sin(rad(68))) / (d * d); // = 1.8544 F/d²
+// steels: tensile strength from Brinell (Callister eq. 6.20a), MPa
+export const utsFromHB = (HB) => 3.45 * HB;
+
+// Selection (Ashby). Inputs in any consistent units.
+export const specificStiffness = (E, rho) => E / rho;
+export const specificStrength = (S, rho) => S / rho;
+// mass of a component meeting a stiffness target is proportional to 1/index
+export const ashbyIndex = {
+  tie: (E, rho) => E / rho,                  // stiff tie, fixed length
+  beam: (E, rho) => Math.sqrt(E) / rho,      // stiff beam, square section free
+  panel: (E, rho) => Math.cbrt(E) / rho,     // stiff panel, thickness free
+  strongBeam: (S, rho) => S ** (2 / 3) / rho,
+};
+export const massRatio = (indexA, indexB) => indexB / indexA; // mass A / mass B
+
+// Coatings: hard anodize (Type III) grows ~50% outward, ~50% inward
+export const anodizeOutwardGrowth = (t) => t / 2;
+export const anodizedShaftDiameter = (d, t) => d + 2 * anodizeOutwardGrowth(t);
+export const anodizedHoleDiameter = (d, t) => d - 2 * anodizeOutwardGrowth(t);
+
+// IIW carbon equivalent (weldability), wt%
+export const carbonEquivalent = ({ C = 0, Mn = 0, Cr = 0, Mo = 0, V = 0, Ni = 0, Cu = 0 }) =>
+  C + Mn / 6 + (Cr + Mo + V) / 5 + (Ni + Cu) / 15;
+// pitting resistance equivalent number for stainless steels, wt%
+export const pren = ({ Cr = 0, Mo = 0, N = 0 }) => Cr + 3.3 * Mo + 16 * N;
+
+// thermal mismatch between two parts of the same length
+export const thermalMismatch = (a1, a2, dT, L) => Math.abs(a1 - a2) * dT * L;
+
 // ---------- Helpers ----------
 export const deg = (rad) => (rad * 180) / PI;
 export const rad = (d) => (d * PI) / 180;

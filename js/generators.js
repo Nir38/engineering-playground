@@ -8,6 +8,7 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 export const fmt = (x, sig = 3) => {
   if (!isFinite(x)) return String(x);
   if (x === 0) return '0';
+  if (sig > 6) return String(Number(x.toPrecision(Math.min(sig, 12))));
   const p = Math.max(0, sig - 1 - Math.floor(Math.log10(Math.abs(x))));
   return String(Number(x.toFixed(Math.min(p, 8))));
 };
@@ -694,6 +695,171 @@ Object.assign(generators, {
         steps: [`\\dot m=\\rho AV=${fmt(1000 * f.area.circle(d / 1000) * V, 4)}\\ \\text{kg/s}`, `F=\\dot m V=\\rho AV^2=${fmt(F, 4)}\\ \\text{N}`],
         hint: 'כל התנע בכיוון הסילון "נעלם" בפגיעה, כי המים יוצאים בניצב.',
         diagram: { fn: 'jetPlate', args: [] }, source: `${SRC_C}, פרק 6`,
+      };
+    },
+  },
+});
+
+// =====================================================================
+// MATERIALS
+// =====================================================================
+const SRC_CA = 'Callister, Materials Science and Engineering';
+const SRC_A = 'Ashby, Materials Selection in Mechanical Design';
+const MATS = [
+  { n: 'פלדה', E: 200, rho: 7.85, Sy: 250 },
+  { n: 'אלומיניום 6061-T6', E: 69, rho: 2.70, Sy: 275 },
+  { n: 'אלומיניום 7075-T6', E: 72, rho: 2.81, Sy: 503 },
+  { n: 'טיטניום Ti-6Al-4V', E: 114, rho: 4.43, Sy: 880 },
+];
+Object.assign(generators, {
+  'gm-lever': {
+    subtopic: 'm-structure', difficulty: 2,
+    make() {
+      const C0 = pick([0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6]);
+      const ask = pick(['p', 'a']);
+      const Wp = f.pearliteFraction(C0);
+      return {
+        q: `פלדה פחמנית עם $${C0}$ wt% C מקוררת לאט מתחום האוסטניט עד ממש מתחת ל-727°C. מה החלק (באחוזים) של ${ask === 'p' ? 'הפרליט' : 'הפריט הפרואוטקטואידי'} במבנה?`,
+        answer: (ask === 'p' ? Wp : 1 - Wp) * 100, unit: '%',
+        steps: [`W_p=\\frac{C_0-0.022}{0.76-0.022}=\\frac{${C0}-0.022}{0.738}=${fmt(Wp)}`, ask === 'p' ? `W_p=${fmt(Wp * 100)}\\%` : `W_{\\alpha'}=1-W_p=${fmt((1 - Wp) * 100)}\\%`],
+        hint: 'כלל המנוף בין 0.022% (פריט) ל-0.76% (פרליט, הנקודה האוטקטואידית).',
+        diagram: { fn: 'ironCarbon', args: [{ c0: C0 }] }, source: `${SRC_CA}, פרק 9`,
+      };
+    },
+  },
+  'gm-brinell': {
+    subtopic: 'm-hardness', difficulty: 2,
+    make() {
+      const d = pick([3.2, 3.5, 3.8, 4.0, 4.2, 4.5, 5.0]);
+      const HB = f.brinell(3000, 10, d);
+      return {
+        q: `בבדיקת Brinell עם כדור $D=10$ mm ועומס $3000$ kgf נמדד קוטר שקע $d=${d}$ mm. מה הקשיות HB?`,
+        answer: HB, unit: 'HB',
+        steps: [`HB=\\frac{2P}{\\pi D\\left(D-\\sqrt{D^2-d^2}\\right)}`, `=\\frac{6000}{\\pi\\cdot10\\left(10-\\sqrt{100-${fmt(d * d, 4)}}\\right)}=${fmt(HB)}`],
+        hint: 'P ב-kgf ו-D, d במילימטרים. שקע קטן יותר = חומר קשה יותר.',
+        diagram: { fn: 'hardness', args: [] }, source: `${SRC_CA}, פרק 6`,
+      };
+    },
+  },
+  'gm-vickers': {
+    subtopic: 'm-hardness', difficulty: 1,
+    make() {
+      const F = pick([10, 20, 30, 50]); const d = pick([0.25, 0.3, 0.4, 0.5, 0.6]);
+      const HV = f.vickers(F, d);
+      return {
+        q: `בבדיקת Vickers בעומס $${F}$ kgf האלכסון הממוצע של השקע הוא $${d}$ mm. מה הקשיות HV?`,
+        answer: HV, unit: 'HV',
+        steps: [`HV=\\frac{2F\\sin(68^\\circ)}{d^2}=\\frac{1.854\\,F}{d^2}=\\frac{1.854\\cdot${F}}{${d}^2}=${fmt(HV)}`],
+        diagram: { fn: 'hardness', args: [] }, source: `${SRC_CA}, פרק 6`,
+      };
+    },
+  },
+  'gm-uts-hb': {
+    subtopic: 'm-hardness', difficulty: 1,
+    make() {
+      const HB = pick([150, 200, 250, 300, 350]);
+      const TS = f.utsFromHB(HB);
+      return {
+        q: `פלדה נמדדה בקשיות $${HB}$ HB. הערך את חוזק המתיחה שלה.`,
+        answer: TS, unit: 'MPa',
+        steps: [`TS\\approx3.45\\cdot HB=3.45\\cdot${HB}=${fmt(TS)}\\ \\text{MPa}`],
+        hint: 'קשר אמפירי לרוב הפלדות. הוא לא מתאים לכל חומר.',
+        source: `${SRC_CA}, פרק 6`,
+      };
+    },
+  },
+  'gm-specific': {
+    subtopic: 'm-selection', difficulty: 1,
+    make() {
+      const m = pick(MATS); const ask = pick(['E', 'S']);
+      const v = ask === 'E' ? m.E / m.rho : m.Sy / m.rho;
+      return {
+        q: `חשב את ${ask === 'E' ? 'הקשיחות הסגולית $E/\\rho$' : 'החוזק הסגולי $S_y/\\rho$'} של ${m.n} ($E=${m.E}$ GPa, $S_y=${m.Sy}$ MPa, $\\rho=${m.rho}$ g/cm³). ${ask === 'E' ? 'יחידות: GPa/(g/cm³).' : 'יחידות: MPa/(g/cm³).'}`,
+        answer: v, unit: '',
+        steps: [ask === 'E' ? `E/\\rho=${m.E}/${m.rho}=${fmt(v)}` : `S_y/\\rho=${m.Sy}/${m.rho}=${fmt(v)}`],
+        hint: 'E/ρ כמעט זהה בפלדה, באלומיניום ובטיטניום (בערך 25). חוזק סגולי שונה מאוד ביניהם.',
+        diagram: { fn: 'bars', args: [{ data: MATS.map((x) => [x.n.split(' ')[0] + (x.n.includes('7075') ? ' 7075' : x.n.includes('6061') ? ' 6061' : ''), +(ask === 'E' ? x.E / x.rho : x.Sy / x.rho).toFixed(1)]), label: ask === 'E' ? 'E/ρ' : 'Sy/ρ' }] },
+        source: `${SRC_A}, פרק 5`,
+      };
+    },
+  },
+  'gm-ashby': {
+    subtopic: 'm-selection', difficulty: 3,
+    make() {
+      const a = pick(MATS.slice(1)); const b = MATS[0];
+      const kind = pick(['tie', 'beam']);
+      const r = f.massRatio(f.ashbyIndex[kind](a.E, a.rho), f.ashbyIndex[kind](b.E, b.rho));
+      return {
+        q: kind === 'tie'
+          ? `מוט מתיחה באורך נתון צריך קשיחות צירית $k=AE/L$ מסוימת. מה יחס המסות ${a.n} חלקי פלדה? (פלדה: $E=200$, $\\rho=7.85$; ${a.n}: $E=${a.E}$ GPa, $\\rho=${a.rho}$)`
+          : `קורה בחתך ריבועי (הצלע חופשית לבחירה) צריכה קשיחות כפיפה נתונה. מה יחס המסות ${a.n} חלקי פלדה? (פלדה: $E=200$, $\\rho=7.85$; ${a.n}: $E=${a.E}$ GPa, $\\rho=${a.rho}$)`,
+        answer: r, unit: '',
+        steps: kind === 'tie'
+          ? [`m\\propto\\frac{\\rho}{E}`, `\\frac{m_a}{m_{st}}=\\frac{${a.rho}/${a.E}}{7.85/200}=${fmt(r)}`]
+          : [`EI\\propto E\\,b^4=\\text{const}\\Rightarrow b^2\\propto E^{-1/2}`, `m\\propto\\rho b^2\\propto\\frac{\\rho}{E^{1/2}}`, `\\frac{m_a}{m_{st}}=\\frac{${a.rho}/\\sqrt{${a.E}}}{7.85/\\sqrt{200}}=${fmt(r)}`],
+        hint: kind === 'tie' ? 'במתיחה המסה תלויה ב-ρ/E, וכמעט אין יתרון לאף מתכת.' : 'בכפיפה E נכנס בשורש, ולכן לחומר קל יש יתרון גדול.',
+        source: `${SRC_A}, פרק 5`,
+      };
+    },
+  },
+  'gm-mismatch': {
+    subtopic: 'm-welding', difficulty: 2,
+    make() {
+      const L = pick([500, 1000, 1500, 2000]); const dT = pick([30, 40, 50, 60, 80]);
+      const pair = pick([['אלומיניום', 23e-6, 'פלדה', 12e-6], ['נירוסטה 304', 17e-6, 'פלדה', 12e-6], ['אלומיניום', 23e-6, 'נירוסטה 304', 17e-6]]);
+      const d = f.thermalMismatch(pair[1], pair[3], dT, L);
+      return {
+        q: `פס מ${pair[0]} ($\\alpha=${pair[1] * 1e6}\\times10^{-6}$/K) ופס מ${pair[2]} ($\\alpha=${pair[3] * 1e6}\\times10^{-6}$/K), שניהם באורך $${L}$ mm, מחוממים ב-$${dT}$ K. מה הפרש ההתארכות ביניהם?`,
+        answer: d, unit: 'mm',
+        steps: [`\\Delta=\\left|\\alpha_1-\\alpha_2\\right|\\Delta T\\,L=${fmt(Math.abs(pair[1] - pair[3]) * 1e6)}\\times10^{-6}\\cdot${dT}\\cdot${L}=${fmt(d)}\\ \\text{mm}`],
+        hint: 'הפרש כזה בין חלקים מוברגים יוצר מאמצים או מחייב חורים מוארכים.',
+        source: 'מדריך הנדסי למתכות (חומר גלם), עמ\' 3',
+      };
+    },
+  },
+  'gm-ce': {
+    subtopic: 'm-welding', difficulty: 2,
+    make() {
+      const c = pick([
+        { C: 0.17, Mn: 1.0 }, { C: 0.2, Mn: 1.4 }, { C: 0.45, Mn: 0.75 }, { C: 0.4, Mn: 0.85, Cr: 0.95, Mo: 0.2 },
+        { C: 0.35, Mn: 0.7, Cr: 0.8, Mo: 0.25, Ni: 1.8 },
+      ]);
+      const CE = f.carbonEquivalent(c);
+      const txt = Object.entries(c).map(([k, v]) => `${k}=${v}`).join(', ');
+      return {
+        q: `לפלדה יש הרכב (wt%): $${txt}$. חשב את שווה-ערך הפחמן CE לפי IIW.`,
+        answer: CE, unit: '',
+        steps: [`CE=C+\\frac{Mn}{6}+\\frac{Cr+Mo+V}{5}+\\frac{Ni+Cu}{15}`, `=${fmt(CE, 4)}`, CE > 0.4 ? `CE>0.4:\\ \\text{preheat usually needed}` : `CE\\le0.4:\\ \\text{good weldability}`],
+        hint: 'ככל ש-CE גבוה יותר, הסיכון למרטנזיט קשה וסדקים ב-HAZ גדל.',
+        source: 'ASM Handbook Vol. 6, Welding (נוסחת IIW)',
+      };
+    },
+  },
+  'gm-pren': {
+    subtopic: 'm-stainless', difficulty: 1,
+    make() {
+      const g = pick([{ n: '304', Cr: 18, Mo: 0 }, { n: '316', Cr: 17, Mo: 2.5 }, { n: '2205 (duplex)', Cr: 22, Mo: 3, N: 0.17 }, { n: '904L', Cr: 20, Mo: 4.5 }]);
+      const P = f.pren(g);
+      return {
+        q: `חשב את PREN של נירוסטה ${g.n} עם הרכב (wt%) $Cr=${g.Cr},\\ Mo=${g.Mo}${g.N ? `,\\ N=${g.N}` : ',\\ N\\approx0'}$.`,
+        answer: P, unit: '',
+        steps: [`PREN=Cr+3.3\\,Mo+16\\,N=${g.Cr}+3.3\\cdot${g.Mo}+16\\cdot${g.N || 0}=${fmt(P)}`],
+        hint: 'PREN גבוה = עמידות טובה יותר לבורות (pitting) בכלורידים.',
+        source: 'ASM Handbook Vol. 13A, Corrosion',
+      };
+    },
+  },
+  'gm-anodize': {
+    subtopic: 'm-coatings', difficulty: 2,
+    make() {
+      const d = pick([10, 12, 16, 20, 25]); const t = pick([25, 40, 50, 60]); const hole = Math.random() < 0.5;
+      const res = hole ? f.anodizedHoleDiameter(d, t / 1000) : f.anodizedShaftDiameter(d, t / 1000);
+      return {
+        q: `${hole ? 'קדח' : 'פין'} מאלומיניום בקוטר $${d}.000$ mm עובר אנודייז קשה (Type III) בעובי שכבה $${t}$ µm. לפי כלל 50/50, מה הקוטר אחרי הציפוי?`,
+        answer: res, unit: 'mm', tol: 0.0002,
+        steps: [`\\text{growth outward}=t/2=${t / 2}\\ \\mu m\\ \\text{per side}`, hole ? `d_{new}=${d}-2\\cdot${t / 2 / 1000}=${fmt(res, 6)}\\ \\text{mm}` : `d_{new}=${d}+2\\cdot${t / 2 / 1000}=${fmt(res, 6)}\\ \\text{mm}`],
+        hint: 'חצי מהשכבה צומח החוצה וחצי חודר פנימה. על קוטר זה פעמיים חצי עובי, כלומר עובי אחד.',
+        source: 'מדריך הנדסי למתכות (חומר גלם), עמ\' 2-3',
       };
     },
   },

@@ -3,11 +3,12 @@
 // To add a domain: create data/<id>.js (see CONTENT-GUIDE.md), import it here.
 import strength from './strength.js';
 import fluids from './fluids.js';
+import materials from './materials.js';
 
 export const domains = [
   { id: 'strength', module: strength },
   { id: 'fluids', module: fluids },
-  { id: 'materials', title: 'חומרים וטיפולים תרמיים', icon: '🔥', summary: 'סגסוגות, הקשיה, ציפויים, קורוזיה', soon: true },
+  { id: 'materials', module: materials },
   { id: 'thermo', title: 'תרמודינמיקה ומעבר חום', icon: '♨️', summary: 'מחזורים, הולכה, הסעה, קרינה', soon: true },
   { id: 'design', title: 'תכן רכיבי מכונות', icon: '⚙️', summary: 'ברגים, מסבים, גלגלי שיניים, צירים', soon: true },
   { id: 'gdt', title: 'שרטוט, טולרנסים ו-GD&T', icon: '📐', summary: 'התאמות, טולרנסים גיאומטריים, Datums', soon: true },

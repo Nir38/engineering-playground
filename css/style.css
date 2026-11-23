@@ -149,6 +149,9 @@ svg.diagram { display: block; width: 100%; height: auto; max-height: 300px; dire
 .d-circle { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); stroke-width: 2; }
 .d-water { fill: color-mix(in srgb, #38bdf8 28%, var(--surface)); stroke: none; }
 .d-water-line { stroke: #38bdf8; stroke-width: 4; }
+.d-bar { fill: color-mix(in srgb, var(--accent) 70%, var(--surface)); }
+.gs-a { stop-color: var(--load); }
+.gs-n { stop-color: var(--accent); }
 .d-grid { stroke: var(--border); stroke-width: .8; }
 .d-area-v { fill: color-mix(in srgb, var(--curve2) 25%, transparent); stroke: var(--curve2); stroke-width: 1.4; }
 .d-area-m { fill: color-mix(in srgb, var(--load) 22%, transparent); stroke: var(--load); stroke-width: 1.4; }

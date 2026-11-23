@@ -3,7 +3,7 @@ import { allDomains } from '../data/catalog.js';
 import { generators, makeQuestion, fmt } from './generators.js';
 import { draw } from './diagrams.js';
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }
@@ -360,7 +360,7 @@ function answer(ok, detail) {
     const head = detail.timeout ? '⏱️ נגמר הזמן' : ok ? '✔ נכון!' : '✘ לא מדויק';
     let solution = '';
     if (q.type === 'numeric') {
-      solution = `<div>התשובה: <b dir="ltr">${fmt(q.answer, 4)} ${esc(q.unit || '')}</b>${detail.value !== undefined ? ` <span class="muted small">(ענית <span dir="ltr">${fmt(detail.value, 4)}</span>, טווח מותר ±${Math.round((q.tol || 0.02) * 100)}%)</span>` : ''}</div>
+      solution = `<div>התשובה: <b dir="ltr">${fmt(q.answer, (q.tol || 0.02) < 0.01 ? 7 : 4)} ${esc(q.unit || '')}</b>${detail.value !== undefined ? ` <span class="muted small">(ענית <span dir="ltr">${fmt(detail.value, 4)}</span>, טווח מותר ±${(q.tol || 0.02) < 0.01 ? fmt(q.tol * Math.abs(q.answer), 2) + ' ' + (q.unit || '') : Math.round((q.tol || 0.02) * 100) + '%'})</span>` : ''}</div>
         <div class="steps">${q.steps.map((st) => `<div class="step">${tex(st)}</div>`).join('')}</div>${q.hint && !ok ? `<div class="hint">💡 ${rich(q.hint)}</div>` : ''}`;
     } else solution = `<div>${rich(q.explain || '')}</div>`;
     fb = `<div class="feedback ${ok ? 'good' : 'bad'}"><h3>${head}</h3>${solution}<div class="source-line">מקור: ${rich(q.source || '')}</div></div>`;
@@ -400,7 +400,7 @@ function quizSummary() {
     </div>
     ${Object.keys(weak).length ? `<div class="card"><h3>לחזור על</h3>${Object.entries(weak).map(([id, c]) => `<a class="list-item" href="#/learn/${SUB[id].domain.id}/${id}"><div class="grow"><b>${esc(SUB[id].sub.title)}</b><div class="muted small">${c} טעויות</div></div><span class="chev">‹</span></a>`).join('')}</div>` : ''}
     <div class="card"><h3>כל השאלות</h3>${res.map((r) => `<div class="review-item ${r.ok ? 'good' : 'bad'}"><div class="small">${rich(r.q.q)}</div>
-      <div class="small muted">${r.q.type === 'numeric' ? `תשובה: <span dir="ltr">${fmt(r.q.answer, 4)} ${esc(r.q.unit || '')}</span>` : r.q.type === 'mcq' ? `תשובה: ${rich(r.q.options[r.q.answer])}` : r.q.type === 'tf' ? `תשובה: ${r.q.answer ? 'נכון' : 'לא נכון'}` : ''}</div></div>`).join('')}</div>
+      <div class="small muted">${r.q.type === 'numeric' ? `תשובה: <span dir="ltr">${fmt(r.q.answer, (r.q.tol || 0.02) < 0.01 ? 7 : 4)} ${esc(r.q.unit || '')}</span>` : r.q.type === 'mcq' ? `תשובה: ${rich(r.q.options[r.q.answer])}` : r.q.type === 'tf' ? `תשובה: ${r.q.answer ? 'נכון' : 'לא נכון'}` : ''}</div></div>`).join('')}</div>
     <div class="btn-row"><button class="btn primary" id="again">עוד סיבוב</button><a class="btn" href="#/">לבית</a></div>`;
   const opts = quiz.opts;
   $('#again').onclick = () => startQuiz(opts);
@@ -420,7 +420,7 @@ function reportSheet(q) {
   $('#cancel').onclick = close;
   $('#send').onclick = () => {
     const note = $('#rep').value.trim();
-    state.reports.push({ id: q.id, sub: q.sub, q: q.q, answer: q.type === 'numeric' ? `${fmt(q.answer, 4)} ${q.unit || ''}` : q.type === 'mcq' ? q.options[q.answer] : String(q.answer), note, date: new Date().toISOString().slice(0, 10), v: APP_VERSION });
+    state.reports.push({ id: q.id, sub: q.sub, q: q.q, answer: q.type === 'numeric' ? `${fmt(q.answer, (q.tol || 0.02) < 0.01 ? 7 : 4)} ${q.unit || ''}` : q.type === 'mcq' ? q.options[q.answer] : String(q.answer), note, date: new Date().toISOString().slice(0, 10), v: APP_VERSION });
     save(); close(); toast('הדיווח נשמר. תודה!');
   };
   setTimeout(() => $('#rep').focus(), 50);

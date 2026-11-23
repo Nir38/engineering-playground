@@ -179,7 +179,46 @@ const ex = [
   ['f-drag +73% from 100 to 120', f.dragPower(1, f.kmh(120), 1, 1) / f.dragPower(1, f.kmh(100), 1, 1) - 1, 0.73, 1e-2],
   ['f-momentum example ṁ', 1000 * f.area.circle(0.02) * 20, 6.28, 1e-3],
   ['f-momentum example F', f.jetForceFlatPlate(1000, f.area.circle(0.02), 20), 126, 3e-3],
+  // materials lessons
+  ['m-structure example Wp', f.pearliteFraction(0.4), 0.51, 1e-2],
+  ['m-structure example Wα', f.proeutectoidFerrite(0.4), 0.49, 1e-2],
+  ['m-structure: 0.76% C is all pearlite', f.pearliteFraction(0.76), 1, 1e-12],
+  ['m-structure: hyper side meets at 0.76', f.pearliteFractionHyper(0.76), 1, 1e-12],
+  ['m-hardness example HB (standard table: d=4.00 → 229)', f.brinell(3000, 10, 4), 229, 2e-3],
+  ['m-hardness Brinell table d=3.00 → 415', f.brinell(3000, 10, 3), 415, 3e-3],
+  ['m-hardness Brinell table d=5.00 → 143', f.brinell(3000, 10, 5), 143, 5e-3], // tables round to the nearest integer
+  ['m-hardness example TS', f.utsFromHB(f.brinell(3000, 10, 4)), 790, 2e-3],
+  ['m-hardness Vickers constant 1.854', f.vickers(1, 1), 1.8544, 1e-4],
+  ['m-stainless PREN 304', f.pren({ Cr: 18 }), 18, 1e-12],
+  ['m-stainless PREN 316', f.pren({ Cr: 17, Mo: 2.5 }), 25.3, 2e-3],
+  ['m-aluminum 6061 Sy/ρ', 275 / 2.70, 102, 2e-3],
+  ['m-aluminum 7075 Sy/ρ', 503 / 2.81, 179, 2e-3],
+  ['m-selection E/ρ steel', f.specificStiffness(200, 7.85), 25.5, 2e-3],
+  ['m-selection E/ρ Al', f.specificStiffness(69, 2.70), 25.6, 2e-3],
+  ['m-selection E/ρ Ti', f.specificStiffness(114, 4.43), 25.7, 2e-3],
+  ['m-selection beam mass Al/steel', f.massRatio(f.ashbyIndex.beam(69, 2.70), f.ashbyIndex.beam(200, 7.85)), 0.59, 1e-2],
+  ['m-selection tie mass Al/steel', f.massRatio(f.ashbyIndex.tie(69, 2.70), f.ashbyIndex.tie(200, 7.85)), 1.0, 1e-2],
+  ['m-welding example CE', f.carbonEquivalent({ C: 0.45, Mn: 0.75 }), 0.575, 1e-9],
+  ['m-welding example mismatch', f.thermalMismatch(23e-6, 12e-6, 50, 1000), 0.55, 1e-9],
+  ['m-welding SS expands ~40% more than steel', 17 / 12 - 1, 0.4, 0.06],
+  ['m-coatings example shaft', f.anodizedShaftDiameter(20, 0.05), 20.05, 1e-12],
+  ['m-coatings hole 10 mm, 50 µm', f.anodizedHoleDiameter(10, 0.05), 9.95, 1e-12],
 ];
+
+// ---------- materials: independent cross-checks ----------
+{
+  // Ashby beam index derived directly: square beam, same EI -> b ∝ E^(-1/4), m ∝ ρ b²
+  const b = (E) => (1 / E) ** 0.25; const m = (E, rho) => rho * b(E) ** 2;
+  check('Ashby beam index = direct square-beam mass', near(m(69, 2.7) / m(200, 7.85), f.massRatio(f.ashbyIndex.beam(69, 2.7), f.ashbyIndex.beam(200, 7.85)), 1e-12));
+  // lever rule: mass balance Wα·0.022 + Wp·0.76 = C0
+  const C0 = 0.37, Wp = f.pearliteFraction(C0);
+  check('lever rule mass balance', near((1 - Wp) * 0.022 + Wp * 0.76, C0, 1e-12));
+  // Vickers: projected geometry — HV = F / (contact area), area = d² / (2 sin 68°)
+  check('Vickers = F / contact area', near(f.vickers(30, 0.5), 30 / (0.5 ** 2 / (2 * Math.sin(f.rad(68)))), 1e-12));
+  // Brinell: HB = P / spherical-cap area, cap depth h = (D - √(D²-d²))/2
+  const D = 10, dd = 3.7, h = (D - Math.sqrt(D * D - dd * dd)) / 2;
+  check('Brinell = P / cap area', near(f.brinell(3000, D, dd), 3000 / (Math.PI * D * h), 1e-12));
+}
 ex.forEach(([n, got, want, tol]) => check(n, near(got, want, tol), `got ${got}, lesson says ${want}`));
 
 // ---------- 3. Generators ----------
