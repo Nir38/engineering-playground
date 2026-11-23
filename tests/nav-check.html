@@ -218,6 +218,25 @@
   check('gate force equals ρ g h_c A for one fluid', !!m1 && F1 && Math.abs(parseFloat(F1) - parseFloat(m1[1])) < 1e-9, `${F1} vs ${m1 && m1[1]}`);
   await go('#/learn'); await go('#/play');
   check('fluid mode and screen are kept', !!$('#pgPres'));
+
+  // 14. playground: vibration
+  $('[data-mode="vib"]').click(); await sleep(120);
+  check('vibration mode shows the moving mass', !!$('#pgVib'));
+  $('[data-preset="under"]').click(); await sleep(60);
+  const tOf = () => parseFloat($('#pgVib').textContent.match(/t = ([\d.]+) s/)[1]);
+  const ta = tOf(); await sleep(600); const tb = tOf();
+  check('the simulation advances in real time', tb - ta > 0.3 && tb - ta < 1.2, `${ta} -> ${tb}`);
+  check('ζ = 0.1 preset: underdamped, fn = 1.592 Hz', $('#pgVibRes .pg-status').textContent.includes('תת-קריטי') && $('#pgVibRes').textContent.includes('1.592 Hz'));
+  $('[data-preset="res"]').click(); await sleep(60);
+  check('resonance preset: M = 1/(2ζ) = 10', /מקדם הגברה M\s*10(?!\d)/.test($('#pgVibRes').innerText.replace(/\s+/g, ' ')));
+  $('[data-act="play"]').click(); await sleep(40); const tc = tOf(); await sleep(400);
+  check('pause stops the motion', tOf() === tc);
+  const vmb = $('#pgVib [data-mass] .pg-hit'), mr = vmb.getBoundingClientRect();
+  const pe4 = (type, el, y) => el.dispatchEvent(new W.PointerEvent(type, { bubbles: true, clientX: mr.left + mr.width / 2, clientY: y, pointerId: 15, isPrimary: true }));
+  pe4('pointerdown', vmb, mr.top + mr.height / 2); pe4('pointermove', $('#pgVibCanvas'), mr.top + mr.height / 2 + 20); pe4('pointerup', $('#pgVibCanvas'), mr.top + mr.height / 2 + 20); await sleep(300);
+  check('dragging and releasing the mass restarts the motion', tOf() > 0 && parseFloat($('#pgVibEdit [data-f="x0"]').value) > 0);
+  $('[data-preset="crit"]').click(); await sleep(60);
+  check('critical preset', $('#pgVibRes .pg-status').textContent.includes('קריטי') && !$('#pgVibRes .pg-status').textContent.includes('תת'));
   $('[data-mode="beam"]').click(); await sleep(60);
 
   const fails = log.filter((l) => l.startsWith('FAIL'));
