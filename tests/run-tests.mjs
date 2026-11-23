@@ -9,6 +9,7 @@ import { generators, makeQuestion } from '../js/generators.js';
 import { registry, draw } from '../js/diagrams.js';
 import { domains } from '../data/catalog.js';
 import { beamChecks } from './beam-cases.mjs';
+import { pulleyChecks } from './pulley-cases.mjs';
 
 const require = createRequire(import.meta.url);
 const katex = require('../vendor/katex/katex.min.js');
@@ -570,6 +571,7 @@ const ex = [
 }
 // ---------- playground beam solver vs textbook tables ----------
 beamChecks(check, near);
+pulleyChecks(check, near);
 
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {

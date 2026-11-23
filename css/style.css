@@ -291,3 +291,28 @@ details.domain-pick summary::-webkit-details-marker { display: none; }
 .pg-area-v { fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: var(--accent); stroke-width: 1.6; }
 .pg-area-m { fill: color-mix(in srgb, var(--load) 20%, transparent); stroke: var(--load); stroke-width: 1.6; }
 .pg-curve { fill: none; stroke: var(--curve2); stroke-width: 2.2; }
+.pg-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; margin-bottom: 12px; background: var(--surface-2); border-radius: 14px; }
+.pg-mode { min-height: 44px; border: 0; border-radius: 11px; background: transparent; font-weight: 700; color: var(--muted); cursor: pointer; }
+.pg-mode[aria-pressed="true"] { background: var(--surface); color: var(--accent); box-shadow: var(--shadow); }
+.pg-intro .chips { margin-top: 8px; }
+.pg-rope { stroke: var(--load); fill: none; stroke-linecap: round; }
+.pg-sheave { fill: var(--surface); stroke: var(--text); stroke-width: 1.6; }
+.pg-axle { fill: var(--text); }
+.pg-block { fill: var(--surface-2); stroke: var(--text); stroke-width: 1.4; }
+.pg-strap { stroke: var(--text); stroke-width: 2; }
+.pg-mass { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.6; }
+.pg-solid { fill: var(--surface-2); }
+.pg-surface { stroke: var(--text); stroke-width: 2; }
+.pg-accel { stroke: var(--curve2); fill: var(--curve2); stroke-width: 2.4; }
+.pg-ta { fill: var(--curve2); font-size: 12px; }
+.pg-tn { fill: var(--muted); font-size: 9.5px; }
+.pg-stepper { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0 10px; }
+.pg-stepper > div { display: flex; align-items: center; gap: 10px; }
+.pg-stepper .btn { min-height: 40px; width: 44px; padding: 0; font-size: 1.3rem; }
+.pg-stepper b { font-size: 1.3rem; min-width: 20px; text-align: center; }
+.pg-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.pg-table th, .pg-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: start; }
+.pg-table th { color: var(--muted); font-weight: 600; font-size: .8rem; }
+.pg-side + .pg-side { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); }
+.pg-templates[hidden] { display: none; }
+.pg-svg text[direction="rtl"] { direction: rtl; unicode-bidi: embed; }

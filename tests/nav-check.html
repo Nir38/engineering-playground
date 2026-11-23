@@ -126,6 +126,7 @@
 
   // 10. playground
   await go('#/play');
+  $('[data-mode="beam"]').click(); await sleep(80);
   check('playground tab opens and is marked active', !!$('#pgCanvas') && $('.tabbar a.active')?.dataset.tab === 'play');
   $('[data-tpl="ss"]').click(); await sleep(80);
   check('simply supported template: determinate, R = 30 kN', $('#pgResults .pg-status.good') && $('#pgResults').textContent.includes('Ry = 30 kN'));
@@ -145,6 +146,30 @@
   check('two rollers are reported as a mechanism', !!$('#pgResults .pg-status.bad'));
   $('[data-tpl="prop"]').click(); await sleep(50); await go('#/learn'); await go('#/play');
   check('the scene is kept after leaving the tab', $('#pgResults .pg-status.warn') && $('#pgResults').textContent.includes('22.5 kN'));
+
+  // 11. playground: pulleys
+  $('[data-mode="pulley"]').click(); await sleep(100);
+  $('[data-act="sub"][data-v="hoist"]').click(); await sleep(60);
+  check('pulley mode shows the hoist', !!$('#pgHoist') && !$('#pgCanvas'));
+  const n0 = Number($('#pgN').textContent); $('[data-act="n"][data-v="1"]').click(); await sleep(60);
+  check('hoist "+" adds a rope segment', Number($('#pgN').textContent) === Math.min(6, n0 + 1));
+  const eta = $('#pgPulEdit [data-f="eta"]'); eta.value = '1'; eta.dispatchEvent(new W.Event('input', { bubbles: true })); await sleep(60);
+  const nn = Number($('#pgN').textContent), m = parseFloat($('#pgPulEdit [data-f="m"]').value), mb = parseFloat($('#pgPulEdit [data-f="mb"]').value);
+  const Fshown = parseFloat($('#pgPulResults .pg-max b').textContent);
+  check('ideal hoist shows F = W/n', Math.abs(Fshown - (m + mb) * 9.81 / nn) < 0.01 * Fshown, `${Fshown} vs ${(m + mb) * 9.81 / nn}`);
+  const hd = $('#pgHoist [data-hand] .pg-hit'), hr = hd.getBoundingClientRect();
+  const pe2 = (type, el, y) => el.dispatchEvent(new W.PointerEvent(type, { bubbles: true, clientX: hr.left + hr.width / 2, clientY: y, pointerId: 9, isPrimary: true }));
+  pe2('pointerdown', hd, hr.top + hr.height / 2); pe2('pointermove', $('#pgPulCanvas'), hr.top + hr.height / 2 + 40); pe2('pointerup', $('#pgPulCanvas'), hr.top + hr.height / 2 + 40); await sleep(80);
+  check('dragging the hand pulls rope and lifts the load', /משכת ⁦(?!0 m)/.test($('#pgHoist').textContent));
+  $('[data-act="sub"][data-v="conn"]').click(); await sleep(60); $('[data-tpl="atwood"]').click(); await sleep(60);
+  check('Atwood 2 kg / 3 kg: a = 1.962 m/s²', !!$('#pgConn') && $('#pgPulResults').textContent.includes('1.962 m/s'));
+  $('[data-tpl="table"]').click(); await sleep(60);
+  const mR = $('#pgPulEdit [data-f="mR"]'); mR.value = '1'; mR.dispatchEvent(new W.Event('input', { bubbles: true })); await sleep(60);
+  check('light hanging mass on a rough table stays at rest', $('#pgPulResults .pg-status')?.textContent.includes('במנוחה'));
+  await go('#/learn'); await go('#/play');
+  check('the pulley mode and scene are kept', !!$('#pgConn') && $('[data-mode="pulley"]').getAttribute('aria-pressed') === 'true');
+  $('[data-mode="beam"]').click(); await sleep(80);
+  check('switching back to beams works', !!$('#pgCanvas') && !$('#pgConn'));
 
   const fails = log.filter((l) => l.startsWith('FAIL'));
   out.textContent = log.join('\n') + `\n\n${log.length - fails.length}/${log.length} passed`;

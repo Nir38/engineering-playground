@@ -4,6 +4,7 @@
 // (checked against textbook tables in tests/beam-cases.mjs).
 import { solveBeam, rectSection, bendingStress, REACTION_COUNT } from './beam.js';
 import { esc } from './text.js';
+import { renderPulleys } from './playground-pulleys.js';
 
 const KEY = 'mh-pg-v1';
 const W = 360, X0 = 34, X1 = 326, BY = 94; // canvas geometry (px in viewBox units)
@@ -233,9 +234,28 @@ function editorHtml() {
 }
 
 // ---------- view ----------
-export function renderPlayground(view, { setTitle, toast }) {
+const MODE_KEY = 'mh-pg-mode';
+export function renderPlayground(page, ctx) {
+  ctx.setTitle('מגרש משחקים');
+  let mode = 'beam';
+  try { mode = localStorage.getItem(MODE_KEY) === 'pulley' ? 'pulley' : 'beam'; } catch (e) { /* ignore */ }
+  page.innerHTML = `<div class="pg-modes"><button class="pg-mode" data-mode="beam">🏗️ קורות</button><button class="pg-mode" data-mode="pulley">🪢 גלגלות</button></div><div id="pgBody"></div>`;
+  let body = page.querySelector('#pgBody');
+  const show = () => {
+    page.querySelectorAll('.pg-mode').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    const fresh = body.cloneNode(false); body.replaceWith(fresh); body = fresh; // drop old listeners
+    if (mode === 'pulley') renderPulleys(fresh, ctx); else renderBeams(fresh, ctx);
+  };
+  page.querySelector('.pg-modes').onclick = (ev) => {
+    const b = ev.target.closest('[data-mode]'); if (!b || b.dataset.mode === mode) return;
+    mode = b.dataset.mode; try { localStorage.setItem(MODE_KEY, mode); } catch (e) { /* ignore */ }
+    show();
+  };
+  show();
+}
+
+function renderBeams(view, { toast }) {
   load();
-  setTitle('מגרש משחקים');
   view.innerHTML = `
     <div class="card pg-intro"><h2>🏗️ קורות ורתימות</h2><p class="small muted">בונים קורה, גוררים סמכים ועומסים, והתוצאות מתעדכנות מיד.</p>
       <div class="pg-templates">${TEMPLATES.map((t) => `<button class="chip" data-tpl="${t.id}">${esc(t.name)}</button>`).join('')}</div></div>
