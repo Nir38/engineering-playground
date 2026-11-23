@@ -373,6 +373,63 @@ export const lineLoss3ph = (P, VL, R) => 3 * threePhaseCurrent(P, VL) ** 2 * R;
 // sag of a span (parabolic approximation): w = weight per length, H = horizontal tension
 export const cableSag = (w, L, H) => (w * L * L) / (8 * H);
 
+// =====================================================================
+// MACHINE DESIGN (Shigley). Units: N, mm, MPa unless noted.
+// =====================================================================
+// shafts: von Mises for bending M + torsion T on a solid round shaft
+export const shaftVonMises = (M, T, d) => (16 / (PI * d ** 3)) * Math.sqrt(4 * M * M + 3 * T * T);
+export const shaftDiameterStatic = (M, T, Sy, n) => Math.cbrt((16 * n * Math.sqrt(4 * M * M + 3 * T * T)) / (PI * Sy));
+// first critical speed from static deflection (single mass / Rayleigh), rpm
+export const criticalSpeedRpm = (deltaStatic_m, g = 9.81) => (60 / (2 * PI)) * Math.sqrt(g / deltaStatic_m);
+
+// rolling bearings: L10 in revolutions, a = 3 ball, 10/3 roller
+export const bearingL10Rev = (C, P, a = 3) => (C / P) ** a * 1e6;
+export const bearingL10Hours = (C, P, rpm, a = 3) => bearingL10Rev(C, P, a) / (60 * rpm);
+export const bearingRequiredC = (P, hours, rpm, a = 3) => P * ((hours * 60 * rpm) / 1e6) ** (1 / a);
+
+// bolts. ISO metric coarse tensile stress areas At [mm²] (Shigley Table 8-1)
+export const BOLT_AT = { M6: 20.1, M8: 36.6, M10: 58.0, M12: 84.3, M16: 157, M20: 245, M24: 353 };
+// property class "a.b": Sut ≈ 100·a MPa, Sy ≈ 10·a·b MPa (nominal, ISO 898-1 naming)
+export const boltClass = (cls) => { const [a, b] = cls.split('.').map(Number); return { Sut: 100 * a, Sy: 10 * a * b }; };
+export const boltPreload = (At, Sp, frac = 0.75) => frac * At * Sp;     // Fi = 0.75 At Sp (reusable)
+export const boltTorque = (K, Fi, d) => K * Fi * d;                       // T = K Fi d, K ≈ 0.2
+export const jointConstant = (kb, km) => kb / (kb + km);
+export const boltLoad = (C, P, Fi) => C * P + Fi;
+export const memberLoad = (C, P, Fi) => (1 - C) * P - Fi;                 // negative = still clamped
+export const separationLoad = (C, Fi) => Fi / (1 - C);
+
+// gears (metric)
+export const gearPitchDia = (m, N) => m * N;
+export const gearCenterDistance = (m, N1, N2) => (m * (N1 + N2)) / 2;
+export const gearRatio = (N1, N2) => N2 / N1;
+export const gearTangentialForce = (T_Nmm, d_mm) => (2 * T_Nmm) / d_mm;
+export const lewisStress = (Wt, F, m, Y) => Wt / (F * m * Y);
+// Lewis form factor Y, 20° full-depth teeth (Shigley Table 14-2)
+export const LEWIS_Y = { 20: 0.322, 25: 0.34, 30: 0.359, 40: 0.389, 50: 0.409, 60: 0.422, 100: 0.447 };
+
+// helical compression springs
+export const springIndex = (D, d) => D / d;
+export const springRate = (G, d, D, Na) => (G * d ** 4) / (8 * D ** 3 * Na);
+export const springKs = (C) => 1 + 0.5 / C;
+export const springShear = (F, D, d) => springKs(D / d) * (8 * F * D) / (PI * d ** 3);
+export const springsSeries = (k1, k2) => (k1 * k2) / (k1 + k2);
+export const springsParallel = (k1, k2) => k1 + k2;
+
+// keys and press fits
+export const keyForce = (T, d) => (2 * T) / d;                      // force at shaft surface
+export const keyShear = (T, d, w, L) => keyForce(T, d) / (w * L);
+export const keyBearing = (T, d, h, L) => keyForce(T, d) / (L * h / 2);
+// interference fit, same material, solid shaft: radial interference delta, hub outer radius ro
+export const pressFitPressure = (E, delta, R, ro) => (E * delta * (ro * ro - R * R)) / (2 * R * ro * ro);
+export const pressFitTorque = (f, p, R, L) => f * p * 2 * PI * R * L * R;
+
+// fillet weld: throat 0.707 h
+export const filletShear = (F, h, L) => F / (0.707 * h * L);
+
+// belts: power from tight/slack tensions, V in m/s
+export const beltPower = (F1, F2, V) => (F1 - F2) * V;
+export const beltSpeed = (d_mm, rpm) => (PI * d_mm * rpm) / 60000;
+
 // ---------- Helpers ----------
 export const deg = (rad) => (rad * 180) / PI;
 export const rad = (d) => (d * PI) / 180;

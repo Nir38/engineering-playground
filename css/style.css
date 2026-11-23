@@ -169,6 +169,7 @@ svg.diagram { display: block; width: 100%; height: auto; max-height: 300px; dire
 .d-hot { fill: color-mix(in srgb, var(--load) 30%, var(--surface)); stroke: var(--load); stroke-width: 1.2; }
 .d-cold { fill: color-mix(in srgb, #38bdf8 30%, var(--surface)); stroke: #0284c7; stroke-width: 1.2; }
 .d-curve-hot { stroke: var(--load); stroke-width: 2.4; fill: none; }
+.d-line-fill { fill: var(--text); }
 .d-grid { stroke: var(--border); stroke-width: .8; }
 .d-area-v { fill: color-mix(in srgb, var(--curve2) 25%, transparent); stroke: var(--curve2); stroke-width: 1.4; }
 .d-area-m { fill: color-mix(in srgb, var(--load) 22%, transparent); stroke: var(--load); stroke-width: 1.4; }

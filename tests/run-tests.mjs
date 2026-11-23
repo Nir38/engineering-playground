@@ -381,6 +381,48 @@ const ex = [
     check('parabolic sag within 0.5% of catenary', near(f.cableSag(w, L, H), exact, 5e-3)); }
 }
 
+// ---------- machine design: worked examples and independent cross-checks ----------
+{
+  const ex4 = [
+    ['d-shafts σ\'', f.shaftVonMises(200e3, 300e3, 30), 123.7, 1e-3], ['d-shafts d', f.shaftDiameterStatic(200e3, 300e3, 400, 2), 25.6, 2e-3],
+    ['d-shafts load ×2 → d ×1.26', Math.cbrt(2), 1.26, 1e-3], ['d-shafts critical 0.1 mm ≈ 3000 rpm', f.criticalSpeedRpm(1e-4), 3000, 5e-3],
+    ['d-bearings L10 rev', f.bearingL10Rev(20, 4), 125e6, 1e-12], ['d-bearings hours', f.bearingL10Hours(20, 4, 1500), 1389, 1e-3],
+    ['d-bearings C req', f.bearingRequiredC(3, 20000, 1000), 31.9, 2e-3],
+    ['d-bolts Fi [kN]', f.boltPreload(84.3, 600) / 1000, 37.9, 2e-3], ['d-bolts T [N·m]', f.boltTorque(0.2, f.boltPreload(84.3, 600), 12) / 1000, 91, 2e-3],
+    ['d-bolts Fb [kN]', f.boltLoad(0.2, 10, 37.9), 39.9, 1e-3], ['d-bolts 8.8', f.boltClass('8.8').Sy, 640, 1e-12], ['d-bolts 12.9', f.boltClass('12.9').Sy, 1080, 1e-12],
+    ['d-gears a', f.gearCenterDistance(2, 20, 60), 80, 1e-12], ['d-gears Wt', f.gearTangentialForce(50e3, 40), 2500, 1e-12], ['d-gears σ', f.lewisStress(2500, 20, 2, 0.322), 194, 2e-3],
+    ['d-springs k', f.springRate(79300, 3, 24, 10), 5.81, 1e-3], ['d-springs Ks', f.springKs(8), 1.0625, 1e-12], ['d-springs τ', f.springShear(100, 24, 3), 240, 3e-3],
+    ['d-keys F', f.keyForce(200e3, 40), 10000, 1e-12], ['d-keys τ', f.keyShear(200e3, 40, 12, 40), 20.8, 2e-3], ['d-keys σb', f.keyBearing(200e3, 40, 12, 40), 41.7, 2e-3],
+    ['d-keys press p', f.pressFitPressure(207000, 0.02, 20, 40), 77.6, 1e-3],
+    ['d-welds throat', 0.707 * 6, 4.24, 1e-3], ['d-welds τ', f.filletShear(10000, 6, 100), 23.6, 2e-3],
+    ['d-belts V', f.beltSpeed(100, 1450), 7.59, 1e-3], ['d-belts P [kW]', f.beltPower(800, 200, f.beltSpeed(100, 1450)) / 1000, 4.56, 2e-3],
+  ];
+  ex4.forEach(([n, got, want, tol]) => check(n, near(got, want, tol), `got ${got}, lesson says ${want}`));
+  // shaft von Mises = general plane-stress von Mises with σ = 32M/πd³, τ = 16T/πd³
+  { const M = 180e3, T = 260e3, d = 28; const s = (32 * M) / (Math.PI * d ** 3), tau = (16 * T) / (Math.PI * d ** 3);
+    check('shaft σ\' = √(σ² + 3τ²)', near(f.shaftVonMises(M, T, d), f.vonMisesXY(s, 0, tau), 1e-12));
+    const dd = f.shaftDiameterStatic(M, T, 380, 2.2);
+    check('shaft diameter gives exactly n', near(380 / f.shaftVonMises(M, T, dd), 2.2, 1e-12)); }
+  // bearing: required C gives back the target life
+  check('bearing C → life round trip', near(f.bearingL10Hours(f.bearingRequiredC(2.5, 30000, 900), 2.5, 900), 30000, 1e-9));
+  // spring rate re-derived as a torsion bar: wire length πD·N, T = F·D/2, y = φ·D/2
+  { const G = 79300, d = 2.6, D = 21, N = 9, F = 1; const Lw = Math.PI * D * N, Jw = f.J.circle(d);
+    const phi = ((F * D) / 2) * Lw / (G * Jw), y = (phi * D) / 2;
+    check('spring rate = torsion-bar derivation', near(F / y, f.springRate(G, d, D, N), 1e-12)); }
+  // press fit: Lamé displacements of hub and solid shaft add up to the interference
+  { const E = 207000, nu = 0.3, R = 20, ro = 40, delta = 0.02, p = f.pressFitPressure(E, delta, R, ro);
+    const uHub = (p * R) / E * ((ro * ro + R * R) / (ro * ro - R * R) + nu), uShaft = -(p * R) / E * (1 - nu);
+    check('press fit pressure = Lamé solution', near(uHub - uShaft, delta, 1e-12)); }
+  // bolted joint: at the separation load the member force is zero
+  check('joint: member force zero at P0', Math.abs(f.memberLoad(0.22, f.separationLoad(0.22, 30), 30)) < 1e-12);
+  // belt power = torque × ω
+  { const d = 125, n = 1450, F1 = 700, F2 = 150, T = ((F1 - F2) * d) / 2000, w = (2 * Math.PI * n) / 60;
+    check('belt power = T·ω', near(f.beltPower(F1, F2, f.beltSpeed(d, n)), T * w, 1e-12)); }
+  // Lewis Y grows with tooth count (sanity on the table)
+  const ys = Object.keys(f.LEWIS_Y).map(Number).sort((a, b) => a - b).map((k) => f.LEWIS_Y[k]);
+  check('Lewis Y increases with N', ys.every((y, i) => i === 0 || y > ys[i - 1]));
+}
+
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {
   const sub = (id) => domains.flatMap((d) => (d.module ? d.module.subtopics : [])).find((s) => s.id === id);

@@ -1513,6 +1513,209 @@ Object.assign(generators, {
   },
 });
 
+// =====================================================================
+// MACHINE DESIGN
+// =====================================================================
+const SRC_SH = "Shigley's Mechanical Engineering Design";
+Object.assign(generators, {
+  'gd-shaft-check': {
+    subtopic: 'd-shafts', difficulty: 2,
+    make() {
+      const M = pick([100, 200, 300, 500]); const T = pick([100, 200, 400, 600]); const d = pick([25, 30, 35, 40, 50]); const Sy = pick([350, 420, 530]);
+      const s = f.shaftVonMises(M * 1000, T * 1000, d); const n = Sy / s;
+      return {
+        q: `בנקודה קריטית בציר מלא בקוטר $${d}$ mm פועלים מומנט כפיפה $${M}$ N·m ומומנט פיתול $${T}$ N·m. $S_y=${Sy}$ MPa. מה מקדם הביטחון לכניעה (von Mises, עומס סטטי)?`,
+        answer: n, unit: '',
+        steps: [`\\sigma'=\\frac{16}{\\pi d^3}\\sqrt{4M^2+3T^2}=${fmt(s, 4)}\\ \\text{MPa}`, `n=\\frac{S_y}{\\sigma'}=${fmt(n, 4)}`],
+        hint: 'σ = 32M/πd³ ו-τ = 16T/πd³, ואז σ\' = √(σ² + 3τ²).',
+        diagram: { fn: 'shaftLayout', args: [] }, source: `${SRC_SH}, פרק 7`,
+      };
+    },
+  },
+  'gd-shaft-size': {
+    subtopic: 'd-shafts', difficulty: 3,
+    make() {
+      const M = pick([150, 250, 400]); const T = pick([200, 300, 500]); const Sy = pick([350, 420]); const n = pick([2, 2.5, 3]);
+      const d = f.shaftDiameterStatic(M * 1000, T * 1000, Sy, n);
+      return {
+        q: `מה הקוטר המינימלי של ציר מלא שנושא $M=${M}$ N·m ו-$T=${T}$ N·m, עם $S_y=${Sy}$ MPa ומקדם ביטחון $n=${n}$ (von Mises, סטטי)?`,
+        answer: d, unit: 'mm',
+        steps: [`d=\\left[\\frac{16n}{\\pi S_y}\\sqrt{4M^2+3T^2}\\right]^{1/3}`, `=\\left[\\frac{16\\cdot${n}}{\\pi\\cdot${Sy}}\\sqrt{4(${M * 1000})^2+3(${T * 1000})^2}\\right]^{1/3}=${fmt(d, 4)}\\ \\text{mm}`],
+        hint: 'בפועל בוחרים קוטר סטנדרטי גדול יותר, ובודקים גם עייפות, שקיעה ומהירות קריטית.',
+        source: `${SRC_SH}, פרק 7`,
+      };
+    },
+  },
+  'gd-bearing-life': {
+    subtopic: 'd-bearings', difficulty: 2,
+    make() {
+      const C = pick([10, 15, 20, 30]); const P = pick([2, 3, 4, 5]); const rpm = pick([500, 1000, 1500, 3000]); const type = pick(['ball', 'roller']);
+      const a = type === 'ball' ? 3 : 10 / 3; const L = f.bearingL10Hours(C, P, rpm, a);
+      return {
+        q: `מיסב ${type === 'ball' ? 'כדורי' : 'גלילי'} עם עומס דינמי נקוב $C=${C}$ kN נושא עומס שקול $P=${P}$ kN ב-$${rpm}$ rpm. מה חיי L10 בשעות?`,
+        answer: L, unit: 'h',
+        steps: [`L_{10}=\\left(\\frac{C}{P}\\right)^{${type === 'ball' ? '3' : '10/3'}}\\cdot10^6=${fmt(f.bearingL10Rev(C, P, a) / 1e6, 4)}\\times10^6\\ \\text{rev}`, `L_h=\\frac{L_{10}}{60n}=${fmt(L, 4)}\\ \\text{h}`],
+        hint: 'L10 = החיים ש-90% מהמיסבים יעברו בלי כשל עייפות.',
+        diagram: { fn: 'bearingLife', args: [] }, source: `${SRC_SH}, פרק 11`,
+      };
+    },
+  },
+  'gd-bearing-select': {
+    subtopic: 'd-bearings', difficulty: 3,
+    make() {
+      const P = pick([1.5, 2, 3, 5]); const h = pick([10000, 20000, 40000]); const rpm = pick([750, 1000, 1500]);
+      const C = f.bearingRequiredC(P, h, rpm);
+      return {
+        q: `צריך מיסב כדורי שיחזיק $${h}$ שעות (L10) ב-$${rpm}$ rpm תחת עומס $${P}$ kN. מה העומס הדינמי הנקוב C המינימלי שצריך לבחור מהקטלוג?`,
+        answer: C, unit: 'kN',
+        steps: [`L=${h}\\cdot60\\cdot${rpm}=${fmt(h * 60 * rpm, 4)}\\ \\text{rev}`, `C=P\\left(\\frac{L}{10^6}\\right)^{1/3}=${P}\\cdot${fmt((h * 60 * rpm) / 1e6, 4)}^{1/3}=${fmt(C, 4)}\\ \\text{kN}`],
+        source: `${SRC_SH}, פרק 11`,
+      };
+    },
+  },
+  'gd-bolt-preload': {
+    subtopic: 'd-bolts', difficulty: 2,
+    make() {
+      const size = pick(['M8', 'M10', 'M12', 'M16']); const Sp = pick([580, 600, 830]); const ask = pick(['Fi', 'T']);
+      const At = f.BOLT_AT[size]; const d = Number(size.slice(1)); const Fi = f.boltPreload(At, Sp); const T = f.boltTorque(0.2, Fi, d) / 1000;
+      return {
+        q: `בורג ${size} ($A_t=${At}$ mm², חוזק הוכחה $S_p=${Sp}$ MPa) במחבר שמפרקים מדי פעם. ${ask === 'Fi' ? 'מה כוח ההידוק המומלץ?' : 'באיזה מומנט מהדקים (K = 0.2)?'}`,
+        answer: ask === 'Fi' ? Fi / 1000 : T, unit: ask === 'Fi' ? 'kN' : 'N·m',
+        steps: [`F_i=0.75\\,A_tS_p=0.75\\cdot${At}\\cdot${Sp}=${fmt(Fi, 5)}\\ \\text{N}`, `T=KF_id=0.2\\cdot${fmt(Fi, 5)}\\cdot${d}=${fmt(T * 1000, 5)}\\ \\text{N}\\cdot\\text{mm}=${fmt(T, 4)}\\ \\text{N}\\cdot\\text{m}`],
+        hint: 'Shigley: 0.75 מהעומס ההוכחה במחבר שמפרקים, 0.9 בקבוע. רוב מומנט ההידוק הולך לחיכוך.',
+        diagram: { fn: 'boltJoint', args: [] }, source: `${SRC_SH}, פרק 8`,
+      };
+    },
+  },
+  'gd-bolt-joint': {
+    subtopic: 'd-bolts', difficulty: 3,
+    make() {
+      const Fi = pick([20, 30, 40]); const P = pick([5, 8, 10, 15]); const C = pick([0.15, 0.2, 0.25, 0.3]); const ask = pick(['Fb', 'P0']);
+      const Fb = f.boltLoad(C, P, Fi); const P0 = f.separationLoad(C, Fi);
+      return {
+        q: `מחבר מוברג עם כוח הידוק $F_i=${Fi}$ kN וקבוע מחבר $C=${C}$. ${ask === 'Fb' ? `מפעילים עומס חיצוני $P=${P}$ kN. מה הכוח בבורג?` : 'באיזה עומס חיצוני החלקים ייפרדו?'}`,
+        answer: ask === 'Fb' ? Fb : P0, unit: 'kN',
+        steps: [`F_b=CP+F_i=${C}\\cdot${P}+${Fi}=${fmt(Fb, 4)}\\ \\text{kN}`, `P_0=\\frac{F_i}{1-C}=\\frac{${Fi}}{${fmt(1 - C, 3)}}=${fmt(P0, 4)}\\ \\text{kN}`],
+        hint: 'C = k_b/(k_b + k_m). רוב העומס החיצוני רק מוריד את הלחיצה של החלקים, ולא מגיע לבורג.',
+        diagram: { fn: 'jointDiagram', args: [{ C }] }, source: `${SRC_SH}, פרק 8`,
+      };
+    },
+  },
+  'gd-bolt-class': {
+    subtopic: 'd-bolts', difficulty: 1,
+    make() {
+      const cls = pick(['4.6', '5.8', '8.8', '10.9', '12.9']); const ask = pick(['Sut', 'Sy']);
+      const v = f.boltClass(cls);
+      return {
+        q: `מה ${ask === 'Sut' ? 'חוזק המתיחה הנומינלי' : 'חוזק הכניעה הנומינלי'} של בורג בדרגת חוזק ${cls}?`,
+        answer: v[ask], unit: 'MPa', tol: 0.001,
+        steps: [`${cls}:\\ S_{ut}=100\\cdot${cls.split('.')[0]}=${v.Sut}\\ \\text{MPa}`, `S_y=S_{ut}\\cdot0.${cls.split('.')[1]}=${v.Sy}\\ \\text{MPa}`],
+        hint: 'המספר הראשון × 100 = חוזק מתיחה. המספר השני הוא היחס כניעה/מתיחה בעשיריות.',
+        source: 'ISO 898-1 (שיטת הסימון)',
+      };
+    },
+  },
+  'gd-gear-geometry': {
+    subtopic: 'd-gears', difficulty: 1,
+    make() {
+      const m = pick([1, 1.5, 2, 2.5, 3]); const N1 = pick([18, 20, 24, 30]); const N2 = pick([40, 48, 60, 72, 90]); const ask = pick(['a', 'i']);
+      return {
+        q: `זוג גלגלי שיניים: מודול $m=${m}$ mm, לגלגל המניע $${N1}$ שיניים ולמונע $${N2}$. מה ${ask === 'a' ? 'המרחק בין הצירים' : 'יחס התמסורת'}?`,
+        answer: ask === 'a' ? f.gearCenterDistance(m, N1, N2) : f.gearRatio(N1, N2), unit: ask === 'a' ? 'mm' : '',
+        steps: [`d_1=mN_1=${m * N1},\\quad d_2=mN_2=${m * N2}\\ \\text{mm}`, `a=\\frac{d_1+d_2}{2}=${fmt(f.gearCenterDistance(m, N1, N2), 4)}\\ \\text{mm},\\quad i=\\frac{N_2}{N_1}=${fmt(f.gearRatio(N1, N2), 4)}`],
+        hint: 'שני גלגלים משולבים חייבים אותו מודול.',
+        diagram: { fn: 'gears', args: [{ i: `${N2}/${N1}` }] }, source: `${SRC_SH}, פרק 13`,
+      };
+    },
+  },
+  'gd-lewis': {
+    subtopic: 'd-gears', difficulty: 3,
+    make() {
+      const N = pick([20, 25, 30, 40]); const m = pick([2, 2.5, 3]); const F = pick([20, 25, 30]); const T = pick([30, 50, 80]);
+      const d = m * N; const Wt = f.gearTangentialForce(T * 1000, d); const Y = f.LEWIS_Y[N]; const s = f.lewisStress(Wt, F, m, Y);
+      return {
+        q: `גלגל מניע עם $${N}$ שיניים, מודול $${m}$ mm ורוחב פנים $${F}$ mm מעביר $${T}$ N·m. גורם Lewis $Y=${Y}$. מה מאמץ הכפיפה בשן (Lewis, בלי מקדמים דינמיים)?`,
+        answer: s, unit: 'MPa',
+        steps: [`d=mN=${d}\\ \\text{mm},\\quad W_t=\\frac{2T}{d}=${fmt(Wt, 4)}\\ \\text{N}`, `\\sigma=\\frac{W_t}{F\\,m\\,Y}=\\frac{${fmt(Wt, 4)}}{${F}\\cdot${m}\\cdot${Y}}=${fmt(s, 4)}\\ \\text{MPa}`],
+        hint: 'השן היא קורת שלוחה קצרה. AGMA מוסיף מקדמים לדינמיקה, לגודל, לפילוג עומס ועוד.',
+        source: `${SRC_SH}, פרק 14`,
+      };
+    },
+  },
+  'gd-spring': {
+    subtopic: 'd-springs', difficulty: 2,
+    make() {
+      const d = pick([2, 2.5, 3, 4]); const C = pick([6, 8, 10]); const D = d * C; const Na = pick([6, 8, 10, 12]); const F = pick([50, 80, 100, 150]);
+      const k = f.springRate(79300, d, D, Na); const tau = f.springShear(F, D, d); const ask = pick(['k', 'tau']);
+      return {
+        q: `קפיץ לחיצה מפלדת קפיצים ($G=79.3$ GPa): תיל $d=${d}$ mm, קוטר ממוצע $D=${D}$ mm, $${Na}$ כריכות פעילות. ${ask === 'k' ? 'מה קבוע הקפיץ?' : `מה מאמץ הגזירה בתיל בכוח $${F}$ N?`}`,
+        answer: ask === 'k' ? k : tau, unit: ask === 'k' ? 'N/mm' : 'MPa',
+        steps: [`k=\\frac{Gd^4}{8D^3N_a}=\\frac{79300\\cdot${d}^4}{8\\cdot${D}^3\\cdot${Na}}=${fmt(k, 4)}\\ \\text{N/mm}`, `C=D/d=${C},\\quad K_s=1+\\frac{0.5}{C}=${fmt(f.springKs(C), 4)}`, `\\tau=K_s\\frac{8FD}{\\pi d^3}=${fmt(tau, 4)}\\ \\text{MPa}`],
+        hint: 'k תלוי ב-d⁴: תיל קצת עבה יותר = קפיץ הרבה יותר קשיח.',
+        diagram: { fn: 'helicalSpring', args: [] }, source: `${SRC_SH}, פרק 10`,
+      };
+    },
+  },
+  'gd-key': {
+    subtopic: 'd-keys', difficulty: 2,
+    make() {
+      const d = pick([25, 30, 40, 50]); const w = { 25: 8, 30: 8, 40: 12, 50: 14 }[d]; const L = pick([25, 32, 40, 50]); const T = pick([100, 150, 200, 300]);
+      const ask = pick(['shear', 'bearing']);
+      const v = ask === 'shear' ? f.keyShear(T * 1000, d, w, L) : f.keyBearing(T * 1000, d, w, L);
+      return {
+        q: `שגם ריבועי $${w}\\times${w}$ mm באורך $${L}$ mm בציר בקוטר $${d}$ mm מעביר $${T}$ N·m. מה ${ask === 'shear' ? 'מאמץ הגזירה בשגם' : 'מאמץ הלחיצה (bearing) על דופן השגם'}?`,
+        answer: v, unit: 'MPa',
+        steps: [`F=\\frac{2T}{d}=${fmt(f.keyForce(T * 1000, d), 4)}\\ \\text{N}`, ask === 'shear' ? `\\tau=\\frac{F}{wL}=${fmt(v, 4)}\\ \\text{MPa}` : `\\sigma_b=\\frac{F}{L\\,h/2}=${fmt(v, 4)}\\ \\text{MPa}`],
+        hint: 'השגם הוא "נתיך מכני": זול להחלפה ונכשל לפני הציר והרכזת.',
+        diagram: { fn: 'keySection', args: [] }, source: `${SRC_SH}, פרק 7`,
+      };
+    },
+  },
+  'gd-pressfit': {
+    subtopic: 'd-keys', difficulty: 3,
+    make() {
+      const R = pick([15, 20, 25]); const ro = R * pick([1.8, 2, 2.5]); const dl = pick([0.01, 0.015, 0.02]); const L = pick([30, 40, 50]); const fr = pick([0.12, 0.15]);
+      const p = f.pressFitPressure(207000, dl, R, ro); const T = f.pressFitTorque(fr, p, R, L) / 1000;
+      const ask = pick(['p', 'T']);
+      return {
+        q: `רכזת פלדה (רדיוס חיצוני $${ro}$ mm) נלחצת על ציר פלדה מלא ברדיוס $${R}$ mm, בחפיפה רדיאלית של $${dl}$ mm ($E=207$ GPa). ${ask === 'p' ? 'מה לחץ המגע?' : `איזה מומנט החיבור מעביר באורך $${L}$ mm עם $f=${fr}$?`}`,
+        answer: ask === 'p' ? p : T, unit: ask === 'p' ? 'MPa' : 'N·m',
+        steps: [`p=\\frac{E\\delta}{2R}\\cdot\\frac{r_o^2-R^2}{r_o^2}=${fmt(p, 4)}\\ \\text{MPa}`, `T=f\\,p\\,(2\\pi RL)\\,R=${fmt(T, 4)}\\ \\text{N}\\cdot\\text{m}`],
+        hint: 'δ כאן הוא החפיפה ברדיוס (חצי מהחפיפה בקוטר).',
+        diagram: { fn: 'pressFit', args: [] }, source: `${SRC_SH}, פרק 3`,
+      };
+    },
+  },
+  'gd-weld': {
+    subtopic: 'd-welds', difficulty: 2,
+    make() {
+      const F = pick([10, 20, 30, 50]); const h = pick([4, 5, 6, 8]); const L = pick([50, 80, 100, 150]);
+      const tau = f.filletShear(F * 1000, h, L);
+      return {
+        q: `שני תפרי פינה (fillet) בגודל רגל $${h}$ mm, באורך כולל $${L}$ mm, נושאים כוח $${F}$ kN. מה מאמץ הגזירה בגרון התפר?`,
+        answer: tau, unit: 'MPa',
+        steps: [`t=0.707h=${fmt(0.707 * h, 4)}\\ \\text{mm}`, `\\tau=\\frac{F}{0.707\\,h\\,L}=\\frac{${F * 1000}}{${fmt(0.707 * h, 4)}\\cdot${L}}=${fmt(tau, 4)}\\ \\text{MPa}`],
+        hint: 'הגרון הוא המרחק הקצר ביותר מהשורש לפני התפר.',
+        diagram: { fn: 'filletWeld', args: [] }, source: `${SRC_SH}, פרק 9`,
+      };
+    },
+  },
+  'gd-belt': {
+    subtopic: 'd-belts', difficulty: 2,
+    make() {
+      const d = pick([80, 100, 125, 150]); const rpm = pick([1450, 2900]); const F1 = pick([400, 600, 800]); const F2 = pick([100, 150, 200]);
+      const V = f.beltSpeed(d, rpm); const P = f.beltPower(F1, F2, V) / 1000;
+      return {
+        q: `גלגלת מניעה בקוטר $${d}$ mm מסתובבת ב-$${rpm}$ rpm. המתיחות בצד המתוח $${F1}$ N ובצד הרפוי $${F2}$ N. איזה הספק עובר ברצועה?`,
+        answer: P, unit: 'kW',
+        steps: [`V=\\frac{\\pi dn}{60}=${fmt(V, 4)}\\ \\text{m/s}`, `P=(F_1-F_2)V=${F1 - F2}\\cdot${fmt(V, 4)}=${fmt(P * 1000, 4)}\\ \\text{W}`],
+        hint: 'רק ההפרש בין המתיחויות מעביר הספק. המתיחות המוקדמת נדרשת כדי שהרצועה לא תחליק.',
+        diagram: { fn: 'beltDrive', args: [] }, source: `${SRC_SH}, פרק 17`,
+      };
+    },
+  },
+});
+
 export function makeQuestion(genId) {
   const g = generators[genId];
   const out = g.make();

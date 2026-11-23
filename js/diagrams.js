@@ -22,7 +22,13 @@ const SUB = (s) => String(s).replace(/([A-Za-zτσα])_([A-Za-z0-9]+)/g, '$1<tsp
 const LTR_RUN = /[0-9A-Za-zµμΩ°%₀-₉²³τσαηεφθνρΔ√][^֐-׿]*[0-9A-Za-zµμΩ°%₀-₉²³)τσαηεφθνρ]|[0-9A-Za-zµμΩ₀-₉]/g;
 const t = (x, y, s, cls = 'd-text', anchor = 'middle') => {
   s = String(s);
-  if (HEB.test(s)) s = s.replace(LTR_RUN, (m) => `⁦${m}⁩`);
+  if (HEB.test(s)) s = s.replace(LTR_RUN, (m) => {
+    // keep brackets balanced inside the isolated run; an unmatched ')' stays outside
+    let tail = '';
+    const n = (c) => m.split(c).length - 1;
+    while (m.endsWith(')') && n(')') > n('(')) { m = m.slice(0, -1); tail = ')' + tail; }
+    return `⁦${m}⁩${tail}`;
+  });
   s = SUB(s);
   if (!HEB.test(s))return `<text x="${x}" y="${y}" class="${cls}" text-anchor="${anchor}">${s}</text>`;
   const a = anchor === 'start' ? 'end' : anchor === 'end' ? 'start' : 'middle';
@@ -1099,6 +1105,122 @@ export function cableSagSketch() {
   return svg(320, 168, s, 'cable sag');
 }
 
+// =====================================================================
+// MACHINE DESIGN
+// =====================================================================
+export function shaftLayout() {
+  let s = `<rect x="20" y="70" width="280" height="16" rx="3" class="d-beam"/>`;
+  // bearings
+  for (const x of [50, 250]) s += `<rect x="${x - 12}" y="62" width="24" height="32" class="d-support"/><circle cx="${x - 5}" cy="70" r="3" class="d-line"/><circle cx="${x + 5}" cy="86" r="3" class="d-line"/>` + t(x, 112, 'מיסב', 'd-text');
+  // gear and pulley
+  s += `<rect x="128" y="36" width="20" height="84" rx="3" class="d-coat"/>` + t(124, 30, 'גלגל שיניים', 'd-text', 'end');
+  s += `<rect x="282" y="52" width="14" height="52" rx="2" class="d-section"/>` + t(289, 46, 'גלגלת', 'd-text');
+  s += arrow(138, 6, 138, 34) + t(150, 18, 'W', 'd-text-load', 'start');
+  s += `<path d="M300,60 A10,18 0 1,1 300,96" class="d-load" fill="none" marker-end="url(#arr)"/>` + t(312, 64, 'T', 'd-text-load', 'start');
+  s += t(160, 140, 'כפיפה (M) מהכוחות + פיתול (T) מההנעה', 'd-text-accent');
+  s += t(160, 156, 'כתפיים, שגמים וחריצים = ריכוזי מאמצים', 'd-text');
+  return svg(320, 164, s, 'shaft layout');
+}
+
+export function bearingLife() {
+  const x0 = 46, y0 = 150, W = 250, H = 125;
+  let s = axes(x0, y0, W, H, 'עומס P', 'חיים L10');
+  let p = '', q = '';
+  for (let i = 0; i <= 50; i++) { const u = 0.25 + (i / 50) * 1.75; p += `${i ? 'L' : 'M'}${x0 + ((u - 0.25) / 1.75) * W},${y0 - Math.min(1, (1 / u ** 3) / 64) * H} `; q += `${i ? 'L' : 'M'}${x0 + ((u - 0.25) / 1.75) * W},${y0 - Math.min(1, (1 / u ** (10 / 3)) / 101.6) * H} `; }
+  s += `<path d="${p}" class="d-curve" fill="none"/><path d="${q}" class="d-curve2" fill="none" stroke-dasharray="5 3"/>`;
+  s += t(x0 + W * 0.42, y0 - H * 0.5, 'L ∝ (C/P)³ כדורי', 'd-text-accent', 'start') + t(x0 + W * 0.42, y0 - H * 0.36, 'L ∝ (C/P)^(10/3) גלילי', 'd-text', 'start');
+  s += t(x0 + W / 2, y0 + 30, 'עומס כפול ← חיים קטנים פי 8', 'd-text-load');
+  return svg(320, 188, s, 'bearing life');
+}
+
+export function boltJoint() {
+  let s = `<rect x="70" y="50" width="180" height="30" class="d-section"/><rect x="70" y="80" width="180" height="30" class="d-coat"/>`;
+  s += `<rect x="148" y="32" width="24" height="96" class="d-support"/>` + `<rect x="134" y="20" width="52" height="14" rx="2" class="d-line-fill"/>` + `<rect x="134" y="128" width="52" height="14" rx="2" class="d-line-fill"/>`;
+  for (let y = 36; y < 126; y += 7) s += line(148, y, 172, y + 4, 'd-muted');
+  s += arrow(160, 14, 160, 2, 'd-accent', 'arra') + arrow(160, 148, 160, 160, 'd-accent', 'arra');
+  s += t(192, 44, 'הבורג נמתח (Fi)', 'd-text-load', 'start') + t(192, 124, 'החלקים נלחצים', 'd-text-accent', 'start');
+  s += arrow(40, 65, 68, 65) + arrow(40, 95, 68, 95) + t(36, 84, 'P', 'd-text-load', 'end');
+  s += t(160, 178, 'הבורג מרגיש רק C·P מהעומס החיצוני', 'd-text-accent');
+  return svg(320, 186, s, 'bolted joint');
+}
+
+// joint diagram: bolt and member force-deflection lines (to scale for C)
+export function jointDiagram(opts = {}) {
+  const C = opts.C ?? 0.25; const kb = C, km = 1 - C; // relative stiffnesses
+  const x0 = 30, y0 = 150, H = 110, Fi = 0.7;
+  const db = Fi / kb, dm = Fi / km; // deflections to reach Fi
+  const scale = 240 / (db + dm);
+  const xb = x0 + db * scale;
+  let s = line(x0, y0, x0 + 260, y0, 'd-muted') + arrow(x0, y0, x0, 20, 'd-muted', 'arrm') + t(x0 - 4, 26, 'F', 'd-text', 'end');
+  s += line(x0, y0, xb, y0 - Fi * H, 'd-curve') + line(xb, y0 - Fi * H, xb + dm * scale, y0, 'd-curve2');
+  s += line(x0, y0 - Fi * H, xb, y0 - Fi * H, 'd-muted', 'stroke-dasharray="3 3"') + t(x0 + 4, y0 - Fi * H - 6, 'Fi', 'd-text-load', 'start');
+  s += t((x0 + xb) / 2 - 12, y0 - (Fi * H) / 2, 'בורג (k_b)', 'd-text-accent', 'end') + t(xb + (dm * scale) / 2 + 10, y0 - (Fi * H) / 2, 'חלקים (k_m)', 'd-text', 'start');
+  s += t(160, y0 + 20, 'חלקים קשיחים מהבורג ← C קטן ← הבורג "מוגן"', 'd-text');
+  return svg(320, 180, s, 'bolt joint diagram');
+}
+
+export function helicalSpring() {
+  let p = 'M160,20';
+  for (let i = 0; i < 8; i++) { const y = 28 + i * 14; p += ` L${i % 2 ? 110 : 210},${y} `; }
+  p += ' L160,150';
+  let s = `<path d="${p}" class="d-rope" fill="none" stroke-width="5"/>`;
+  s += line(100, 20, 220, 20, 'd-line', 'stroke-width="3"') + line(100, 150, 220, 150, 'd-line', 'stroke-width="3"');
+  s += arrow(160, 4, 160, 18) + t(172, 10, 'F', 'd-text-load', 'start');
+  s += arrow(160, 168, 110, 168, 'd-muted', 'arrm') + arrow(160, 168, 210, 168, 'd-muted', 'arrm') + t(160, 182, 'D (קוטר ממוצע)', 'd-text');
+  s += t(240, 70, 'd = קוטר תיל', 'd-text-accent', 'start') + t(240, 88, 'N = כריכות', 'd-text-accent', 'start') + t(240, 106, 'C = D/d', 'd-text-accent', 'start');
+  s += t(56, 84, 'k = Gd⁴/8D³N', 'd-text-load', 'middle');
+  return svg(320, 190, s, 'helical spring');
+}
+
+export function stribeck() {
+  const x0 = 40, y0 = 150, W = 260, H = 120;
+  let s = axes(x0, y0, W, H, 'μN/P', 'f');
+  const fr = (u) => 0.12 / (1 + Math.exp((u - 0.32) * 18)) + 0.012 + 0.09 * Math.max(0, u - 0.42);
+  let p = '', umin = 0; for (let i = 0; i <= 600; i++) { const u = i / 600; if (fr(u) < fr(umin)) umin = u; if (i % 10 === 0) p += `${i ? 'L' : 'M'}${x0 + u * W},${y0 - (fr(u) / 0.15) * H} `; }
+  s += `<path d="${p}" class="d-curve" fill="none"/>`;
+  s += line(x0 + 0.24 * W, y0, x0 + 0.24 * W, 30, 'd-grid', 'stroke-dasharray="3 3"') + line(x0 + 0.42 * W, y0, x0 + 0.42 * W, 30, 'd-grid', 'stroke-dasharray="3 3"');
+  s += t(x0 + 0.12 * W, 24, 'גבולי', 'd-text') + t(x0 + 0.33 * W, 24, 'מעורב', 'd-text') + t(x0 + 0.7 * W, 24, 'הידרודינמי', 'd-text');
+  s += `<circle cx="${x0 + umin * W}" cy="${y0 - (fr(umin) / 0.15) * H}" r="4" class="d-load-fill"/>` + t(x0 + W, y0 - 6, 'מינימום: במעבר לשכבה מלאה', 'd-text-load', 'end');
+  return svg(320, 170, s, 'Stribeck curve');
+}
+
+export function keySection() {
+  let s = `<circle cx="120" cy="90" r="60" class="d-coat"/><circle cx="120" cy="90" r="36" class="d-section"/>`;
+  s += `<rect x="112" y="46" width="16" height="16" class="d-load-fill" opacity="0.85"/>` + t(160, 50, 'שגם (w × h)', 'd-text-load', 'start');
+  s += t(120, 96, 'ציר') + t(120, 140, 'רכזת (hub)', 'd-text');
+  s += `<path d="M150,94 A30,30 0 0,1 120,124" class="d-accent" fill="none" marker-end="url(#arra)"/>` + t(160, 128, 'T', 'd-text-accent', 'start');
+  s += t(160, 178, 'נבדק בגזירה ובלחיצה (bearing) על הדפנות', 'd-text');
+  return svg(320, 186, s, 'key in shaft');
+}
+
+export function filletWeld() {
+  let s = `<rect x="30" y="100" width="260" height="20" class="d-section"/><rect x="150" y="20" width="20" height="80" class="d-section"/>`;
+  s += `<path d="M150,100 L150,76 L126,100 Z" class="d-area-m"/><path d="M170,100 L170,76 L194,100 Z" class="d-area-m"/>`;
+  s += line(170, 100, 182, 88, 'd-accent', 'stroke-width="2.4"') + t(196, 84, 'גרון t = 0.707h', 'd-text-accent', 'start');
+  s += t(118, 70, 'h', 'd-text-load', 'end');
+  s += arrow(160, 18, 160, 2, 'd-load') + t(172, 10, 'F', 'd-text-load', 'start');
+  s += t(160, 146, 'τ = F / (0.707·h·L)', 'd-text-load') + t(160, 162, 'הכשל בדרך כלל דרך הגרון, בגזירה', 'd-text');
+  return svg(320, 170, s, 'fillet weld');
+}
+
+export function beltDrive() {
+  let s = `<circle cx="80" cy="80" r="30" class="d-section"/><circle cx="240" cy="80" r="50" class="d-section"/>`;
+  s += line(80, 50, 240, 30, 'd-rope') + line(80, 110, 240, 130, 'd-rope');
+  s += t(160, 30, 'F₁ (צד מתוח)', 'd-text-load') + t(160, 140, 'F₂ (צד רפוי)', 'd-text-accent');
+  s += `<path d="M66,62 A22,22 0 0,1 100,64" class="d-load" fill="none" marker-end="url(#arr)"/>` + t(80, 84, 'מניע');
+  s += t(240, 84, 'מונע');
+  s += t(160, 166, 'P = (F₁ − F₂)·V ,  F₁/F₂ ≤ e^(fφ)', 'd-text-accent');
+  return svg(320, 174, s, 'belt drive');
+}
+
+export function pressFit() {
+  let s = `<circle cx="110" cy="85" r="66" class="d-coat"/><circle cx="110" cy="85" r="34" class="d-section"/>`;
+  for (let a = 0; a < 12; a++) { const th = (a * Math.PI) / 6; s += arrow(110 + 44 * Math.cos(th), 85 + 44 * Math.sin(th), 110 + 36 * Math.cos(th), 85 + 36 * Math.sin(th), 'd-load'); }
+  s += t(110, 89, 'ציר') + t(110, 166, 'רכזת', 'd-text');
+  s += t(200, 50, 'הציר גדול מהחור ב-δ', 'd-text', 'start') + t(200, 70, 'לחץ מגע p בממשק', 'd-text-load', 'start') + t(200, 90, 'מומנט = f·p·(2πRL)·R', 'd-text-accent', 'start');
+  return svg(320, 174, s, 'press fit');
+}
+
 export const registry = {
   beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar,
   tank, hydraulicPress, floating, pipeContraction, torricelliTank, pitot, velocityProfiles, moody, pumpCurve, dragCar, jetPlate,
@@ -1108,6 +1230,7 @@ export const registry = {
   couette, energyBars, jominy, caseProfile, anodizeGrowth, passiveLayer, hazProfile, galvanicCell,
   pvCycle, tsCarnot, heatEngine, fridgeLoop, rankineLoop, wallProfile, resistanceChain, hxProfiles, coolingCurve, heatModes, psychro,
   waterAnalogy, circuits, sineWave, threePhase, transformer, dcMotorCurve, inductionCurve, leadScrew, gears, homePanel, gridChain, cableSagSketch,
+  shaftLayout, bearingLife, boltJoint, jointDiagram, helicalSpring, stribeck, keySection, filletWeld, beltDrive, pressFit,
 };
 
 // content uses {fn:'beam', args:['ss-udl',{diagrams:true}]}

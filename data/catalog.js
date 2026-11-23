@@ -6,6 +6,7 @@ import fluids from './fluids.js';
 import materials from './materials.js';
 import thermo from './thermo.js';
 import electric from './electric.js';
+import design from './design.js';
 
 export const domains = [
   { id: 'strength', module: strength },
@@ -13,7 +14,7 @@ export const domains = [
   { id: 'materials', module: materials },
   { id: 'thermo', module: thermo },
   { id: 'electric', module: electric },
-  { id: 'design', title: 'תכן רכיבי מכונות', icon: '⚙️', summary: 'ברגים, מסבים, גלגלי שיניים, צירים', soon: true },
+  { id: 'design', module: design },
   { id: 'gdt', title: 'שרטוט, טולרנסים ו-GD&T', icon: '📐', summary: 'התאמות, טולרנסים גיאומטריים, Datums', soon: true },
   { id: 'dfm', title: 'ייצור ו-DFM', icon: '🏭', summary: 'עיבוד שבבי, פח, יציקה, הזרקה', soon: true },
   { id: 'dynamics', title: 'דינמיקה ורעידות', icon: '〰️', summary: 'קינמטיקה, תדר עצמי, ריסון', soon: true },
