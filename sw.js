@@ -1,11 +1,11 @@
 // Service worker: makes the app work offline and update itself.
 // Strategy: network first (so new content arrives when online), cache fallback (offline).
 // Bump VERSION on every release so old caches are cleaned.
-const VERSION = 'mh-1.6.0';
+const VERSION = 'mh-1.7.0';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/text.js', 'js/formulas.js', 'js/generators.js', 'js/diagrams.js',
-  'data/catalog.js', 'data/strength.js', 'data/fluids.js', 'data/materials.js', 'data/thermo.js', 'data/electric.js', 'data/design.js',
+  'data/catalog.js', 'data/strength.js', 'data/fluids.js', 'data/materials.js', 'data/thermo.js', 'data/electric.js', 'data/design.js', 'data/gdt.js',
   'vendor/katex/katex.min.css', 'vendor/katex/katex.min.js', 'vendor/katex/auto-render.min.js',
   'vendor/katex/fonts/KaTeX_Main-Regular.woff2', 'vendor/katex/fonts/KaTeX_Math-Italic.woff2',
   'vendor/katex/fonts/KaTeX_Main-Bold.woff2', 'vendor/katex/fonts/KaTeX_Size1-Regular.woff2',

@@ -1716,6 +1716,158 @@ Object.assign(generators, {
   },
 });
 
+// =====================================================================
+// TOLERANCES & GD&T
+// =====================================================================
+const SRC_286 = 'ISO 286-1/2 (מערכת ההתאמות)';
+const SRC_Y14 = 'ASME Y14.5-2018';
+Object.assign(generators, {
+  'gx-fit': {
+    subtopic: 'tol-fits', difficulty: 2,
+    make() {
+      const D = pick([8, 12, 16, 20, 25, 30, 40]); const c = pick([['g', 6], ['f', 7], ['h', 6], ['k', 6], ['n', 6], ['p', 6], ['s', 6]]);
+      const hg = c[0] === 'f' ? 8 : 7; const h = f.holeH(D, hg), sh = f.shaftLimits(D, c[0], c[1]); const ft = f.fit(D, hg, c[0], c[1]);
+      const ask = pick(['max', 'min']);
+      const v = ask === 'max' ? ft.maxClearance : ft.minClearance;
+      return {
+        q: `התאמה Ø${D} H${hg}/${c[0]}${c[1]}. החור: $+${h.lo}/+${h.hi}$ µm. הציר: $${sh.lo >= 0 ? '+' : ''}${sh.lo}/${sh.hi >= 0 ? '+' : ''}${sh.hi}$ µm. מה ${ask === 'max' ? 'המרווח המקסימלי' : 'המרווח המינימלי'}? (מספר שלילי = לחיצה)`,
+        answer: v, unit: 'µm', tol: 1e-6,
+        steps: [`\\text{max clearance}=\\text{hole}_{max}-\\text{shaft}_{min}=${h.hi}-(${sh.lo})=${ft.maxClearance}`, `\\text{min clearance}=\\text{hole}_{min}-\\text{shaft}_{max}=${h.lo}-(${sh.hi})=${ft.minClearance}`, ft.minClearance >= 0 ? `\\Rightarrow\\ \\text{clearance fit}` : ft.maxClearance <= 0 ? `\\Rightarrow\\ \\text{interference fit}` : `\\Rightarrow\\ \\text{transition fit}`],
+        hint: 'מרווח מקסימלי: החור הכי גדול עם הציר הכי קטן. מרווח מינימלי: החור הכי קטן עם הציר הכי גדול.',
+        diagram: { fn: 'fitDiagram', args: [D, hg, c[0], c[1]] }, source: SRC_286,
+      };
+    },
+  },
+  'gx-it': {
+    subtopic: 'tol-fits', difficulty: 1,
+    make() {
+      const D = pick([8, 12, 20, 25, 40]); const g = pick([6, 7, 8]);
+      const v = f.ISO286[f.sizeRange(D)][`IT${g}`];
+      return {
+        q: `לפי טבלת ISO 286, מה רוחב הטולרנס IT${g} לקוטר נומינלי $${D}$ mm (טווח ${f.sizeRange(D)} mm)? בדוק את עצמך מול הנוסחה $IT${g}=${f.IT_FACTOR[g]}\\,i$.`,
+        answer: v, unit: 'µm', tol: 0.08,
+        steps: [`D=\\sqrt{${f.sizeRange(D).replace('-', '\\cdot')}}=${fmt(Math.sqrt(f.sizeRange(D).split('-').reduce((a, b) => a * b)), 4)}`, `i=0.45\\sqrt[3]{D}+0.001D=${fmt(f.toleranceUnit(Math.sqrt(f.sizeRange(D).split('-').reduce((a, b) => a * b))), 4)}\\ \\mu m`, `IT${g}=${f.IT_FACTOR[g]}\\,i\\approx${v}\\ \\mu m\\ \\text{(table)}`],
+        hint: 'כל דרגת IT גבוהה יותר רחבה בערך פי 1.6. D הוא הממוצע הגיאומטרי של הטווח.',
+        source: SRC_286,
+      };
+    },
+  },
+  'gx-stack': {
+    subtopic: 'tol-stack', difficulty: 2,
+    make() {
+      const n = pick([3, 4, 5]); const tols = Array.from({ length: n }, () => pick([0.05, 0.1, 0.15, 0.2])); const ask = pick(['wc', 'rss']);
+      const wc = f.stackWorst(tols), rss = f.stackRSS(tols);
+      return {
+        q: `שרשרת של ${n} מידות עם טולרנסים $\\pm${tols.join(',\\ \\pm')}$ mm. מה הטולרנס של המידה המצטברת לפי ${ask === 'wc' ? 'Worst case' : 'RSS (סטטיסטי)'}?`,
+        answer: ask === 'wc' ? wc : rss, unit: '± mm',
+        steps: [`\\text{Worst case}=\\sum t_i=${fmt(wc, 4)}`, `\\text{RSS}=\\sqrt{\\sum t_i^2}=${fmt(rss, 4)}`],
+        hint: 'RSS מניח שהמידות מתפלגות נורמלית ובלתי תלויות, ושקשה שכולן יהיו בקצה באותו זמן.',
+        diagram: { fn: 'stackChain', args: [{}] }, source: 'Fischer, Mechanical Tolerance Stackup and Analysis',
+      };
+    },
+  },
+  'gx-gap': {
+    subtopic: 'tol-stack', difficulty: 3,
+    make() {
+      const H = pick([50, 60, 80]); const a = pick([20, 25]); const b = pick([15, 20]); const c = H - a - b - pick([1, 2]);
+      const tH = 0.1, ta = 0.05, tb = 0.05, tc = 0.08;
+      const nom = H - a - b - c; const wc = tH + ta + tb + tc;
+      const ask = pick(['min', 'max']);
+      return {
+        q: `בית באורך פנימי $${H}\\pm${tH}$ מכיל שלושה חלקים: $${a}\\pm${ta}$, $${b}\\pm${tb}$, $${c}\\pm${tc}$ mm. מה המרווח ה${ask === 'min' ? 'מינימלי' : 'מקסימלי'} (Worst case)?`,
+        answer: ask === 'min' ? nom - wc : nom + wc, unit: 'mm',
+        steps: [`\\text{nominal gap}=${H}-${a}-${b}-${c}=${fmt(nom, 4)}`, `\\sum t=${fmt(wc, 4)}`, `\\text{gap}=${fmt(nom, 4)}\\pm${fmt(wc, 4)}\\Rightarrow ${fmt(nom - wc, 4)}\\ \\text{to}\\ ${fmt(nom + wc, 4)}\\ \\text{mm}`],
+        hint: 'כל הטולרנסים בשרשרת מצטברים לטולרנס של המרווח. מינוס במידה לא מבטל טולרנס.',
+        diagram: { fn: 'stackChain', args: [{ parts: [['A', a, ta], ['B', b, tb], ['C', c, tc]] }] }, source: 'Fischer, Mechanical Tolerance Stackup and Analysis',
+      };
+    },
+  },
+  'gx-position': {
+    subtopic: 'tol-position', difficulty: 2,
+    make() {
+      const dx = pick([0.01, 0.02, 0.03, 0.04]); const dy = pick([0.02, 0.03, 0.05]); const tol = pick([0.1, 0.12, 0.15]);
+      const d = f.positionDia(dx, dy);
+      return {
+        q: `מרכז קדח נמדד בסטייה של $\\Delta x=${dx}$, $\\Delta y=${dy}$ mm מהמיקום האמיתי. מה קוטר אזור המיקום שהקדח "צורך"? (הטולרנס בשרטוט: Ø${tol}. האם עובר?)`,
+        answer: d, unit: 'mm',
+        steps: [`\\varnothing=2\\sqrt{\\Delta x^2+\\Delta y^2}=2\\sqrt{${dx}^2+${dy}^2}=${fmt(d, 4)}`, d <= tol ? `${fmt(d, 4)}\\le${tol}\\Rightarrow\\text{OK}` : `${fmt(d, 4)}>${tol}\\Rightarrow\\text{reject (unless MMC bonus)}`],
+        hint: 'אזור טולרנס מיקום הוא עיגול סביב המיקום האמיתי, ולא ריבוע של ±.',
+        diagram: { fn: 'positionZone', args: [{ tol, dx, dy }] }, source: SRC_Y14,
+      };
+    },
+  },
+  'gx-mmc': {
+    subtopic: 'tol-mmc', difficulty: 2,
+    make() {
+      const nom = pick([6, 8, 10]); const tolSize = pick([0.1, 0.2]); const tol = pick([0.05, 0.1, 0.15]); const actual = +(nom + pick([0.05, 0.1, tolSize])).toFixed(3);
+      const allowed = f.mmcAllowed(tol, nom, Math.min(actual, nom + tolSize));
+      return {
+        q: `קדח Ø${nom}+${tolSize}/0 עם טולרנס מיקום Ø${tol} בתנאי MMC. הקדח נמדד בקוטר $${actual}$ mm. מה טולרנס המיקום המותר לקדח הזה?`,
+        answer: allowed, unit: 'mm',
+        steps: [`\\text{MMC (hole)}=${nom}`, `\\text{bonus}=${actual}-${nom}=${fmt(actual - nom, 4)}`, `\\text{allowed}=${tol}+${fmt(actual - nom, 4)}=${fmt(allowed, 4)}`],
+        hint: 'בקדח, MMC הוא הקוטר הקטן ביותר. ככל שהקדח גדול יותר, יש יותר מקום לבורג, ולכן הוא יכול לסטות יותר.',
+        diagram: { fn: 'mmcBonus', args: [{ mmc: nom, lmc: nom + tolSize, tol, hole: true }] }, source: SRC_Y14,
+      };
+    },
+  },
+  'gx-vc': {
+    subtopic: 'tol-mmc', difficulty: 2,
+    make() {
+      const pin = Math.random() < 0.5; const mmc = pin ? pick([7.98, 9.98, 11.97]) : pick([8.0, 10.0, 12.0]); const tol = pick([0.05, 0.1]);
+      const vc = pin ? f.virtualConditionPin(mmc, tol) : f.virtualConditionHole(mmc, tol);
+      return {
+        q: `${pin ? 'פין' : 'קדח'} עם גודל MMC של $${mmc}$ mm וטולרנס ${pin ? 'ניצבות' : 'מיקום'} של Ø${tol} ב-MMC. מה ה-Virtual Condition (הגבול שהחלק המתאים חייב לפנות)?`,
+        answer: vc, unit: 'mm', tol: 1e-6,
+        steps: [pin ? `VC_{pin}=MMC+t=${mmc}+${tol}=${fmt(vc, 5)}` : `VC_{hole}=MMC-t=${mmc}-${tol}=${fmt(vc, 5)}`],
+        hint: 'VC הוא "הקדח הגרוע ביותר" או "הפין הגרוע ביותר". כך מתכננים מכשיר בדיקה (go gauge).',
+        source: SRC_Y14,
+      };
+    },
+  },
+  'gx-fastener': {
+    subtopic: 'tol-mmc', difficulty: 3,
+    make() {
+      const F = pick([6, 8, 10]); const H = F + pick([0.4, 0.5, 0.6, 1]); const kind = pick(['floating', 'fixed']);
+      const T = kind === 'floating' ? f.floatingFastenerT(H, F) : f.fixedFastenerT(H, F);
+      return {
+        q: `בורג M${F} (קוטר $${F}$ mm). קדח המעבר בגודל MMC של $${H.toFixed(1)}$ mm. ${kind === 'floating' ? 'בשני החלקים יש קדחי מעבר ואום (floating fastener).' : 'החלק השני מוברג (fixed fastener), והטולרנס מתחלק שווה בין שני החלקים.'} מה טולרנס המיקום (Ø) לכל חלק?`,
+        answer: T, unit: 'mm', tol: 1e-6,
+        steps: [kind === 'floating' ? `T=H-F=${H.toFixed(1)}-${F}=${fmt(T, 4)}` : `T=\\frac{H-F}{2}=\\frac{${H.toFixed(1)}-${F}}{2}=${fmt(T, 4)}`],
+        hint: 'כשאחד החלקים מוברג, הבורג "נעול" אליו, ולכן כל המרווח צריך להספיק לשני החלקים.',
+        source: `${SRC_Y14}, נספח B`,
+      };
+    },
+  },
+  'gx-2768': {
+    subtopic: 'tol-basics', difficulty: 1,
+    make() {
+      const L = pick([5, 20, 50, 100, 250]); const cls = pick(['f', 'm', 'c']);
+      const v = f.iso2768(cls, L);
+      return {
+        q: `בשרטוט כתוב "ISO 2768-${cls}". מה הטולרנס הכללי למידה של $${L}$ mm שאין לה טולרנס מפורש?`,
+        answer: v, unit: '± mm', tol: 1e-6,
+        steps: [`\\text{ISO 2768-${cls}},\\ ${L}\\ \\text{mm}\\Rightarrow\\pm${v}\\ \\text{mm}`],
+        hint: 'f = fine, m = medium, c = coarse. ככל שהמידה גדולה יותר, הטולרנס הכללי רחב יותר.',
+        source: 'ISO 2768-1',
+      };
+    },
+  },
+  'gx-thermal': {
+    subtopic: 'tol-standards', difficulty: 2,
+    make() {
+      const L = pick([100, 200, 500]); const m = pick([['אלומיניום', 23e-6], ['פלדה', 12e-6]]); const T = pick([25, 28, 30, 35]);
+      const d = f.thermalSizeChange(L, m[1], T - 20) * 1000;
+      return {
+        q: `חלק מ${m[0]} ($\\alpha=${m[1] * 1e6}\\times10^{-6}$/K) באורך $${L}$ mm נמדד ב-$${T}$°C. בכמה מיקרון הוא ארוך יותר מאשר בטמפרטורת הייחוס של 20°C?`,
+        answer: d, unit: 'µm',
+        steps: [`\\Delta L=L\\,\\alpha\\,\\Delta T=${L}\\cdot${m[1] * 1e6}\\times10^{-6}\\cdot${T - 20}=${fmt(d / 1000, 4)}\\ \\text{mm}=${fmt(d, 4)}\\ \\mu m`],
+        hint: 'כל המידות בשרטוט מוגדרות ב-20°C (ISO 1). בטולרנס של מיקרונים, טמפרטורה משנה.',
+        source: 'ISO 1',
+      };
+    },
+  },
+});
+
 export function makeQuestion(genId) {
   const g = generators[genId];
   const out = g.make();

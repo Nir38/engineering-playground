@@ -1,7 +1,7 @@
 // diagrams.js: original SVG drawings, drawn in code so they are sharp on a
 // phone, follow light/dark mode, and can be drawn to the numbers of a question.
 // Colors come from CSS classes defined in style.css (d-*), never hard-coded.
-import { frictionColebrook, FE_C } from './formulas.js';
+import { frictionColebrook, FE_C, holeH, shaftLimits, fit } from './formulas.js';
 
 const svg = (w, h, body, label = '') =>
   `<svg class="diagram" viewBox="0 0 ${w} ${h}" role="img" aria-label="${label}" xmlns="http://www.w3.org/2000/svg">${defs}${body}</svg>`;
@@ -19,7 +19,7 @@ const defs = `<defs>
 const HEB = /[֐-׿]/;
 const SUB = (s) => String(s).replace(/([A-Za-zτσα])_([A-Za-z0-9]+)/g, '$1<tspan baseline-shift="sub" font-size="8">$2</tspan>');
 // inside an RTL label, isolate every Latin/number run (LRI … PDI) so "20 ms (50 Hz)" stays in order
-const LTR_RUN = /[0-9A-Za-zµμΩ°%₀-₉²³τσαηεφθνρΔ√][^֐-׿]*[0-9A-Za-zµμΩ°%₀-₉²³)τσαηεφθνρ]|[0-9A-Za-zµμΩ₀-₉]/g;
+const LTR_RUN = /[0-9A-Za-zµμΩ°%₀-₉²³τσαηεφθνρΔ√Ø][^֐-׿]*[0-9A-Za-zµμΩ°%₀-₉²³)τσαηεφθνρ]|[0-9A-Za-zµμΩ₀-₉]/g;
 const t = (x, y, s, cls = 'd-text', anchor = 'middle') => {
   s = String(s);
   if (HEB.test(s)) s = s.replace(LTR_RUN, (m) => {
@@ -1221,6 +1221,153 @@ export function pressFit() {
   return svg(320, 174, s, 'press fit');
 }
 
+// =====================================================================
+// TOLERANCES & GD&T
+// =====================================================================
+// classic fit diagram: hole and shaft tolerance zones around the zero line, to scale
+export function fitDiagram(D = 25, holeGrade = 7, letter = 'g', shaftGrade = 6) {
+  const h = holeH(D, holeGrade), sh = shaftLimits(D, letter, shaftGrade);
+  const vals = [h.lo, h.hi, sh.lo, sh.hi, 0];
+  const top = Math.max(...vals) + 6, bot = Math.min(...vals) - 6;
+  const y0 = 20, H = 140, Y = (v) => y0 + ((top - v) / (top - bot)) * H;
+  let s = line(30, Y(0), 300, Y(0), 'd-line', 'stroke-width="2"') + t(304, Y(0) + 4, '0', 'd-text', 'start') + t(36, Y(0) - 6, `Ø${D}`, 'd-text', 'start');
+  s += `<rect x="90" y="${Y(h.hi)}" width="60" height="${Y(h.lo) - Y(h.hi)}" class="d-hole"/>` + t(120, Y(h.hi) - 6, `H${holeGrade}`, 'd-text-accent');
+  s += `<rect x="180" y="${Y(sh.hi)}" width="60" height="${Y(sh.lo) - Y(sh.hi)}" class="d-shaft"/>` + t(210, Y(sh.lo) + 14, `${letter}${shaftGrade}`, 'd-text-load');
+  [[h.hi, 150], [h.lo, 150], [sh.hi, 240], [sh.lo, 240]].forEach(([v, x]) => (s += t(x + 6, Y(v) + 4, `${v > 0 ? '+' : ''}${v}`, 'd-text', 'start')));
+  const f0 = fit(D, holeGrade, letter, shaftGrade);
+  const kind = f0.minClearance >= 0 ? 'מרווח' : f0.maxClearance <= 0 ? 'לחיצה' : 'מעבר';
+  s += t(160, y0 + H + 18, `התאמת ${kind} (µm)`, 'd-text-accent');
+  return svg(320, 186, s, 'ISO fit diagram');
+}
+
+export function stackChain(opts = {}) {
+  const parts = opts.parts || [['A', 30, 0.1], ['B', 20, 0.05], ['C', 40, 0.1]];
+  const total = parts.reduce((a, p) => a + p[1], 0), W = 260, x0 = 30;
+  let x = x0, s = '';
+  parts.forEach(([n, L, tol], i) => {
+    const w = (L / total) * W;
+    s += `<rect x="${x}" y="40" width="${w}" height="40" class="${i % 2 ? 'd-coat' : 'd-section'}"/>` + t(x + w / 2, 64, n);
+    s += arrow(x + w / 2, 96, x, 96, 'd-muted', 'arrm') + arrow(x + w / 2, 96, x + w, 96, 'd-muted', 'arrm') + t(x + w / 2, 112, `${L} ±${tol}`, 'd-text');
+    x += w;
+  });
+  s += arrow(x0 + W / 2, 136, x0, 136, 'd-load') + arrow(x0 + W / 2, 136, x0 + W, 136, 'd-load') + t(x0 + W / 2, 152, 'סה"כ: הטולרנסים מצטברים', 'd-text-load');
+  s += t(x0 + W / 2, 26, 'Worst case: Σt    RSS: √Σt²', 'd-text-accent');
+  return svg(320, 162, s, 'tolerance stack-up');
+}
+
+// GD&T characteristic symbols drawn as vectors (symbol fonts are missing on many phones)
+export function gdtSym(kind, x, y, sz = 12) {
+  const L = (x1, y1, x2, y2) => `<line x1="${x + x1 * sz}" y1="${y + y1 * sz}" x2="${x + x2 * sz}" y2="${y + y2 * sz}" class="d-sym"/>`;
+  const C = (cx, cy, r) => `<circle cx="${x + cx * sz}" cy="${y + cy * sz}" r="${r * sz}" class="d-sym" fill="none"/>`;
+  const A = (d) => `<path d="${d}" class="d-sym" fill="none"/>`;
+  switch (kind) {
+    case 'flatness': return A(`M${x - 0.8 * sz},${y + 0.5 * sz} L${x - 0.4 * sz},${y - 0.5 * sz} L${x + 0.8 * sz},${y - 0.5 * sz} L${x + 0.4 * sz},${y + 0.5 * sz} Z`);
+    case 'straightness': return L(-0.8, 0, 0.8, 0);
+    case 'circularity': return C(0, 0, 0.6);
+    case 'cylindricity': return C(0, 0, 0.5) + L(-0.75, 0.7, -0.25, -0.7) + L(0.25, 0.7, 0.75, -0.7);
+    case 'perpendicularity': return L(-0.7, 0.6, 0.7, 0.6) + L(0, 0.6, 0, -0.7);
+    case 'parallelism': return L(-0.55, 0.6, -0.05, -0.6) + L(0.05, 0.6, 0.55, -0.6);
+    case 'angularity': return L(-0.7, 0.6, 0.7, 0.6) + L(-0.7, 0.6, 0.6, -0.5);
+    case 'position': return C(0, 0, 0.5) + L(-0.8, 0, 0.8, 0) + L(0, -0.8, 0, 0.8);
+    case 'profileLine': return A(`M${x - 0.7 * sz},${y + 0.4 * sz} A${0.7 * sz},${0.7 * sz} 0 0,1 ${x + 0.7 * sz},${y + 0.4 * sz}`);
+    case 'profileSurface': return A(`M${x - 0.7 * sz},${y + 0.4 * sz} A${0.7 * sz},${0.7 * sz} 0 0,1 ${x + 0.7 * sz},${y + 0.4 * sz} Z`);
+    case 'runout': return L(-0.5, 0.6, 0.4, -0.5) + A(`M${x + 0.05 * sz},${y - 0.55 * sz} L${x + 0.45 * sz},${y - 0.55 * sz} L${x + 0.45 * sz},${y - 0.15 * sz}`);
+    case 'totalRunout': return L(-0.7, 0.6, 0.1, -0.5) + L(-0.2, 0.6, 0.6, -0.5) + L(-0.8, 0.6, 0, 0.6) + A(`M${x - 0.2 * sz},${y - 0.55 * sz} L${x + 0.15 * sz},${y - 0.55 * sz} L${x + 0.15 * sz},${y - 0.2 * sz}`) + A(`M${x + 0.3 * sz},${y - 0.55 * sz} L${x + 0.65 * sz},${y - 0.55 * sz} L${x + 0.65 * sz},${y - 0.2 * sz}`);
+    case 'mmc': return C(0, 0, 0.62) + `<text x="${x}" y="${y + 0.38 * sz}" class="d-fcf-small" text-anchor="middle">M</text>`;
+    default: return '';
+  }
+}
+
+// feature control frame. cells: {sym} or text
+export function fcf(opts = {}) {
+  const cells = opts.cells || [{ sym: 'position' }, { text: 'Ø0.1', mmc: true }, { text: 'A' }, { text: 'B' }, { text: 'C' }];
+  const widths = cells.map((c) => (c.text && c.text.length > 2 ? 80 : 34));
+  let x = (320 - widths.reduce((a, b) => a + b, 0)) / 2, s = '';
+  cells.forEach((c, i) => {
+    s += `<rect x="${x}" y="30" width="${widths[i]}" height="34" class="d-support"/>`;
+    if (c.sym) s += gdtSym(c.sym, x + widths[i] / 2, 47, 11);
+    else {
+      const tx = c.mmc ? x + widths[i] / 2 - 10 : x + widths[i] / 2;
+      s += `<text x="${tx}" y="53" class="d-fcf" text-anchor="middle">${c.text}</text>` + (c.mmc ? gdtSym('mmc', x + widths[i] - 16, 47, 10) : '');
+    }
+    x += widths[i];
+  });
+  const labels = opts.labels || ['סוג הבקרה', 'גודל אזור הטולרנס', 'Datums בסדר עדיפות'];
+  s += t(70, 88, labels[0], 'd-text-accent') + t(160, 104, labels[1], 'd-text-load') + t(255, 88, labels[2], 'd-text');
+  return svg(320, 114, s, 'feature control frame');
+}
+
+export function datums321() {
+  let s = `<path d="M70,130 L230,130 L280,95 L120,95 Z" class="d-section"/><path d="M70,130 L70,60 L120,25 L120,95" class="d-coat" fill-opacity=".6"/><path d="M230,130 L230,60 L70,60" class="d-ghost"/>`;
+  [[100, 122], [190, 124], [200, 102]].forEach(([x, y]) => (s += `<circle cx="${x}" cy="${y}" r="5" class="d-load-fill"/>`));
+  [[82, 100], [104, 60]].forEach(([x, y]) => (s += `<circle cx="${x}" cy="${y}" r="5" class="d-accent-fill"/>`));
+  s += `<circle cx="160" cy="62" r="5" class="d-curve2-fill"/>`;
+  s += t(300, 150, 'ראשי A: שלוש נקודות', 'd-text-load', 'end') + t(20, 18, 'משני B: שתי נקודות', 'd-text-accent', 'start') + t(300, 42, 'שלישוני C: נקודה אחת', 'd-text', 'end');
+  s += t(160, 176, '3 + 2 + 1 = 6 דרגות חופש נעולות', 'd-text-accent');
+  return svg(320, 186, s, '3-2-1 datum scheme');
+}
+
+export function gdtSymbols() {
+  const rows = [
+    ['צורה', [['flatness', 'שטיחות'], ['straightness', 'ישרות'], ['circularity', 'עגילות'], ['cylindricity', 'גליליות']]],
+    ['כיוון', [['perpendicularity', 'ניצבות'], ['parallelism', 'מקבילות'], ['angularity', 'זוויתיות']]],
+    ['מיקום', [['position', 'מיקום']]],
+    ['פרופיל', [['profileLine', 'פרופיל קו'], ['profileSurface', 'פרופיל משטח']]],
+    ['נענוע', [['runout', 'נענוע מעגלי'], ['totalRunout', 'נענוע כולל']]],
+  ];
+  let s = '';
+  rows.forEach(([cat, items], r) => {
+    const y = 10 + r * 46;
+    s += t(306, y + 20, cat, 'd-text-accent', 'end');
+    items.forEach(([sym, name], i) => {
+      const x = 232 - i * 62;
+      s += `<rect x="${x - 22}" y="${y}" width="44" height="28" rx="4" class="d-support"/>` + gdtSym(sym, x, y + 14, 12) + t(x, y + 40, name, 'd-text');
+    });
+  });
+  s += t(160, 254, 'צורה: בלי datum. כיוון ומיקום: עם datum', 'd-text');
+  return svg(320, 262, s, 'GD&T symbols');
+}
+
+export function positionZone(opts = {}) {
+  const tol = opts.tol ?? 0.1, dx = opts.dx ?? 0.03, dy = opts.dy ?? 0.04;
+  const sc = 100 / tol, cx = 110, cy = 90;
+  let s = `<circle cx="${cx}" cy="${cy}" r="${(tol / 2) * sc}" class="d-circle"/>`;
+  s += line(cx - 70, cy, cx + 70, cy, 'd-muted', 'stroke-dasharray="4 3"') + line(cx, cy - 70, cx, cy + 70, 'd-muted', 'stroke-dasharray="4 3"');
+  const px = cx + dx * sc, py = cy - dy * sc;
+  s += `<circle cx="${px}" cy="${py}" r="5" class="d-load-fill"/>` + line(cx, cy, px, py, 'd-load');
+  s += t(cx, cy + (tol / 2) * sc + 18, `אזור Ø${tol}`, 'd-text-accent');
+  s += t(214, 60, 'מרכז הקדח בפועל', 'd-text-load', 'start') + t(214, 80, 'Ø = 2√(Δx² + Δy²)', 'd-text-accent', 'start') + t(214, 100, 'בתוך העיגול = תקין', 'd-text', 'start');
+  return svg(320, 180, s, 'position tolerance zone');
+}
+
+export function mmcBonus(opts = {}) {
+  const mmc = opts.mmc ?? 10.0, lmc = opts.lmc ?? 10.2, tol = opts.tol ?? 0.1, hole = opts.hole ?? true;
+  const x0 = 50, y0 = 150, W = 240, H = 120, span = lmc - mmc;
+  const X = (v) => x0 + ((v - mmc) / span) * W, Y = (v) => y0 - (v / (tol + span)) * H;
+  let s = axes(x0, y0, W, H, '', 'טולרנס');
+  s += `<path d="M${X(mmc)},${Y(tol)} L${X(lmc)},${Y(tol + span)}" class="d-curve" fill="none"/>` + line(X(mmc), Y(tol), X(lmc), Y(tol), 'd-curve2', 'stroke-dasharray="5 3"');
+  s += t(X(mmc), y0 + 16, `MMC ${mmc}`, 'd-text-accent') + t(X(lmc), y0 + 16, `LMC ${lmc}`, 'd-text');
+  s += t(X(mmc) + 6, Y(tol) + 16, `${tol} (RFS)`, 'd-text', 'start') + t(X(lmc) - 4, Y(tol + span) + 18, `עם MMC: ${(tol + span).toFixed(2)}`, 'd-text-load', 'end');
+  s += t(x0 + W / 2, y0 + 32, hole ? 'הגודל בפועל: קדח גדול יותר = יותר בונוס' : 'הגודל בפועל: פין קטן יותר = יותר בונוס', 'd-text');
+  return svg(320, 192, s, 'MMC bonus tolerance');
+}
+
+export function roughness() {
+  const x0 = 20, W = 280, y0 = 80;
+  let p = ''; let sumAbs = 0; const N = 200, vals = [];
+  for (let i = 0; i <= N; i++) { const u = i / N; const v = 18 * Math.sin(u * 40) + 9 * Math.sin(u * 97 + 1) + 5 * Math.sin(u * 211 + 2); vals.push(v); }
+  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+  vals.forEach((v, i) => { sumAbs += Math.abs(v - mean); p += `${i ? 'L' : 'M'}${x0 + (i / N) * W},${y0 - (v - mean)} `; });
+  const Ra = sumAbs / vals.length;
+  let s = `<path d="${p} L${x0 + W},140 L${x0},140 Z" class="d-section"/>`;
+  s += line(x0, y0, x0 + W, y0, 'd-load', 'stroke-dasharray="5 3"');
+  s += line(x0, y0 - Ra, x0 + W, y0 - Ra, 'd-accent', 'stroke-dasharray="2 3"') + line(x0, y0 + Ra, x0 + W, y0 + Ra, 'd-accent', 'stroke-dasharray="2 3"');
+  s += t(160, 158, 'קו אדום: קו ממוצע. קווים ירוקים: Ra מעליו ומתחתיו', 'd-text');
+  s += t(160, 174, 'Ra = ממוצע הסטייה המוחלטת מהקו הממוצע', 'd-text-accent');
+  s += t(160, 190, 'ערכים נפוצים בשרטוט: 3.2, 1.6, 0.8 µm', 'd-text');
+  return svg(320, 198, s, 'surface roughness Ra');
+}
+
 export const registry = {
   beam, axialBar, shaft, section, stressStrain, stressElement, mohrCircle, columns, plateHole, snCurve, goodman, constrainedBar,
   tank, hydraulicPress, floating, pipeContraction, torricelliTank, pitot, velocityProfiles, moody, pumpCurve, dragCar, jetPlate,
@@ -1231,6 +1378,7 @@ export const registry = {
   pvCycle, tsCarnot, heatEngine, fridgeLoop, rankineLoop, wallProfile, resistanceChain, hxProfiles, coolingCurve, heatModes, psychro,
   waterAnalogy, circuits, sineWave, threePhase, transformer, dcMotorCurve, inductionCurve, leadScrew, gears, homePanel, gridChain, cableSagSketch,
   shaftLayout, bearingLife, boltJoint, jointDiagram, helicalSpring, stribeck, keySection, filletWeld, beltDrive, pressFit,
+  fitDiagram, stackChain, fcf, datums321, gdtSymbols, positionZone, mmcBonus, roughness, gdtSym,
 };
 
 // content uses {fn:'beam', args:['ss-udl',{diagrams:true}]}

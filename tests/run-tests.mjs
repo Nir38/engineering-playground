@@ -423,6 +423,46 @@ const ex = [
   check('Lewis Y increases with N', ys.every((y, i) => i === 0 || y > ys[i - 1]));
 }
 
+// ---------- tolerances & GD&T ----------
+{
+  // ISO 286 table vs the standard's own formulas (rounded per the standard: allow ±1 µm, IT ±1.2)
+  const ranges = { '6-10': [6, 10], '10-18': [10, 18], '18-30': [18, 30], '30-50': [30, 50] };
+  for (const [rk, [a, b]] of Object.entries(ranges)) {
+    const D = Math.sqrt(a * b), i = f.toleranceUnit(D), row = f.ISO286[rk];
+    for (const g of [6, 7, 8]) check(`ISO 286 IT${g} ${rk} vs 0.45∛D formula`, Math.abs(row[`IT${g}`] - f.IT_FACTOR[g] * i) <= 1.2, `${row[`IT${g}`]} vs ${(f.IT_FACTOR[g] * i).toFixed(1)}`);
+    check(`ISO 286 g ${rk} vs −2.5·D^0.34`, Math.abs(row.g + 2.5 * D ** 0.34) <= 1);
+    check(`ISO 286 f ${rk} vs −5.5·D^0.41`, Math.abs(row.f + 5.5 * D ** 0.41) <= 1);
+    check(`ISO 286 n ${rk} vs 5·D^0.34`, Math.abs(row.n - 5 * D ** 0.34) <= 1);
+    check(`ISO 286 k ${rk} vs 0.6·∛D`, Math.abs(row.k - 0.6 * Math.cbrt(D)) <= 1);
+    check(`ISO 286 p ${rk} = IT7 + 0…5`, row.p - row.IT7 >= 0 && row.p - row.IT7 <= 5);
+    check(`ISO 286 s ${rk} = IT8 + 1…4`, row.s - row.IT8 >= 1 && row.s - row.IT8 <= 4);
+  }
+  const ex5 = [
+    ['tol-fits H7/g6 Ø25 max', f.fit(25, 7, 'g', 6).maxClearance, 41, 1e-12], ['tol-fits H7/g6 Ø25 min', f.fit(25, 7, 'g', 6).minClearance, 7, 1e-12],
+    ['tol-basics 2768-m 50 mm', f.iso2768('m', 50), 0.3, 1e-12], ['tol-basics 2768-m 20 mm', f.iso2768('m', 20), 0.2, 1e-12],
+    ['tol-stack WC', f.stackWorst([0.1, 0.05, 0.1]), 0.25, 1e-12], ['tol-stack RSS', f.stackRSS([0.1, 0.05, 0.1]), 0.15, 1e-12],
+    ['tol-stack xs2', f.stackWorst([0.1, 0.05, 0.05]), 0.2, 1e-12],
+    ['tol-position example', f.positionDia(0.03, 0.04), 0.1, 1e-9], ['tol-position circle around ±0.05 square', f.positionDia(0.05, 0.05), 0.141, 3e-3],
+    ['tol-position area ratio π/2 ≈ 1.57', Math.PI * (Math.SQRT2 * 0.05) ** 2 / (0.1 * 0.1), 1.57, 1e-3],
+    ['tol-mmc bonus example', f.mmcAllowed(0.1, 10.0, 10.15), 0.25, 1e-9], ['tol-mmc VC hole', f.virtualConditionHole(10.0, 0.1), 9.9, 1e-12],
+    ['tol-standards thermal [µm]', f.thermalSizeChange(200, 23e-6, 10) * 1000, 46, 1e-9],
+    // IT7 in the 180-250 mm range from the formula: i(√(180·250)) × 16 ≈ 46 µm, as the lesson says
+    ['tol-standards IT7 at 200 mm ≈ 46 µm', 16 * f.toleranceUnit(Math.sqrt(180 * 250)), 46, 1.5e-2],
+    ['tol-surface N7 = 1.6 µm, N8 = 2×N7', 3.2 / 1.6, 2, 1e-12],
+  ];
+  ex5.forEach(([n, got, want, tol]) => check(n, near(got, want, tol), `got ${got}, lesson says ${want}`));
+  // fit kinds named in the lessons
+  check('H7/k6 is a transition fit', f.fit(25, 7, 'k', 6).maxClearance > 0 && f.fit(25, 7, 'k', 6).minClearance < 0);
+  check('H7/p6 is an interference fit', f.fit(25, 7, 'p', 6).maxClearance <= 0);
+  check('H7/s6 is an interference fit', f.fit(25, 7, 's', 6).maxClearance < 0);
+  check('H7/h6 has zero minimum clearance', f.fit(25, 7, 'h', 6).minClearance === 0);
+  check('H8/f7 is a clearance fit', f.fit(40, 8, 'f', 7).minClearance > 0);
+  // fastener formulas: fixed = half of floating, and both reproduce a fit at the limit
+  check('fixed fastener = floating / 2', near(f.fixedFastenerT(10.5, 10), f.floatingFastenerT(10.5, 10) / 2, 1e-12));
+  // RSS ≤ worst case always
+  check('RSS ≤ worst case', [[0.1, 0.1], [0.3, 0.01, 0.02], [0.05, 0.05, 0.05, 0.05]].every((t) => f.stackRSS(t) <= f.stackWorst(t) + 1e-12));
+}
+
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {
   const sub = (id) => domains.flatMap((d) => (d.module ? d.module.subtopics : [])).find((s) => s.id === id);
@@ -464,7 +504,7 @@ for (const id of Object.keys(generators)) {
   for (let i = 0; i < 300; i++) {
     const q = makeQuestion(id);
     if (!isFinite(q.answer)) { ok = false; why = 'answer not finite'; break; }
-    if (!['g-mohr', 'gt-firstlaw'].includes(id) && q.answer <= 0) { ok = false; why = `answer ${q.answer} <= 0`; break; }
+    if (!['g-mohr', 'gt-firstlaw', 'gx-fit'].includes(id) && q.answer <= 0) { ok = false; why = `answer ${q.answer} <= 0`; break; }
     if (!q.steps || !q.steps.length || !q.source || !q.q) { ok = false; why = 'missing steps/source/q'; break; }
     if (!subIds.has(q.subtopic)) { ok = false; why = `unknown subtopic ${q.subtopic}`; break; }
     // a lost backslash in a JS string turns \t into a TAB and \c into "c": catch both

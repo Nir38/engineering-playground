@@ -4,7 +4,7 @@ import { generators, makeQuestion, fmt } from './generators.js';
 import { draw } from './diagrams.js';
 import { esc, rich } from './text.js';
 
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }
@@ -175,7 +175,7 @@ function lessonView(did, sid) {
   setTitle(s.title);
   const nQ = s.questions.length + (s.generators || []).length;
   view.innerHTML = `${quizBanner()}
-    <div class="card"><h2>${esc(s.title)}</h2><div class="en">${esc(s.en)} · ${esc(d.title)}</div></div>
+    <div class="card"><h2>${esc(s.title)}</h2><div class="muted small"><span class="en">${esc(s.en)}</span> · ${rich(d.title)}</div></div>
     <div class="card lesson-text"><h3>💡 האינטואיציה</h3><p>${rich(L.intuition)}</p>${diagramHtml(L.diagram)}</div>
     ${(L.visuals || []).length ? `<div class="card"><h3>👁️ המחשה</h3>${L.visuals.map((v) => `<figure class="visual">${diagramHtml(v.spec)}<figcaption>${rich(v.caption)}</figcaption></figure>`).join('')}</div>` : ''}
     <div class="card"><h3>∑ המשוואות</h3><div class="eq-list">${L.equations.map((e) => `<div class="eq">${tex(e.tex)}<div class="label">${rich(e.label)}</div></div>`).join('')}</div></div>

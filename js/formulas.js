@@ -430,6 +430,54 @@ export const filletShear = (F, h, L) => F / (0.707 * h * L);
 export const beltPower = (F1, F2, V) => (F1 - F2) * V;
 export const beltSpeed = (d_mm, rpm) => (PI * d_mm * rpm) / 60000;
 
+// =====================================================================
+// TOLERANCES & GD&T (mm unless noted; deviations in µm)
+// =====================================================================
+// ISO 286 tables (µm) for a few size ranges: IT grades and shaft fundamental deviations
+export const ISO286 = {
+  '6-10':  { IT6: 9,  IT7: 15, IT8: 22, f: -13, g: -5, h: 0, k: 1, n: 10, p: 15, s: 23 },
+  '10-18': { IT6: 11, IT7: 18, IT8: 27, f: -16, g: -6, h: 0, k: 1, n: 12, p: 18, s: 28 },
+  '18-30': { IT6: 13, IT7: 21, IT8: 33, f: -20, g: -7, h: 0, k: 2, n: 15, p: 22, s: 35 },
+  '30-50': { IT6: 16, IT7: 25, IT8: 39, f: -25, g: -9, h: 0, k: 2, n: 17, p: 26, s: 43 },
+};
+export const sizeRange = (D) => (D <= 10 ? '6-10' : D <= 18 ? '10-18' : D <= 30 ? '18-30' : '30-50');
+// ISO 286-1 tolerance unit i [µm], D = geometric mean of the size range
+export const toleranceUnit = (D) => 0.45 * Math.cbrt(D) + 0.001 * D;
+export const IT_FACTOR = { 6: 10, 7: 16, 8: 25 };
+// hole H<grade> and shaft <letter><grade> limits in µm relative to nominal
+export function holeH(D, grade) { const r = ISO286[sizeRange(D)]; return { lo: 0, hi: r[`IT${grade}`] }; }
+export function shaftLimits(D, letter, grade) {
+  const r = ISO286[sizeRange(D)], IT = r[`IT${grade}`];
+  // f, g, h: the upper deviation (es) is the fundamental one; k, n, p, s: the lower (ei)
+  return ['f', 'g', 'h'].includes(letter) ? { lo: r[letter] - IT, hi: r[letter] } : { lo: r[letter], hi: r[letter] + IT };
+}
+// fit: positive = clearance, negative = interference (µm)
+export function fit(D, holeGrade, letter, shaftGrade) {
+  const h = holeH(D, holeGrade), s = shaftLimits(D, letter, shaftGrade);
+  return { maxClearance: h.hi - s.lo, minClearance: h.lo - s.hi };
+}
+
+// stack-up
+export const stackWorst = (tols) => tols.reduce((a, b) => a + Math.abs(b), 0);
+export const stackRSS = (tols) => Math.sqrt(tols.reduce((a, b) => a + b * b, 0));
+// position: diameter of the zone needed for a measured deviation dx, dy
+export const positionDia = (dx, dy) => 2 * Math.hypot(dx, dy);
+// MMC bonus: allowed geometric tolerance = stated + departure from MMC
+export const mmcAllowed = (stated, mmcSize, actualSize) => stated + Math.abs(actualSize - mmcSize);
+export const virtualConditionPin = (mmc, tol) => mmc + tol;
+export const virtualConditionHole = (mmc, tol) => mmc - tol;
+// fastener formulas (ASME Y14.5): T = position tolerance diameter
+export const floatingFastenerT = (H, F) => H - F;       // both parts have clearance holes
+export const fixedFastenerT = (H, F) => (H - F) / 2;    // one part threaded (split between the two)
+// ISO 2768 general tolerances, ± mm (class f / m / c / v) by nominal size
+export function iso2768(cls, L) {
+  const ranges = [[0.5, 3, 0.05, 0.1, 0.2, null], [3, 6, 0.05, 0.1, 0.3, 0.5], [6, 30, 0.1, 0.2, 0.5, 1], [30, 120, 0.15, 0.3, 0.8, 1.5], [120, 400, 0.2, 0.5, 1.2, 2.5], [400, 1000, 0.3, 0.8, 2, 4]];
+  const row = ranges.find(([a, b]) => L > a && L <= b) || ranges[ranges.length - 1];
+  return row[{ f: 2, m: 3, c: 4, v: 5 }[cls]];
+}
+// thermal size change when measured away from the 20 °C reference
+export const thermalSizeChange = (L, alpha, dT) => L * alpha * dT;
+
 // ---------- Helpers ----------
 export const deg = (rad) => (rad * 180) / PI;
 export const rad = (d) => (d * PI) / 180;

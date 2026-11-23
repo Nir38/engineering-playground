@@ -133,6 +133,8 @@ main { max-width: 720px; margin: 0 auto; padding: 16px; outline: none; }
 /* ---------- diagrams ---------- */
 .diagram-wrap { background: var(--surface-2); border-radius: 12px; padding: 8px; margin: 10px 0; }
 svg.diagram { display: block; width: 100%; height: auto; max-height: 300px; direction: ltr; }
+/* Hebrew labels: the attribute alone loses to the rule above, so restate it here */
+svg.diagram text[direction="rtl"] { direction: rtl; }
 .d-text { fill: var(--text); font-size: 11px; font-family: system-ui, Arial, sans-serif; }
 .d-text-load { fill: var(--load); font-size: 11.5px; font-weight: 700; font-family: system-ui, Arial, sans-serif; }
 .d-text-accent { fill: var(--accent); font-size: 11px; font-weight: 700; font-family: system-ui, Arial, sans-serif; }
@@ -170,6 +172,12 @@ svg.diagram { display: block; width: 100%; height: auto; max-height: 300px; dire
 .d-cold { fill: color-mix(in srgb, #38bdf8 30%, var(--surface)); stroke: #0284c7; stroke-width: 1.2; }
 .d-curve-hot { stroke: var(--load); stroke-width: 2.4; fill: none; }
 .d-line-fill { fill: var(--text); }
+.d-hole { fill: color-mix(in srgb, var(--accent) 30%, transparent); stroke: var(--accent); stroke-width: 1.4; }
+.d-shaft { fill: color-mix(in srgb, var(--load) 30%, transparent); stroke: var(--load); stroke-width: 1.4; }
+.d-fcf { fill: var(--text); font-size: 15px; font-family: system-ui, 'Segoe UI Symbol', 'Noto Sans Symbols', 'Noto Sans Symbols 2', 'DejaVu Sans', Arial, sans-serif; }
+.d-sym { stroke: var(--text); stroke-width: 1.6; fill: none; }
+.d-fcf-small { fill: var(--text); font-size: 10px; font-weight: 700; font-family: system-ui, Arial, sans-serif; }
+.d-curve2-fill { fill: var(--curve2); }
 .d-grid { stroke: var(--border); stroke-width: .8; }
 .d-area-v { fill: color-mix(in srgb, var(--curve2) 25%, transparent); stroke: var(--curve2); stroke-width: 1.4; }
 .d-area-m { fill: color-mix(in srgb, var(--load) 22%, transparent); stroke: var(--load); stroke-width: 1.4; }
