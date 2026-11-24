@@ -17,6 +17,8 @@ import { fbdChecks } from './fbd-cases.mjs';
 import { sceneChecks } from './scene-cases.mjs';
 import { hingeSpringChecks } from './beam-hinge-cases.mjs';
 import { thermalChecks } from './beam-thermal-cases.mjs';
+import { srsChecks } from './srs-cases.mjs';
+import { fairnessChecks } from './fairness-cases.mjs';
 
 const require = createRequire(import.meta.url);
 const katex = require('../vendor/katex/katex.min.js');
@@ -162,8 +164,8 @@ const ex = [
   ['kt example σmax', f.peakStress(2.4, 20000 / 450), 106.7, 1e-3],
   ['fatigue example Goodman n (source)', f.goodmanFactor(100, 150, 250, 500), 1.43, 2e-3],
   ['fatigue example Langer n (source: 1.40)', f.langerFactor(100, 150, 350), 1.40, 1e-9],
-  ['safety example σ', 20000 / f.area.circle(16), 99.5, 1e-3],
-  ['safety example n', 640 / (20000 / f.area.circle(16)), 6.4, 1e-2],
+  ['safety example σ (bolt tensile area A_t)', 20000 / f.BOLT_AT.M16, 127.4, 1e-3],
+  ['safety example n', 640 / (20000 / f.BOLT_AT.M16), 5.0, 1e-2],
   // fluids lessons
   ['f-props example τ', f.newtonShear(0.1, 2 / 0.001), 200, 1e-12],
   ['f-statics example F [kN]', f.planeWallForce(1000, 1, 6) / 1000, 58.9, 1e-3],
@@ -586,6 +588,8 @@ fbdChecks(check, near);
 sceneChecks(check, near);
 hingeSpringChecks(check, near);
 thermalChecks(check, near);
+srsChecks(check);
+fairnessChecks(check);
 
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {
@@ -628,7 +632,7 @@ for (const id of Object.keys(generators)) {
   for (let i = 0; i < 300; i++) {
     const q = makeQuestion(id);
     if (!isFinite(q.answer)) { ok = false; why = 'answer not finite'; break; }
-    if (!['g-mohr', 'gt-firstlaw', 'gx-fit', 'gfe-verify'].includes(id) && q.answer <= 0) { ok = false; why = `answer ${q.answer} <= 0`; break; }
+    if (!['g-mohr', 'gt-firstlaw', 'gx-fit', 'gfe-verify', 'gp-incline'].includes(id) && q.answer <= 0) { ok = false; why = `answer ${q.answer} <= 0`; break; }
     if (!q.steps || !q.steps.length || !q.source || !q.q) { ok = false; why = 'missing steps/source/q'; break; }
     if (!subIds.has(q.subtopic)) { ok = false; why = `unknown subtopic ${q.subtopic}`; break; }
     // a lost backslash in a JS string turns \t into a TAB and \c into "c": catch both

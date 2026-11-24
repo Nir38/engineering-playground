@@ -121,7 +121,7 @@ function presSvg(res) {
   }
   s += `<polyline points="${P.X0},${P.B - P.HT} ${P.X0},${P.B} ${g.xB},${P.B} ${top}" class="pg-tank"/>`;
   s += `<line x1="${P.X0}" y1="${ys}" x2="${sx}" y2="${sy}" class="pg-surf"/>`;
-  s += `<g data-drag="surf"><circle cx="${P.X0 + 16}" cy="${ys}" r="16" class="pg-hit"/><path d="M${P.X0 + 10},${ys - 11} l12,0 l-6,9 z" class="pg-surfmark pg-handlefill"/></g>`;
+  s += `<g data-drag="surf"><circle cx="${P.X0 + 16}" cy="${ys}" r="22" class="pg-hit"/><path d="M${P.X0 + 10},${ys - 11} l12,0 l-6,9 z" class="pg-surfmark pg-handlefill"/></g>`;
   // pressure arrows on the gate (normal to the wall, from the liquid side)
   const nOut = [Math.sin(g.th), Math.cos(g.th)], pmax = Math.max(1, pressureAt(p.D, layers)), Ls = 54 / pmax;
   const [ax, ay] = wall(p.u1), [bx, by] = wall(p.u2);
@@ -137,11 +137,11 @@ function presSvg(res) {
     const [cx, cy] = wall(res.ucp);
     s += arrow(cx + nOut[0] * 4, cy + nOut[1] * 4, cx + nOut[0] * 38, cy + nOut[1] * 38, 'pg-resf', 8) + text(cx + nOut[0] * 44, cy + nOut[1] * 44 + 4, `F ${kN(res.F)}`, 'pg-tl', 'start');
   }
-  s += `<g data-drag="u1"><circle cx="${ax}" cy="${ay}" r="15" class="pg-hit"/><circle cx="${ax}" cy="${ay}" r="5.5" class="pg-handle"/></g>`;
-  s += `<g data-drag="u2"><circle cx="${bx}" cy="${by}" r="15" class="pg-hit"/><circle cx="${bx}" cy="${by}" r="5.5" class="pg-handle"/></g>`;
+  s += `<g data-drag="u1"><circle cx="${ax}" cy="${ay}" r="22" class="pg-hit"/><circle cx="${ax}" cy="${ay}" r="5.5" class="pg-handle"/></g>`;
+  s += `<g data-drag="u2"><circle cx="${bx}" cy="${by}" r="22" class="pg-hit"/><circle cx="${bx}" cy="${by}" r="5.5" class="pg-handle"/></g>`;
   // probe
   const qx = P.X0 + p.px * k, qy = ys + p.pz * k, pp = pressureAt(p.pz, layers);
-  if (!QUIZ || QUIZ_PROBE) s += `<g data-drag="probe"><circle cx="${qx}" cy="${qy}" r="16" class="pg-hit"/><circle cx="${qx}" cy="${qy}" r="5" class="pg-probe"/></g>`;
+  if (!QUIZ || QUIZ_PROBE) s += `<g data-drag="probe"><circle cx="${qx}" cy="${qy}" r="22" class="pg-hit"/><circle cx="${qx}" cy="${qy}" r="5" class="pg-probe"/></g>`;
   if (!QUIZ) s += text(Math.min(W - 40, qx + 9), qy - 8, `${num(pp / 1000)} kPa`, 'pg-tp', 'start');
   s += text(P.X0 + 4, P.B - P.HT - 6, `H = ${num(p.Ht)} m`, 'pg-tm', 'start') + text(g.xB + 2, P.B + 14, `θ = ${num(p.theta)}°`, 'pg-tm', 'start');
   return s + '</svg>';

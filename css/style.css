@@ -413,3 +413,28 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-coldline { stroke: #2563eb; stroke-width: 3; }
 .pg-ttemp { fill: #dc2626; font-size: 11px; }
 .pg-area-n { fill: color-mix(in srgb, var(--curve2) 20%, transparent); stroke: var(--curve2); stroke-width: 1.6; }
+/* playground: header with modes + undo stays visible; canvases own the touch (no page scroll while dragging) */
+.pg-head { position: sticky; top: calc(57px + env(safe-area-inset-top)); z-index: 6; background: var(--bg); padding: 6px 0 4px; margin: -6px 0 6px; }
+.pg-head .pg-modes { margin-bottom: 6px; }
+.pg-undo { display: flex; gap: 8px; }
+.pg-undo .btn { flex: 1; min-height: 38px; font-size: .9rem; }
+#pgCanvasWrap svg, #pgHoist, #pgConn, #pgTruss, #pgBuoy, #pgPres, #pgVib, #pgFbd { touch-action: none; -webkit-user-select: none; user-select: none; }
+.pg-stage { overscroll-behavior: contain; }
+.qctx { margin: 10px 0 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.qctx summary { cursor: pointer; padding: 10px 12px; font-weight: 600; font-size: .9rem; color: var(--accent); list-style: none; }
+.qctx summary::-webkit-details-marker { display: none; }
+.qctx[open] summary { border-bottom: 1px solid var(--border); }
+.qctx-body { padding: 10px 12px; font-size: .92rem; }
+.qctx-body p { margin: 0 0 8px; }
+.qctx-eq { background: var(--surface); border-radius: 10px; padding: 6px 10px; margin-bottom: 6px; overflow-x: auto; }
+/* playground header v2: modes as a 3×2 grid (nothing hidden, nothing sticky); undo/redo float above the tab bar */
+.pg-head { position: static; padding: 0; margin: 0 0 10px; }
+.pg-head .pg-modes { display: grid; grid-template-columns: repeat(3, 1fr); overflow: visible; margin-bottom: 0; }
+.pg-head .pg-mode { min-height: 40px; padding: 2px 4px; font-size: .82rem; }
+.pg-undo { position: fixed; z-index: 20; inset-inline-end: 12px; bottom: calc(var(--tabbar-h) + 14px + env(safe-area-inset-bottom)); display: flex; gap: 8px; }
+.pg-undo .btn { flex: none; width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 50%; font-size: 1.3rem; box-shadow: 0 2px 10px rgba(0,0,0,.18); background: var(--surface); }
+.pg-undo .btn:disabled { opacity: .35; }
+/* undo/redo v3: inside the drawing card, top corner */
+.pg-stage { position: relative; }
+.pg-undo { position: absolute; z-index: 3; top: 8px; inset-inline-end: 8px; bottom: auto; display: flex; gap: 6px; }
+.pg-undo .btn { width: 38px; height: 38px; min-height: 38px; font-size: 1.1rem; box-shadow: 0 1px 6px rgba(0,0,0,.15); }

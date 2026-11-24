@@ -5,8 +5,9 @@ import { draw } from './diagrams.js';
 import { esc, rich } from './text.js';
 import { renderPlayground } from './playground.js';
 import { loadSaved, makeSceneQuestion } from './scenes.js';
+import { review, dueIds, parseAnswer, isCorrect, sanitizeState, spread, DAILY_LIMIT } from './srs.js';
 
-const APP_VERSION = '2.9.0';
+const APP_VERSION = '3.0.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }
@@ -16,10 +17,36 @@ SUB['pg-mine'] = { sub: { id: 'pg-mine', title: 'השאלות שלי (מגרש �
 
 // ---------------- storage (wrapped: storage can be blocked) ----------------
 const KEY = 'mh-state-v1';
-const emptyState = () => ({ q: {}, sub: {}, history: [], reports: [], seen: {}, theme: 'auto' });
+const emptyState = () => ({ q: {}, sub: {}, history: [], reports: [], seen: {}, marks: {}, theme: 'auto' });
 let state = emptyState();
-try { state = { ...emptyState(), ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) { /* defaults */ }
+try { state = sanitizeState(JSON.parse(localStorage.getItem(KEY) || '{}'), emptyState()); } catch (e) { /* defaults */ }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* ignore */ } };
+// every question id that exists right now (static questions, generators, saved playground scenes)
+function validIds() {
+  const ids = new Set();
+  Object.values(SUB).forEach(({ sub }) => { sub.questions.forEach((q) => ids.add(q.id)); (sub.generators || []).forEach((g) => ids.add(g)); });
+  loadSaved().forEach((s) => ids.add(`pgq-${s.id}`));
+  return ids;
+}
+// where an id lives, so a quiz can be built straight from a list of ids (review, bookmarks)
+function itemFor(id) {
+  if (id.startsWith('pgq-')) { const ref = id.slice(4); return loadSaved().some((s) => s.id === ref) ? { kind: 'scene', id, ref, sub: 'pg-mine', difficulty: 2, type: 'numeric' } : null; }
+  for (const [sid, { sub }] of Object.entries(SUB)) {
+    const q = sub.questions.find((x) => x.id === id); if (q) return { kind: 'static', id, sub: sid, difficulty: q.difficulty, type: q.type };
+    if ((sub.generators || []).includes(id)) return { kind: 'gen', id, sub: sid, difficulty: generators[id].difficulty, type: 'numeric' };
+  }
+  return null;
+}
+// the quiz in progress survives a reload (Android may close the browser in the background)
+const QKEY = 'mh-quiz-v1';
+const saveQuiz = () => { try { if (!quiz) localStorage.removeItem(QKEY); else localStorage.setItem(QKEY, JSON.stringify({ opts: quiz.opts, items: quiz.items, i: quiz.i, results: quiz.results.map((r) => r && { ok: r.ok, detail: r.detail }), deadlines: quiz.deadlines || {} })); } catch (e) { /* ignore */ } };
+function restoreQuiz() {
+  try {
+    const s = JSON.parse(localStorage.getItem(QKEY) || 'null');
+    if (!s || !Array.isArray(s.items) || !s.items.length || s.i >= s.items.length || s.items.some((q) => !SUB[q.sub])) return;
+    quiz = { opts: s.opts, items: s.items, i: s.i, results: (s.results || []).map((r, k) => r && { ...r, q: s.items[k] }), deadlines: s.deadlines || {}, timer: null };
+  } catch (e) { /* ignore */ }
+}
 
 // ---------------- helpers ----------------
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -122,13 +149,15 @@ function home() {
     ${next ? `<a class="list-item" href="#/learn/${next.domain.id}/${next.sub.id}"><span class="emoji">📖</span><div class="grow"><b>להמשיך ללמוד</b><div class="muted small">${esc(next.sub.title)}</div></div><span class="chev">‹</span></a>` : ''}
     <button class="list-item" style="width:100%" id="quick10"><span class="emoji">⚡</span><div class="grow" style="text-align:start"><b>בוחן מהיר: 10 שאלות</b><div class="muted small">מכל מה שיש, בערבוב</div></div><span class="chev">‹</span></button>
     <button class="list-item" style="width:100%" id="trivia"><span class="emoji">⏱️</span><div class="grow" style="text-align:start"><b>טריוויה: 20 שניות לשאלה</b><div class="muted small">שאלות הבנה מהירות</div></div><span class="chev">‹</span></button>
-    <button class="list-item ${mistakes ? '' : 'disabled'}" style="width:100%" id="mistakes" ${mistakes ? '' : 'disabled'}><span class="emoji">🔁</span><div class="grow" style="text-align:start"><b>חזרה על טעויות</b><div class="muted small">${mistakes ? `${mistakes} שאלות מחכות לך` : 'אין עדיין טעויות לחזור עליהן'}</div></div><span class="chev">‹</span></button>
+    <button class="list-item ${mistakes ? '' : 'disabled'}" style="width:100%" id="mistakes" ${mistakes ? '' : 'disabled'}><span class="emoji">🔁</span><div class="grow" style="text-align:start"><b>חזרה מרווחת</b><div class="muted small">${mistakes ? `${mistakes} שאלות לחזרה היום${dueTotal() > mistakes ? ` (ועוד ${dueTotal() - mistakes} ממתינות)` : ''}` : 'אין שאלות לחזרה היום. כל תשובה נכונה דוחה את החזרה (1, 3, 7, 21, 60 ימים)'}</div></div><span class="chev">‹</span></button>
+    ${Object.keys(state.marks).length ? `<button class="list-item" style="width:100%" id="marked"><span class="emoji">⭐</span><div class="grow" style="text-align:start"><b>שאלות שסימנתי</b><div class="muted small">${Object.keys(state.marks).length} שאלות</div></div><span class="chev">‹</span></button>` : ''}
     <div class="section-title">תחומים</div>
     ${domainList()}
     <p class="muted small" style="text-align:center;margin-top:24px">גרסה ${APP_VERSION} · עובד גם בלי אינטרנט</p>`;
   $('#quick10').onclick = () => startQuiz({ subs: Object.keys(SUB), count: 10, mode: 'quiz', diff: 0 });
   $('#trivia').onclick = () => startQuiz({ subs: Object.keys(SUB), count: 10, mode: 'trivia', diff: 0 });
   if (mistakes) $('#mistakes').onclick = () => startQuiz({ subs: Object.keys(SUB), count: Math.min(10, mistakes), mode: 'mistakes', diff: 0 });
+  if ($('#marked')) $('#marked').onclick = () => startQuiz({ subs: Object.keys(SUB), count: 10, mode: 'marked', diff: 0 });
 }
 function greeting() {
   const h = new Date().getHours();
@@ -235,7 +264,7 @@ function searchView() {
 let builder = { subs: new Set(), count: 10, mode: 'quiz', diff: 0 };
 function quizBuilder() {
   setTitle('תרגול');
-  const modes = [['quiz', 'בוחן'], ['trivia', 'טריוויה ⏱️'], ['mistakes', 'חזרה על טעויות']];
+  const modes = [['quiz', 'בוחן'], ['trivia', 'טריוויה ⏱️'], ['mistakes', 'חזרה מרווחת'], ['marked', '⭐ מסומנות']];
   view.innerHTML = `${quizBanner()}
     <div class="card"><h3>סוג תרגול</h3><div class="chips" id="modes">${modes.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${builder.mode === v}">${l}</button>`).join('')}</div>
       <p class="muted small" id="modeHelp" style="margin:8px 0 0"></p></div>
@@ -247,7 +276,7 @@ function quizBuilder() {
     <div class="card"><h3>מספר שאלות</h3><div class="chips" id="counts">${[5, 10, 20, 30].map((n) => `<button class="chip" data-v="${n}" aria-pressed="${builder.count === n}">${n}</button>`).join('')}</div>
       <h3 style="margin-top:14px">רמת קושי</h3><div class="chips" id="diffs">${[[0, 'הכל'], [1, 'בסיס'], [2, 'בינוני'], [3, 'מתקדם']].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${builder.diff === v}">${l}</button>`).join('')}</div></div>
     <button class="btn primary block" id="go">התחל</button>`;
-  const help = { quiz: 'כל סוגי השאלות, כולל תרגילי חישוב. ציון והסבר בסוף.', trivia: 'שאלות אמריקאיות ונכון/לא נכון, 20 שניות לכל שאלה.', mistakes: 'רק שאלות שטעית בהן יותר משצדקת.' };
+  const help = { quiz: 'כל סוגי השאלות, כולל תרגילי חישוב. ציון והסבר בסוף.', trivia: 'שאלות אמריקאיות ונכון/לא נכון, 20 שניות לכל שאלה.', mistakes: 'שאלות שהגיע זמן לחזור עליהן: טעות חוזרת היום, ותשובה נכונה נדחית ל-1, 3, 7, 21 ו-60 ימים.', marked: 'רק שאלות שסימנת בכוכב.' };
   const refresh = () => { $('#modeHelp').textContent = help[builder.mode]; $('#go').disabled = builder.subs.size === 0; $('#go').textContent = builder.subs.size ? `התחל (${builder.subs.size === 1 ? 'תת-נושא אחד' : `${builder.subs.size} תתי-נושאים`})` : 'בחר לפחות נושא אחד'; };
   const chipGroup = (id, key, num) => $(id).querySelectorAll('.chip').forEach((c) => (c.onclick = () => {
     builder[key] = num ? Number(c.dataset.v) : c.dataset.v;
@@ -263,10 +292,16 @@ function pctBadge(id) { const st = subStats(id); const p = pct(st.right, st.wron
 
 // ---------------- quiz engine ----------------
 let quiz = null;
-function mistakePool() {
-  return Object.entries(state.q).filter(([, s]) => s.wrong > s.right).map(([id]) => id);
-}
+// questions due for review today (spaced repetition), only ids that still exist
+function mistakePool() { return dueIds(state.q, validIds()).slice(0, DAILY_LIMIT); } // most urgent first, capped per day
+const dueTotal = () => dueIds(state.q, validIds()).length;
 function buildPool({ subs, mode, diff }) {
+  if (mode === 'mistakes' || mode === 'marked') { // straight from a list of ids
+    const ids = mode === 'mistakes' ? mistakePool() : Object.keys(state.marks);
+    let pool = ids.map(itemFor).filter(Boolean);
+    if (diff) pool = pool.filter((x) => x.difficulty === diff);
+    return pool;
+  }
   const set = new Set(subs);
   const items = [];
   for (const id of set) {
@@ -303,12 +338,20 @@ function materialize(item) {
 }
 function startQuiz(opts) {
   let pool = shuffle(buildPool(opts));
-  // spread: avoid two copies of the same generator back-to-back when possible
-  pool = pool.slice(0, opts.count);
-  if (!pool.length) { toast(opts.mode === 'mistakes' ? 'אין שאלות לחזרה בנושאים האלה' : 'אין שאלות שמתאימות לבחירה'); return; }
+  pool = spread(pool.slice(0, opts.count)); // two copies of the same exercise are kept apart
+  if (!pool.length) { toast(opts.mode === 'mistakes' ? 'אין שאלות לחזרה היום' : opts.mode === 'marked' ? 'אין שאלות מסומנות' : 'אין שאלות שמתאימות לבחירה'); return; }
   if (quiz && quiz.timer) clearInterval(quiz.timer);
-  quiz = { opts, items: pool.map(materialize), i: 0, results: [], timer: null };
+  quiz = { opts, items: pool.map(materialize), i: 0, results: [], timer: null, deadlines: {} };
+  saveQuiz();
   if (location.hash === '#/quiz/run') router(); else location.hash = '#/quiz/run';
+}
+// after answering: the idea of the question's subtopic and its main equations (shown only after
+// the answer, because for concept questions the background would give the answer away)
+function contextBox(q) {
+  const ent = SUB[q.sub]; const L = ent && ent.sub.lesson; if (!L) return '';
+  const eqs = (L.equations || []).slice(0, 2).map((e) => `<div class="qctx-eq">${tex(e.tex)}<span class="muted small">${rich(e.label || '')}</span></div>`).join('');
+  return `<details class="qctx" open><summary>📖 הרחבה על הנושא: ${esc(ent.sub.title)}</summary><div class="qctx-body"><p>${rich(L.intuition)}</p>${eqs}
+    <a class="small" href="#/learn/${ent.domain.id}/${ent.sub.id}">לשיעור המלא ‹</a></div></details>`;
 }
 function quizRun() {
   if (!quiz) return (location.hash = '#/quiz');
@@ -316,7 +359,7 @@ function quizRun() {
   if (quiz.i >= quiz.items.length) return quizSummary();
   const q = quiz.items[quiz.i];
   const n = quiz.items.length;
-  setTitle(quiz.opts.mode === 'trivia' ? 'טריוויה' : quiz.opts.mode === 'mistakes' ? 'חזרה על טעויות' : 'בוחן');
+  setTitle(quiz.opts.mode === 'trivia' ? 'טריוויה' : quiz.opts.mode === 'mistakes' ? 'חזרה מרווחת' : quiz.opts.mode === 'marked' ? 'שאלות מסומנות' : 'בוחן');
   const subTitle = SUB[q.sub].sub.title;
   let body = '';
   if (q.type === 'mcq') body = `<div class="options">${q.options.map((o, i) => `<button class="option" data-i="${i}">${rich(o)}</button>`).join('')}</div>`;
@@ -335,17 +378,15 @@ function quizRun() {
       <div id="fb"></div>
     </div>
     <div id="after"></div>`;
-  $('#quit').onclick = () => { if (confirm('לצאת מהבוחן? התשובות עד עכשיו יישמרו.')) { if (quiz.results.length) finalize(); quiz = null; location.hash = '#/quiz'; } };
+  $('#quit').onclick = () => { if (confirm('לצאת מהבוחן? התשובות עד עכשיו יישמרו.')) { if (quiz.results.length) finalize(); quiz = null; saveQuiz(); location.hash = '#/quiz'; } };
   if (q.type === 'mcq') view.querySelectorAll('.option').forEach((b) => (b.onclick = () => answer(Number(b.dataset.i) === q.answer, { pick: Number(b.dataset.i) })));
   if (q.type === 'tf') view.querySelectorAll('.option').forEach((b) => (b.onclick = () => answer((b.dataset.v === 'true') === q.answer, { pickTf: b.dataset.v === 'true' })));
   if (q.type === 'numeric') {
     const submit = (e) => {
       e && e.preventDefault();
-      const raw = $('#num').value.trim().replace(',', '.').replace(/[^\d.eE+-]/g, '');
-      const v = parseFloat(raw);
+      const v = parseAnswer($('#num').value); // phone minus signs, decimal comma, thousands separators
       if (!isFinite(v)) { toast('הקלד מספר'); return; }
-      const ok = q.answer === 0 ? Math.abs(v) < 1e-9 : Math.abs(v - q.answer) / Math.abs(q.answer) <= (q.tol || 0.02);
-      answer(ok, { value: v });
+      answer(isCorrect(v, q.answer, q.tol || 0.02), { value: v });
     };
     $('#numForm').onsubmit = submit; $('#check').onclick = submit;
     if (q.hint) $('#hintBtn').onclick = () => { $('#hintBox').innerHTML = `<div class="hint">💡 ${rich(q.hint)}</div>`; $('#hintBtn').hidden = true; mathify($('#hintBox')); };
@@ -360,12 +401,15 @@ function quizRun() {
   };
   const done = quiz.results[quiz.i];
   if (done) { showAnswered(q, done.ok, done.detail); mathify(); return; } // returning to an answered question
-  if (quiz.opts.mode === 'trivia') {
-    let left = 20;
-    quiz.timer = setInterval(() => {
-      left--; const el = $('#timer'); if (el) { el.textContent = left; el.classList.toggle('low', left <= 5); }
+  if (quiz.opts.mode === 'trivia') { // the 20 s run from the first time the question is shown, also across visits
+    quiz.deadlines = quiz.deadlines || {};
+    if (!quiz.deadlines[quiz.i]) { quiz.deadlines[quiz.i] = Date.now() + 20000; saveQuiz(); }
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((quiz.deadlines[quiz.i] - Date.now()) / 1000)), el = $('#timer');
+      if (el) { el.textContent = left; el.classList.toggle('low', left <= 5); }
       if (left <= 0) { clearInterval(quiz.timer); quiz.timer = null; answer(false, { timeout: true }); }
-    }, 1000);
+    };
+    tick(); if (!quiz.results[quiz.i]) quiz.timer = setInterval(tick, 250);
   }
   mathify();
 }
@@ -374,11 +418,10 @@ function answer(ok, detail) {
   const q = quiz.items[quiz.i];
   if (quiz.results[quiz.i]) return; // already answered
   quiz.results[quiz.i] = { ok, q, detail };
-  const s = state.q[q.id] || { right: 0, wrong: 0 };
-  ok ? s.right++ : s.wrong++; s.last = Date.now(); state.q[q.id] = s;
+  state.q[q.id] = review(state.q[q.id], ok); // counts + next review date (spaced repetition)
   const ss = state.sub[q.sub] || { right: 0, wrong: 0 };
   ok ? ss.right++ : ss.wrong++; state.sub[q.sub] = ss;
-  save();
+  save(); saveQuiz();
   showAnswered(q, ok, detail);
   $('#nextQ').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -404,16 +447,21 @@ function showAnswered(q, ok, detail) {
     const head = detail.timeout ? '⏱️ נגמר הזמן' : ok ? '✔ נכון!' : '✘ לא מדויק';
     let solution = '';
     if (q.type === 'numeric') {
-      solution = `<div>התשובה: <b dir="ltr">${fmt(q.answer, (q.tol || 0.02) < 0.01 ? 7 : 4)} ${esc(q.unit || '')}</b>${detail.value !== undefined ? ` <span class="muted small">(ענית <span dir="ltr">${fmt(detail.value, 4)}</span>, טווח מותר ±${(q.tol || 0.02) < 0.01 ? fmt(q.tol * Math.abs(q.answer), 2) + ' ' + (q.unit || '') : Math.round((q.tol || 0.02) * 100) + '%'})</span>` : ''}</div>
+      solution = `<div>התשובה: <b dir="ltr">${fmt(q.answer, (q.tol || 0.02) < 0.01 ? 7 : 4)} ${esc(q.unit || '')}</b>${detail.value !== undefined ? ` <span class="muted small">(ענית <span dir="ltr">${fmt(detail.value, 4)}</span>, טווח מותר <span dir="ltr" class="ltr">±${(q.tol || 0.02) < 0.01 ? fmt(q.tol * Math.abs(q.answer), 2) + ' ' + (q.unit || '') : Math.round((q.tol || 0.02) * 100) + '%'}</span>)</span>` : ''}</div>
         <div class="steps">${q.steps.map((st) => `<div class="step">${tex(st)}</div>`).join('')}</div>${q.hint && !ok ? `<div class="hint">💡 ${rich(q.hint)}</div>` : ''}`;
     } else solution = `<div>${rich(q.explain || '')}</div>`;
     fb = `<div class="feedback ${ok ? 'good' : 'bad'}"><h3>${head}</h3>${solution}<div class="source-line">מקור: ${rich(q.source || '')}</div></div>`;
   }
-  $('#fb').insertAdjacentHTML('beforeend', fb);
+  $('#fb').insertAdjacentHTML('beforeend', fb + contextBox(q));
   const { domain } = SUB[q.sub];
   $('#after').innerHTML = `<button class="btn primary block" id="nextQ">${quiz.i + 1 < quiz.items.length ? 'לשאלה הבאה' : 'לסיכום'}</button>
-    <div class="btn-row"><a class="btn" href="${domain.id === 'play' ? '#/play' : `#/learn/${domain.id}/${q.sub}`}">${domain.id === 'play' ? '🏗️ למגרש' : '📖 לחומר'}</a><button class="btn" id="report">⚑ דווח על טעות</button></div>`;
-  $('#nextQ').onclick = () => { quiz.i++; quizRun(); window.scrollTo(0, 0); };
+    <div class="btn-row"><a class="btn" href="${domain.id === 'play' ? '#/play' : `#/learn/${domain.id}/${q.sub}`}">${domain.id === 'play' ? '🏗️ למגרש' : '📖 לחומר'}</a><button class="btn" id="mark" aria-pressed="${!!state.marks[q.id]}">${state.marks[q.id] ? '★ מסומנת' : '☆ סמן'}</button><button class="btn" id="report">⚑ דווח</button></div>`;
+  $('#nextQ').onclick = () => { quiz.i++; saveQuiz(); quizRun(); window.scrollTo(0, 0); };
+  $('#mark').onclick = () => {
+    if (state.marks[q.id]) delete state.marks[q.id]; else state.marks[q.id] = { sub: q.sub, date: new Date().toISOString().slice(0, 10) };
+    save(); const on = !!state.marks[q.id]; $('#mark').textContent = on ? '★ מסומנת' : '☆ סמן'; $('#mark').setAttribute('aria-pressed', String(on));
+    toast(on ? 'נוספה ל"שאלות שסימנתי"' : 'הסימון הוסר');
+  };
   $('#report').onclick = () => reportSheet(q);
   mathify($('#fb'));
 }
@@ -421,7 +469,7 @@ function finalize() {
   const right = quiz.results.filter((r) => r && r.ok).length;
   state.history.unshift({ date: new Date().toISOString(), mode: quiz.opts.mode, subs: quiz.opts.subs, right, total: quiz.results.filter(Boolean).length });
   state.history = state.history.slice(0, 100);
-  save();
+  save(); try { localStorage.removeItem(QKEY); } catch (e) { /* ignore */ }
 }
 function quizSummary() {
   finalize();
@@ -477,7 +525,7 @@ function progressView() {
     return `<div style="margin:10px 0"><div class="row small"><span class="grow">${esc(s.title)}</span><span class="muted">${p === null ? 'לא תורגל' : `${p}% · ${st.right + st.wrong} שאלות`}</span></div>
       <div class="bar ${p === null ? '' : p >= 60 ? 'good' : 'bad'}"><i style="width:${p || 0}%"></i></div></div>`;
   }).join('')}</div>`).join('');
-  const hist = state.history.slice(0, 10).map((h) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--border)"><span class="grow">${h.date.slice(0, 10)} · ${{ quiz: 'בוחן', trivia: 'טריוויה', mistakes: 'חזרה' }[h.mode] || ''}</span><b>${Math.round((10 * h.right) / h.total)}/10</b><span class="muted">(${h.right}/${h.total})</span></div>`).join('');
+  const hist = state.history.slice(0, 10).map((h) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--border)"><span class="grow">${h.date.slice(0, 10)} · ${{ quiz: 'בוחן', trivia: 'טריוויה', mistakes: 'חזרה', marked: 'מסומנות' }[h.mode] || ''}</span><b>${Math.round((10 * h.right) / h.total)}/10</b><span class="muted">(${h.right}/${h.total})</span></div>`).join('');
   view.innerHTML = `${quizBanner()}
     ${rows}
     <div class="card"><h3>בחנים אחרונים</h3>${hist || '<p class="muted small">עוד לא עשית בוחן.</p>'}</div>
@@ -485,18 +533,39 @@ function progressView() {
       <p class="muted small">מעתיקים את הדיווחים ומדביקים בשיחה עם המנהל במחשב. הוא יבדוק, יתקן ויעדכן את האפליקציה.</p>
       <div class="btn-row"><button class="btn" id="copyRep" ${state.reports.length ? '' : 'disabled'}>העתק דיווחים</button><button class="btn" id="clearRep" ${state.reports.length ? '' : 'disabled'}>נקה</button></div></div>
     <div class="card"><h3>גיבוי</h3><p class="muted small">ההתקדמות נשמרת רק במכשיר הזה.</p>
-      <div class="btn-row"><button class="btn" id="exp">העתק גיבוי</button><button class="btn" id="imp">שחזר מגיבוי</button></div>
+      <div class="btn-row"><button class="btn" id="exp">⬇ שמור קובץ גיבוי</button><button class="btn" id="imp">⬆ שחזר מקובץ</button></div>
+      <input type="file" id="impFile" accept=".json,application/json" hidden>
       <button class="link-btn" id="reset" style="color:var(--bad);margin-top:8px">איפוס כל ההתקדמות</button></div>`;
   const copy = async (text, msg) => { try { await navigator.clipboard.writeText(text); toast(msg); } catch (e) { prompt('העתק את הטקסט:', text); } };
   $('#copyRep').onclick = () => copy('דיווחי טעויות ממגרש הנדסה:\n' + state.reports.map((r, i) => `${i + 1}. [${r.id} · ${r.sub}] ${r.q}\n   תשובה באפליקציה: ${r.answer}\n   הערה: ${r.note || '(אין)'}`).join('\n'), 'הועתק. הדבק בשיחה עם המנהל.');
   $('#clearRep').onclick = () => { if (confirm('למחוק את כל הדיווחים?')) { state.reports = []; save(); progressView(); } };
-  $('#exp').onclick = () => copy(JSON.stringify(state), 'הגיבוי הועתק');
-  $('#imp').onclick = () => { const t = prompt('הדבק כאן את טקסט הגיבוי:'); if (!t) return; try { state = { ...emptyState(), ...JSON.parse(t) }; save(); toast('שוחזר'); progressView(); } catch (e) { toast('הטקסט לא תקין'); } };
+  // backup as a file: progress plus the playground scenes and saved questions
+  const BACKUP_KEYS = ['mh-pg-saved-v1', 'mh-pg-v1', 'mh-pg-pul-v1', 'mh-pg-truss-v1', 'mh-pg-fluid-v1', 'mh-pg-vib-v1', 'mh-pg-fbd-v1'];
+  $('#exp').onclick = () => {
+    const extra = {}; BACKUP_KEYS.forEach((k) => { try { const v = localStorage.getItem(k); if (v) extra[k] = v; } catch (e) { /* ignore */ } });
+    const blob = new Blob([JSON.stringify({ app: 'mgrash-handasa', v: APP_VERSION, date: new Date().toISOString(), state, extra })], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `mgrash-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    toast('קובץ הגיבוי נשמר בהורדות');
+  };
+  $('#imp').onclick = () => $('#impFile').click();
+  $('#impFile').onchange = async (ev) => {
+    const file = ev.target.files && ev.target.files[0]; if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const st = data && data.state ? data.state : data; // also accepts the older copied-text backups
+      if (!st || typeof st !== 'object' || !('q' in st || 'sub' in st)) throw new Error('not a backup');
+      if (!confirm('לשחזר מהקובץ? ההתקדמות הנוכחית תוחלף.')) return;
+      state = sanitizeState(st, emptyState()); save();
+      if (data.extra) Object.entries(data.extra).forEach(([k, v]) => { if (BACKUP_KEYS.includes(k) && typeof v === 'string') try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } });
+      toast('שוחזר'); progressView();
+    } catch (e) { toast('הקובץ לא נראה כמו גיבוי של האפליקציה'); }
+  };
   $('#reset').onclick = () => { if (confirm('לאפס את כל ההתקדמות? אי אפשר לבטל.')) { const th = state.theme; state = emptyState(); state.theme = th; save(); progressView(); } };
 }
 
 // ---------------- boot ----------------
-function boot() { router(); }
+function boot() { restoreQuiz(); router(); }
 if (window.katex) boot(); else window.addEventListener('load', boot, { once: true });
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

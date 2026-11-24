@@ -36,7 +36,7 @@ function envSvg(env) {
     if (e.poly) return `<polygon points="${e.poly.map((p) => p.join(',')).join(' ')}" class="pg-fenv"/>`;
     if (e.rope) return `<line x1="${e.rope[0][0]}" y1="${e.rope[0][1]}" x2="${e.rope[1][0]}" y2="${e.rope[1][1]}" class="pg-fwire"/>`;
     if (e.label) return text(e.label[0], e.label[1], e.label[2], 'pg-tm');
-    if (e.motion) return arrow(e.motion[0][0], e.motion[0][1], e.motion[1][0], e.motion[1][1], 'pg-fmotion', 6) + text((e.motion[0][0] + e.motion[1][0]) / 2, e.motion[0][1] - 5, 'v = קבוע', 'pg-tm');
+    if (e.motion) return arrow(e.motion[0][0], e.motion[0][1], e.motion[1][0], e.motion[1][1], 'pg-fmotion', 6) + text((e.motion[0][0] + e.motion[1][0]) / 2, e.motion[0][1] - 5, 'מהירות קבועה', 'pg-tm');
     if (e.wall) { const [[x, y1], [, y2]] = e.wall; let s = `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" class="pg-ground"/>`; for (let y = y1 + 3; y <= y2; y += 7) s += `<line x1="${x}" y1="${y}" x2="${x + 6}" y2="${y - 5}" class="pg-ground"/>`; return s; }
     if (e.pin) { const [x, y] = e.pin; return `<polygon points="${x},${y} ${x - 10},${y + 18} ${x + 10},${y + 18}" class="pg-fenv"/>${hatchLine([x - 14, y + 18], [x + 14], false)}`; }
     if (e.roller) { const [x, y] = e.roller; return `<polygon points="${x},${y} ${x - 9},${y + 13} ${x + 9},${y + 13}" class="pg-fenv"/><circle cx="${x - 4.5}" cy="${y + 16}" r="2.8" class="pg-fenv"/><circle cx="${x + 4.5}" cy="${y + 16}" r="2.8" class="pg-fenv"/>${hatchLine([x - 14, y + 19], [x + 14], false)}`; }
@@ -45,22 +45,30 @@ function envSvg(env) {
     return '';
   }).join('');
 }
+// contact forces (N) are drawn as a push, with the arrow head at the point of action (Hibbeler's
+// convention); all other forces pull, with the tail at the point. "free" is the end you drag to aim.
+const PUSH = new Set(['N']);
+export const arrowLen = (type) => (type === 'W' ? 30 : AL); // a short weight arrow ends inside the body, clear of N
+function geom(q) {
+  const L = arrowLen(q.type), d = dirv(q.ang), far = [q.x - d[0] * L, q.y - d[1] * L], near = [q.x + d[0] * L, q.y + d[1] * L];
+  return PUSH.has(q.type) ? { tail: far, head: [q.x, q.y], free: far } : { tail: [q.x, q.y], head: near, free: near };
+}
 function svg(sc, res) {
   let s = `<svg viewBox="0 0 ${W} ${H}" class="pg-svg" id="pgFbd" role="img" aria-label="${esc(sc.title)}: שרטוט כוחות">`;
   s += envSvg(sc.env);
   s += sc.body.circle ? `<circle cx="${sc.body.circle[0][0]}" cy="${sc.body.circle[0][1]}" r="${sc.body.circle[1]}" class="pg-fbody"/>` : `<polygon points="${sc.body.poly.map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' ')}" class="pg-fbody"/>`;
   if (st.showSol) answerKey(sc).forEach((q, i) => {
-    const d = dirv(q.ang), e = sc.expected[i];
-    s += arrow(q.x, q.y, q.x + d[0] * AL, q.y + d[1] * AL, 'pg-fsol', 8) + text(q.x + d[0] * (AL + 12), q.y + d[1] * (AL + 12) + 4, e.key.replace(/(\d)/, '$1'), 'pg-tsol');
+    const g = geom(q), e = sc.expected[i], d = dirv(q.ang), sg = PUSH.has(q.type) ? -1 : 1;
+    s += arrow(g.tail[0], g.tail[1], g.head[0], g.head[1], 'pg-fsol', 8) + text(Math.min(W - 8, g.free[0] + sg * d[0] * 12 + 12), Math.min(H - 4, Math.max(12, g.free[1] + sg * d[1] * 12 + 4)), e.key, 'pg-tsol');
   });
   const status = new Map();
   if (res) { res.items.forEach((i) => i.id != null && status.set(i.id, i.status)); res.extras.forEach((x) => status.set(x.id, 'extra')); }
   st.forces.forEach((q) => {
-    const d = dirv(q.ang), hx = q.x + d[0] * AL, hy = q.y + d[1] * AL, cls = { ok: 'pg-fok', dir: 'pg-fwarn', place: 'pg-fwarn', extra: 'pg-fbad' }[status.get(q.id)] || 'pg-fuser';
-    s += arrow(q.x, q.y, hx, hy, `${cls} ${st.sel === q.id ? 'pg-fsel' : ''}`, 9);
+    const g = geom(q), d = dirv(q.ang), sg = PUSH.has(q.type) ? -1 : 1, cls = { ok: 'pg-fok', dir: 'pg-fwarn', place: 'pg-fwarn', extra: 'pg-fbad' }[status.get(q.id)] || 'pg-fuser';
+    s += arrow(g.tail[0], g.tail[1], g.head[0], g.head[1], `${cls} ${st.sel === q.id ? 'pg-fsel' : ''}`, 9);
     s += `<circle cx="${q.x}" cy="${q.y}" r="3.2" class="pg-fbase"/>`;
-    s += text(hx + d[0] * 11 + (Math.abs(d[0]) < 0.3 ? 9 : 0), hy + d[1] * 11 + 4, q.type, `pg-tf ${cls}`);
-    if (st.sel === q.id) s += `<circle cx="${hx}" cy="${hy}" r="9" class="pg-handle"/>${st.tool === 'sel' ? `<circle cx="${q.x}" cy="${q.y}" r="8" class="pg-handle pg-hbase"/>` : ''}`;
+    s += text(Math.min(W - 8, Math.max(8, g.free[0] + sg * d[0] * 11 + (Math.abs(d[0]) < 0.3 ? 9 : 0))), Math.min(H - 4, Math.max(12, g.free[1] + sg * d[1] * 11 + 4)), q.type, `pg-tf ${cls}`); // kept inside the drawing
+    if (st.sel === q.id) s += `<circle cx="${g.free[0]}" cy="${g.free[1]}" r="9" class="pg-handle"/>${st.tool === 'sel' ? `<circle cx="${q.x}" cy="${q.y}" r="8" class="pg-handle pg-hbase"/>` : ''}`;
   });
   return s + '</svg>';
 }
@@ -143,13 +151,13 @@ export function renderFbd(root, { toast }) {
     ev.preventDefault();
     const p = pt(ev), sel = st.forces.find((f) => f.id === st.sel);
     if (sel) {
-      const d = dirv(sel.ang), hx = sel.x + d[0] * AL, hy = sel.y + d[1] * AL;
-      if (Math.hypot(p[0] - hx, p[1] - hy) < 16) drag = { kind: 'head', id: sel.id };
-      else if (st.tool === 'sel' && Math.hypot(p[0] - sel.x, p[1] - sel.y) < 14) drag = { kind: 'base', id: sel.id, dx: sel.x - p[0], dy: sel.y - p[1] }; // with a force tool, a tap at the same spot adds another force (N and f share the contact)
+      const [hx, hy] = geom(sel).free;
+      if (Math.hypot(p[0] - hx, p[1] - hy) < 22) drag = { kind: 'head', id: sel.id };
+      else if (st.tool === 'sel' && Math.hypot(p[0] - sel.x, p[1] - sel.y) < 18) drag = { kind: 'base', id: sel.id, dx: sel.x - p[0], dy: sel.y - p[1] }; // with a force tool, a tap at the same spot adds another force (N and f share the contact)
     }
     if (!drag && st.tool === 'sel') { // select tool: pick the nearest arrow (and move it), or clear the selection
-      let best = null, bd = 12;
-      st.forces.forEach((f) => { const d = dirv(f.ang), dd = segDist(p, f.x, f.y, f.x + d[0] * AL, f.y + d[1] * AL); if (dd < bd) { bd = dd; best = f; } });
+      let best = null, bd = 15;
+      st.forces.forEach((f) => { const g = geom(f), dd = segDist(p, g.tail[0], g.tail[1], g.head[0], g.head[1]); if (dd < bd) { bd = dd; best = f; } });
       if (best) { st.sel = best.id; drag = { kind: 'base', id: best.id, dx: best.x - p[0], dy: best.y - p[1] }; } else st.sel = null;
     } else if (!drag) { // a force tool always adds a new force where you tap
       const f = { id: uid++, type: st.tool, x: Math.round(p[0]), y: Math.round(p[1]), ang: 45 }; st.forces.push(f); st.sel = f.id; touched();
@@ -163,7 +171,8 @@ export function renderFbd(root, { toast }) {
     if (!drag || ev.pointerId !== drag.pid) return;
     const f = st.forces.find((q) => q.id === drag.id); if (!f) return;
     const p = pt(ev);
-    if (drag.kind === 'head') { const a = (Math.atan2(-(p[1] - f.y), p[0] - f.x) * 180) / Math.PI; f.ang = ((Math.round(a / 5) * 5) % 360 + 360) % 360; }
+    if (drag.kind === 'head') { // aim: the free end follows the finger (for a push it sits behind the point)
+      const sg = PUSH.has(f.type) ? -1 : 1, a = (Math.atan2(-sg * (p[1] - f.y), sg * (p[0] - f.x)) * 180) / Math.PI; f.ang = ((Math.round(a / 5) * 5) % 360 + 360) % 360; }
     else { f.x = Math.round(Math.min(W - 4, Math.max(4, p[0] + drag.dx))); f.y = Math.round(Math.min(H - 4, Math.max(4, p[1] + drag.dy))); }
     touched(); live();
   });

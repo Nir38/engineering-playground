@@ -97,7 +97,7 @@ function hoistSvg(t) {
   t.lines.forEach((T, j) => { const y1 = top[j] ?? Yc, y2 = bot[j] ?? Ym; s += text(x(j), (y1 + y2) / 2 + 4 + (j % 2 ? 14 : -14), String(j + (handDown ? 0 : 1)), 'pg-tn'); });
   // hand (effort) with a drag handle
   const xh = x(eff), yh = handDown ? bot[eff] : top[eff];
-  s += `<g data-hand="1"><circle cx="${xh}" cy="${yh}" r="20" class="pg-hit"/><circle cx="${xh}" cy="${yh}" r="7" class="pg-handle"/></g>`;
+  s += `<g data-hand="1"><circle cx="${xh}" cy="${yh}" r="26" class="pg-hit"/><circle cx="${xh}" cy="${yh}" r="7" class="pg-handle"/></g>`;
   s += handDown ? arrow(xh, yh + 6, xh, yh + 30, 'pg-load') : arrow(xh, yh - 6, xh, yh - 28, 'pg-load');
   s += text(xh - 12, handDown ? yh + 22 : yh - 12, QUIZ ? 'F = ?' : `F = ${num(t.F)} N`, 'pg-tl', 'end');
   if (!QUIZ) s += `<text x="${W - 10}" y="292" direction="rtl" text-anchor="start" class="pg-t pg-tm">משכת ⁦${num(h.p / PX_PER_M)} m⁩ חבל · המשא עלה ⁦${num(h.p / PX_PER_M / h.n)} m⁩</text>`;
@@ -151,7 +151,7 @@ function connSvg(res) {
     const q0 = [g.P0[0] - g.n[0] * 12, g.P0[1] - g.n[1] * 12], q1 = [q0[0] + g.d[0] * (g.D + 56), q0[1] + g.d[1] * (g.D + 56)];
     s += `<polygon points="${q0} ${q1} ${q1[0]},244 ${q0[0]},244" class="pg-solid"/><line x1="${q0[0]}" y1="${q0[1]}" x2="${q1[0]}" y2="${q1[1]}" class="pg-surface"/>`;
     if (sd.kind === 'incline') {
-      s += `<g data-angle="${k}"><circle cx="${q1[0]}" cy="${q1[1]}" r="20" class="pg-hit"/><circle cx="${q1[0]}" cy="${q1[1]}" r="6.5" class="pg-handle"/></g>`;
+      s += `<g data-angle="${k}"><circle cx="${q1[0]}" cy="${q1[1]}" r="26" class="pg-hit"/><circle cx="${q1[0]}" cy="${q1[1]}" r="6.5" class="pg-handle"/></g>`;
       const ax = q1[0] - g.d[0] * 34, ay = q1[1];
       s += text(ax + (g.d[0] > 0 ? -6 : 6), ay - 4, `${num(sd.theta)}°`, 'pg-tm', g.d[0] > 0 ? 'end' : 'start');
     }
@@ -280,7 +280,7 @@ export function renderPulleys(root, { toast }) {
     ev.preventDefault();
     drag = { pid: ev.pointerId, hand: !!hand, side: ang?.dataset.angle, y0: pt(ev).y, p0: st.hoist.p };
     try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
-    if (!sessionGet('pgPulHint')) { toast(hand ? 'משוך את היד: המשא עולה פי n פחות' : 'גרור למעלה או למטה כדי לשנות את הזווית'); sessionSet('pgPulHint'); }
+    if (!sessionGet('pgPulHint')) { toast(hand ? `משוך את היד: על כל מטר חבל המשא עולה רק 1/n מטר` : 'גרור למעלה או למטה כדי לשנות את הזווית'); sessionSet('pgPulHint'); }
   });
   cv.addEventListener('pointermove', (ev) => {
     if (!drag || ev.pointerId !== drag.pid) return;

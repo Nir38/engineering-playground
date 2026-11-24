@@ -188,7 +188,9 @@ export function grade(sc, user) {
 // the answer key as user forces (used by "show solution" and the tests)
 export function answerKey(sc) {
   return sc.expected.map((e, i) => {
-    const p = e.pt || [(e.seg[0][0] + e.seg[1][0]) / 2, (e.seg[0][1] + e.seg[1][1]) / 2];
+    // on a contact line: N at 30% and friction at 70%, so the drawn solution keeps them apart from W at the middle
+    const t = e.type === 'f' ? 0.7 : 0.3;
+    const p = e.pt || [e.seg[0][0] + t * (e.seg[1][0] - e.seg[0][0]), e.seg[0][1] + t * (e.seg[1][1] - e.seg[0][1])];
     return { id: 1000 + i, type: e.type, x: p[0], y: p[1], ang: e.dir ?? e.axis };
   });
 }

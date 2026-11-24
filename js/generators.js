@@ -1130,15 +1130,15 @@ Object.assign(generators, {
   'gt-wall': {
     subtopic: 't-conduction', difficulty: 1,
     make() {
-      const m = pick([{ n: 'לבנים', k: 0.72 }, { n: 'בטון', k: 1.4 }, { n: 'זכוכית', k: 1.4 }, { n: 'פלדה', k: 60.5 }]);
-      const L = m.n === 'זכוכית' ? pick([0.004, 0.006]) : m.n === 'פלדה' ? 0.01 : pick([0.1, 0.2, 0.25]);
+      const m = pick([{ n: 'לבנים', k: 0.72 }, { n: 'בטון', k: 1.4 }, { n: 'זכוכית', k: 1.4 }]);
+      const L = m.n === 'זכוכית' ? pick([0.004, 0.006]) : pick([0.1, 0.2, 0.25]);
       const A = pick([1, 2, 5, 10]); const dT = pick([10, 15, 20, 25]);
       const Q = f.fourier(m.k, A, dT, L);
       return {
         q: `קיר מ${m.n} ($k=${m.k}$ W/m·K) בעובי $${L * 1000}$ mm ובשטח $${A}$ m². הפרש הטמפרטורות בין הפנים לחוץ הוא $${dT}$ K. מה קצב מעבר החום (רק הולכה)?`,
         answer: Q, unit: 'W',
         steps: [`\\dot Q=\\frac{kA\\Delta T}{L}=\\frac{${m.k}\\cdot${A}\\cdot${dT}}{${L}}=${fmt(Q, 4)}\\ \\text{W}`],
-        hint: 'בחלון אמיתי ההתנגדות של שכבות האוויר משני הצדדים (הסעה) גדולה בהרבה מזו של הזכוכית.',
+        hint: m.n === 'זכוכית' ? 'רק הולכה: בחלון אמיתי ההתנגדות של שכבות האוויר משני הצדדים (הסעה) גדולה בהרבה מזו של הזכוכית, ולכן החום בפועל קטן בהרבה.' : 'חוק פורייה: החום עובר בהולכה, ביחס ישר ל-k, לשטח ולהפרש הטמפרטורות, וביחס הפוך לעובי.',
         diagram: { fn: 'wallProfile', args: [{ layers: [{ n: m.n, R: 1, w: 120 }], Ti: 20, To: 20 - dT }] }, source: `${SRC_I}, פרקים 1-3`,
       };
     },
@@ -1833,7 +1833,7 @@ Object.assign(generators, {
         q: `בורג M${F} (קוטר $${F}$ mm). קדח המעבר בגודל MMC של $${H.toFixed(1)}$ mm. ${kind === 'floating' ? 'בשני החלקים יש קדחי מעבר ואום (floating fastener).' : 'החלק השני מוברג (fixed fastener), והטולרנס מתחלק שווה בין שני החלקים.'} מה טולרנס המיקום (Ø) לכל חלק?`,
         answer: T, unit: 'mm', tol: 1e-6,
         steps: [kind === 'floating' ? `T=H-F=${H.toFixed(1)}-${F}=${fmt(T, 4)}` : `T=\\frac{H-F}{2}=\\frac{${H.toFixed(1)}-${F}}{2}=${fmt(T, 4)}`],
-        hint: 'כשאחד החלקים מוברג, הבורג "נעול" אליו, ולכן כל המרווח צריך להספיק לשני החלקים.',
+        hint: kind === 'fixed' ? 'כשאחד החלקים מוברג, הבורג "נעול" אליו, ולכן המרווח מתחלק בין שני החלקים.' : 'כששני החלקים עם קדחי מעבר, כל חלק יכול לנצל את כל המרווח בין הקדח לבורג.',
         source: `${SRC_Y14}, נספח B`,
       };
     },
@@ -2338,10 +2338,53 @@ Object.assign(generators, {
       };
     },
   },
+  'gcd-bend': {
+    subtopic: 'cad-sheet', difficulty: 2,
+    make() {
+      const T = pick([1, 1.5, 2, 3]), R = pick([1, 2, 3]) * T, K = pick([0.33, 0.4, 0.44, 0.5]), a = pick([30, 40, 50, 60]), b = pick([20, 25, 30, 40]);
+      const BA = f.bendAllowance(90, R, K, T), L = f.flatLength(a, b, 90, R, K, T);
+      return {
+        q: `תושבת L מפח בעובי $${T}$ mm, כיפוף $90°$ ברדיוס פנימי $R=${R}$ mm, ו-K-factor של $${K}$ (לפי הספק). אורכי הרגליים עד קווי המשיק של הכיפוף: $${a}$ ו-$${b}$ mm. מה אורך הפריסה השטוחה (Flat Pattern) שיש לחתוך?`,
+        answer: L, unit: 'mm', tol: 0.005,
+        steps: [`BA=\\theta(R+KT)=\\frac{\\pi}{2}(${R}+${K}\\cdot${T})=${fmt(BA, 4)}\\ \\text{mm}`, `L=a+b+BA=${a}+${b}+${fmt(BA, 4)}=${fmt(L, 4)}\\ \\text{mm}`],
+        hint: 'הציר הניטרלי עובר במרחק K·T מהצד הפנימי. רק הקשת שלו נכנסת לאורך הפרוש.',
+        source: SRC_SW,
+      };
+    },
+  },
+  'gcd-stack': {
+    subtopic: 'cad-assembly', difficulty: 3,
+    make() {
+      const tols = [pick([0.05, 0.1]), pick([0.05, 0.1, 0.15]), pick([0.02, 0.05]), pick([0.1, 0.2])];
+      const wc = tols.reduce((s, x) => s + x, 0), rss = f.stackRSS(tols);
+      return {
+        q: `במכלול של מכשיר רפואי ארבעה חלקים נערמים בשרשרת מידות אחת, עם טולרנסים $\\pm${tols.join('$, $\\pm')}$ mm. הייצור יציב (התפלגות נורמלית, תהליכים בלתי תלויים). מה הטולרנס הסטטיסטי (RSS) של המידה המצטברת?`,
+        answer: rss, unit: 'mm', tol: 0.01,
+        steps: [`T_{RSS}=\\sqrt{\\sum t_i^2}=\\sqrt{${tols.map((x) => `${x}^2`).join('+')}}=${fmt(rss, 4)}\\ \\text{mm}`, `T_{WC}=\\sum t_i=${fmt(wc, 4)}\\ \\text{mm}\\quad(\\text{worst case, for comparison})`],
+        hint: 'RSS מניח שלא כל החלקים יגיעו לקצה הטולרנס באותו זמן. Worst case פשוט מחבר את כולם.',
+        source: 'Fischer, Mechanical Tolerance Stackup and Analysis',
+      };
+    },
+  },
+  'gfe-stress': {
+    subtopic: 'fe-results', difficulty: 2,
+    make() {
+      const L = pick([200, 250, 400, 500]), u1 = pick([0, 0.02, 0.05]), du = pick([0.08, 0.1, 0.15, 0.2]), u2 = u1 + du, E = pick([[200000, 'פלדה'], [70000, 'אלומיניום']]);
+      const sig = (E[0] * (u2 - u1)) / L;
+      return {
+        q: `ב-FEA של מוט מ${E[1]} ($E=${E[0]}$ MPa), אלמנט באורך $${L}$ mm. התזוזות הציריות שהתקבלו בצמתים: $u_1=${u1}$ mm ו-$u_2=${fmt(u2, 4)}$ mm. מה המאמץ באלמנט (חיובי = מתיחה)?`,
+        answer: sig, unit: 'MPa',
+        steps: [`\\varepsilon=\\frac{u_2-u_1}{L}=\\frac{${fmt(du, 4)}}{${L}}=${fmt(du / L, 4)}`, `\\sigma=E\\varepsilon=${E[0]}\\cdot${fmt(du / L, 4)}=${fmt(sig, 4)}\\ \\text{MPa}`],
+        hint: 'כך התוכנה מחשבת מאמץ: קודם תזוזות בצמתים, אחר כך עיבור מהפרש התזוזות, ורק אז מאמץ.',
+        source: SRC_LOGAN,
+      };
+    },
+  },
 });
 
 export function makeQuestion(genId) {
   const g = generators[genId];
   const out = g.make();
+  if (Math.abs(out.answer) < 1e-9) out.answer = 0; // e.g. a = 5.8e-16 from rounding is really 0
   return { id: genId, type: 'numeric', subtopic: g.subtopic, difficulty: g.difficulty, ...out, tol: out.tol || 0.02 };
 }

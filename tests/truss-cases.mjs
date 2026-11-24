@@ -63,8 +63,17 @@ export function trussChecks(check, near) {
     const js = [J(1, 0, 0, 'pin'), J(2, 4 + 4 * Math.random(), 0, 'roller'), J(3, 1 + 2 * Math.random(), 1 + 2 * Math.random())];
     const ms = [Mb(1, 1, 2), Mb(2, 2, 3), Mb(3, 1, 3)];
     for (let k = 4; k <= 7; k++) {
-      js.push(J(k, -1 + 10 * Math.random(), 0.5 + 4 * Math.random()));
       const a = 1 + Math.floor(Math.random() * (k - 1)); let b = 1 + Math.floor(Math.random() * (k - 1)); if (b === a) b = a === 1 ? 2 : a - 1;
+      // a new joint hung on two members that are almost in line is nearly a mechanism (huge forces,
+      // ill-conditioned): like a designer would, keep the angle between the two members above ~12°
+      let x, y, tries = 0;
+      do {
+        x = -1 + 10 * Math.random(); y = 0.5 + 4 * Math.random(); tries++;
+        const A = js[a - 1], B = js[b - 1], ua = [A.x - x, A.y - y], ub = [B.x - x, B.y - y];
+        const sin = Math.abs(ua[0] * ub[1] - ua[1] * ub[0]) / (Math.hypot(...ua) * Math.hypot(...ub) || 1);
+        if (sin > 0.2 && Math.hypot(...ua) > 0.5 && Math.hypot(...ub) > 0.5) break;
+      } while (tries < 200);
+      js.push(J(k, x, y));
       ms.push(Mb(ms.length + 1, a, k), Mb(ms.length + 2, b, k));
     }
     const loads = [3, 4, 5, 6, 7].map((k) => ({ id: k, j: k, P: 5 + 20 * Math.random(), angle: 180 + 180 * Math.random() }));

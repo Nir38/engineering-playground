@@ -49,6 +49,7 @@ const num = (n) => {
   const s = a >= 1000 ? n.toFixed(0) : a >= 100 ? n.toFixed(1) : a >= 10 ? n.toFixed(2) : n.toFixed(3);
   return s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s;
 };
+const sig3 = (n) => (Math.abs(n) < 1e-7 ? '0' : String(Number(n.toPrecision(3))));
 const ltr = (s) => `<span class="ltr">${esc(s)}</span>`;
 const text = (x, y, s, cls = '', anchor = 'middle') => `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="pg-t ${cls}">${esc(s)}</text>`;
 function arrow(x1, y1, x2, y2, cls, head = 7) {
@@ -89,7 +90,7 @@ function svg(res) {
   });
   if (ok && st.labels) st.members.forEach((q) => {
     const A = J(q.a), B = J(q.b), N = F.get(q.id); if (!A || !B || N == null) return;
-    s += text((px(A.x) + px(B.x)) / 2, (py(A.y) + py(B.y)) / 2 + 3.5, num(Math.abs(N)), Math.abs(N) < 1e-7 ? 'pg-tz' : N > 0 ? 'pg-tt' : 'pg-tc');
+    s += text((px(A.x) + px(B.x)) / 2, (py(A.y) + py(B.y)) / 2 + 3.5, sig3(Math.abs(N)), Math.abs(N) < 1e-7 ? 'pg-tz' : N > 0 ? 'pg-tt' : 'pg-tc');
   });
   // supports
   st.joints.forEach((j) => {
@@ -238,13 +239,13 @@ export function renderTruss(root, { toast }) {
   const snap = ({ X, Y }) => ({ x: Math.min(WX, Math.max(0, Math.round(((X - X0) / S) * 2) / 2)), y: Math.min(WY, Math.max(0, Math.round(((YB - Y) / S) * 2) / 2)) });
   const segDist = (X, Y, x1, y1, x2, y2) => { const dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((X - x1) * dx + (Y - y1) * dy) / L2)); return Math.hypot(X - x1 - t * dx, Y - y1 - t * dy); };
   function hit({ X, Y }) {
-    let best = null, bd = 15;
+    let best = null, bd = 20;
     st.joints.forEach((j) => { const d = Math.hypot(px(j.x) - X, py(j.y) - Y); if (d < bd) { bd = d; best = { kind: 'joint', id: j.id }; } });
     if (best) return best;
-    bd = 10;
+    bd = 14;
     st.loads.forEach((l) => { const j = J(l.j); if (!j) return; const [x1, y1, x2, y2] = loadSeg(l), d = segDist(X, Y, x1, y1, x2, y2); if (d < bd) { bd = d; best = { kind: 'load', id: l.id }; } });
     if (best) return best;
-    bd = 9;
+    bd = 12;
     st.members.forEach((m) => { const A = J(m.a), B = J(m.b); if (!A || !B) return; const d = segDist(X, Y, px(A.x), py(A.y), px(B.x), py(B.y)); if (d < bd) { bd = d; best = { kind: 'member', id: m.id }; } });
     return best;
   }

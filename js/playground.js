@@ -94,12 +94,12 @@ function drawSupport(s) {
       g = `<rect x="${x - 7}" y="${BY - 15}" width="14" height="30" rx="2" class="pg-clamp"/>${hatch(x - 16, BY + 15, x + 16)}`;
     }
   }
-  return `<g data-k="${s.id}" class="${sc.sel === s.id ? 'pg-sel' : ''}"><rect x="${x - 20}" y="${BY - 26}" width="40" height="60" rx="10" class="pg-hit"/>${g}</g>`;
+  return `<g data-k="${s.id}" class="${sc.sel === s.id ? 'pg-sel' : ''}"><rect x="${x - 24}" y="${BY - 28}" width="48" height="64" rx="10" class="pg-hit"/>${g}</g>`;
 }
 
 function drawHinge(h) {
   const x = X(h.x);
-  return `<g data-k="${h.id}" class="${sc.sel === h.id ? 'pg-sel' : ''}"><rect x="${x - 16}" y="${BY - 16}" width="32" height="32" rx="8" class="pg-hit"/><circle cx="${x}" cy="${BY}" r="6.5" class="pg-hinge"/></g>`;
+  return `<g data-k="${h.id}" class="${sc.sel === h.id ? 'pg-sel' : ''}"><rect x="${x - 22}" y="${BY - 22}" width="44" height="44" rx="10" class="pg-hit"/><circle cx="${x}" cy="${BY}" r="6.5" class="pg-hinge"/></g>`;
 }
 function distScale() { return Math.max(1e-9, ...sc.loads.filter((l) => l.type === 'dist').map((l) => Math.max(Math.abs(l.w1), Math.abs(l.w2)))); }
 function drawLoad(l) {
@@ -110,13 +110,13 @@ function drawLoad(l) {
     const x = X(l.x); let x1, y1, x2, y2;
     if (dy > 0.01) { x2 = x; y2 = top; x1 = x - dx * len; y1 = top - dy * len; } else { x1 = x; y1 = top; x2 = x + dx * len; y2 = top + dy * len; }
     const lx = dy > 0.01 ? x1 : x2, ly = Math.min(y1, y2) - 6;
-    return `<g data-k="${l.id}" class="${sel}"><circle cx="${x}" cy="${BY - 30}" r="22" class="pg-hit"/>${arrow(x1, y1, x2, y2, 'pg-load')}${text(Math.min(W - 24, Math.max(24, lx)), Math.max(10, ly), `${num(l.P)} kN`, 'pg-tl')}</g>`;
+    return `<g data-k="${l.id}" class="${sel}"><circle cx="${x}" cy="${BY - 30}" r="26" class="pg-hit"/>${arrow(x1, y1, x2, y2, 'pg-load')}${sc.loads.some((q) => q.type === 'dist') ? text(Math.min(W - 40, lx + 6), Math.max(12, ly + 8), `${num(l.P)} kN`, 'pg-tl', 'start') : text(Math.min(W - 24, Math.max(24, lx)), Math.max(10, ly), `${num(l.P)} kN`, 'pg-tl')}</g>`; // beside the arrow when a distributed-load label sits above the beam
   }
   if (l.type === 'moment') {
     const x = X(l.x), r = 15, ccw = l.M >= 0;
     const arc = `<path d="M${x + r},${BY} A${r},${r} 0 1 0 ${x - r},${BY}" class="pg-load pg-nofill"/>`;
     const head = ccw ? arrow(x - r - 0.01, BY - 4, x - r, BY + 2, 'pg-load', 7) : arrow(x + r + 0.01, BY - 4, x + r, BY + 2, 'pg-load', 7);
-    return `<g data-k="${l.id}" class="${sel}"><circle cx="${x}" cy="${BY - 6}" r="22" class="pg-hit"/>${arc}${head}${text(x, BY - r - 8, `${num(Math.abs(l.M))} kN·m ${ccw ? '↺' : '↻'}`, 'pg-tl')}</g>`;
+    return `<g data-k="${l.id}" class="${sel}"><circle cx="${x}" cy="${BY - 6}" r="26" class="pg-hit"/>${arc}${head}${text(x, BY - r - 8, `${num(Math.abs(l.M))} kN·m ${ccw ? '↺' : '↻'}`, 'pg-tl')}</g>`;
   }
   // distributed
   const k = 34 / distScale(), xa = X(l.a), xb = X(l.b), top = BY - 7;
@@ -129,7 +129,7 @@ function drawLoad(l) {
   }
   const lab = Math.abs(l.w1 - l.w2) < 1e-9 ? `${num(l.w1)} kN/m` : `${num(l.w1)} → ${num(l.w2)} kN/m`;
   g += text(Math.min(W - 40, Math.max(40, (xa + xb) / 2)), top - Math.max(ha, hb) - 5, lab, 'pg-tl');
-  const handles = sc.sel === l.id ? `<g data-h="a"><circle cx="${xa}" cy="${top - ha}" r="15" class="pg-hit"/><circle cx="${xa}" cy="${top - ha}" r="5.5" class="pg-handle"/></g><g data-h="b"><circle cx="${xb}" cy="${top - hb}" r="15" class="pg-hit"/><circle cx="${xb}" cy="${top - hb}" r="5.5" class="pg-handle"/></g>` : '';
+  const handles = sc.sel === l.id ? `<g data-h="a"><circle cx="${xa}" cy="${top - ha}" r="22" class="pg-hit"/><circle cx="${xa}" cy="${top - ha}" r="5.5" class="pg-handle"/></g><g data-h="b"><circle cx="${xb}" cy="${top - hb}" r="22" class="pg-hit"/><circle cx="${xb}" cy="${top - hb}" r="5.5" class="pg-handle"/></g>` : '';
   return `<g data-k="${l.id}" class="${sel}"><rect x="${xa}" y="${top - Math.max(ha, hb)}" width="${Math.max(6, xb - xa)}" height="${Math.max(ha, hb)}" class="pg-hit"/>${g}${handles}</g>`;
 }
 
@@ -277,11 +277,14 @@ function editorHtml() {
 // ---------- view ----------
 const MODE_KEY = 'mh-pg-mode';
 let QUIZ = false; // question mode: draw the scene without the answers
+const HIST = {}; // undo history per mode, kept while the app is open
 export function renderPlayground(page, ctx) {
   ctx.setTitle('מגרש משחקים');
   let mode = 'beam';
   try { const m = localStorage.getItem(MODE_KEY); mode = ['pulley', 'truss', 'fluid', 'vib', 'fbd'].includes(m) ? m : 'beam'; } catch (e) { /* ignore */ }
-  page.innerHTML = `<div class="pg-modes"><button class="pg-mode" data-mode="beam">🏗️ קורות</button><button class="pg-mode" data-mode="pulley">🪢 גלגלות</button><button class="pg-mode" data-mode="truss">△ מסבכים</button><button class="pg-mode" data-mode="fluid">💧 נוזלים</button><button class="pg-mode" data-mode="vib">〰 רטט</button><button class="pg-mode" data-mode="fbd">✎ גוף חופשי</button></div><div id="pgBody"></div><div id="pgSaved"></div>`;
+  page.innerHTML = `<div id="pgRoot"><div class="pg-head"><div class="pg-modes"><button class="pg-mode" data-mode="beam">🏗️ קורות</button><button class="pg-mode" data-mode="pulley">🪢 גלגלות</button><button class="pg-mode" data-mode="truss">△ מסבכים</button><button class="pg-mode" data-mode="fluid">💧 נוזלים</button><button class="pg-mode" data-mode="vib">〰 רטט</button><button class="pg-mode" data-mode="fbd">✎ גוף חופשי</button></div><div class="pg-undo"><button class="btn" id="pgRedo" disabled aria-label="חזור על הפעולה" title="חזור">↷</button><button class="btn" id="pgUndo" disabled aria-label="בטל את הפעולה האחרונה" title="בטל">↶</button></div></div><div id="pgBody"></div><div id="pgSaved"></div></div>`;
+  const root = page.querySelector('#pgRoot'); // listeners live on this node, which is replaced when the route changes
+  const undoBox = root.querySelector('.pg-undo'); // kept by reference: each mode's drawing card gets it in its corner
   let body = page.querySelector('#pgBody');
   const show = () => {
     page.querySelectorAll('.pg-mode').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
@@ -289,11 +292,41 @@ export function renderPlayground(page, ctx) {
     if (mode === 'pulley') renderPulleys(fresh, ctx); else if (mode === 'truss') renderTruss(fresh, ctx); else if (mode === 'fluid') renderFluid(fresh, ctx); else if (mode === 'vib') renderVib(fresh, ctx); else if (mode === 'fbd') renderFbd(fresh, ctx); else renderBeams(fresh, ctx);
     const getScene = { beam: () => sc && { ...sc, sel: null }, pulley: pulleyScene, truss: trussScene, fluid: fluidScene, vib: vibScene }[mode];
     renderSaved(page.querySelector('#pgSaved'), { mode, getScene, toast: ctx.toast, practice: ctx.practice });
+    // undo/redo live in the corner of the drawing card, next to what they change
+    const stage = body.querySelector('.pg-stage'); if (undoBox && stage) stage.prepend(undoBox);
+    if (undoBox) setTimeout(() => { const h = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined }); if (h.cur === undefined) { try { h.cur = localStorage.getItem({ beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1' }[mode]); } catch (e) { h.cur = null; } } undoBox.querySelector('#pgUndo').disabled = !h.past.length; undoBox.querySelector('#pgRedo').disabled = !h.future.length; }, 0);
   };
+  // ---- undo / redo: every mode keeps its whole scene in localStorage, so history is a list of
+  // snapshots of that key, taken after each interaction (selection changes are ignored)
+  const STORE = { beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1' };
+  const read = () => { try { return localStorage.getItem(STORE[mode]); } catch (e) { return null; } };
+  const norm = (raw) => { try { const o = JSON.parse(raw); delete o.sel; delete o.pend; return JSON.stringify(o); } catch (e) { return raw; } };
+  const hist = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined });
+  const H = () => HIST[mode] || (HIST[mode] = { past: [], future: [], cur: read() });
+  const buttons = () => { const h = H(), u = undoBox.querySelector('#pgUndo'), r = undoBox.querySelector('#pgRedo'); if (!u || !r) return; u.disabled = !h.past.length; r.disabled = !h.future.length; };
+  const track = () => {
+    const h = H(), raw = read();
+    if (h.cur === undefined) h.cur = raw;
+    else if (raw !== null && norm(raw) !== norm(h.cur)) { if (h.cur !== null) { h.past.push(h.cur); if (h.past.length > 60) h.past.shift(); } h.future = []; h.cur = raw; }
+    else h.cur = raw;
+    buttons();
+  };
+  void hist;
+  let typing = 0;
+  ['pointerup', 'click', 'change'].forEach((t) => root.addEventListener(t, () => setTimeout(() => root.isConnected && track(), 0)));
+  root.addEventListener('input', () => { clearTimeout(typing); typing = setTimeout(() => root.isConnected && track(), 500); });
+  const jump = (from, to) => {
+    const h = H(); if (!h[from].length) return;
+    h[to].push(h.cur); h.cur = h[from].pop();
+    try { if (h.cur === null) localStorage.removeItem(STORE[mode]); else localStorage.setItem(STORE[mode], h.cur); } catch (e) { /* ignore */ }
+    show(); buttons(); ctx.toast(from === 'past' ? '↶ בוטל' : '↷ חזר');
+  };
+  undoBox.querySelector('#pgUndo').onclick = (ev) => { ev.stopPropagation(); jump('past', 'future'); };
+  undoBox.querySelector('#pgRedo').onclick = (ev) => { ev.stopPropagation(); jump('future', 'past'); };
   page.querySelector('.pg-modes').onclick = (ev) => {
     const b = ev.target.closest('[data-mode]'); if (!b || b.dataset.mode === mode) return;
     mode = b.dataset.mode; try { localStorage.setItem(MODE_KEY, mode); } catch (e) { /* ignore */ }
-    show();
+    show(); window.scrollTo(0, 0);
   };
   show();
 }

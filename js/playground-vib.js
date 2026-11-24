@@ -83,7 +83,7 @@ function svg(t, S, hist) {
     if (Math.abs(L) > 2) s += L > 0 ? arrow(cx, yTop + MH + 4, cx, yTop + MH + 4 + L, 'pg-load', 6) : arrow(cx, yTop + MH + 4 - L, cx, yTop + MH + 4, 'pg-load', 6);
     s += text(cx + 10, Math.min(H - 4, yTop + MH + 16), `F(t)`, 'pg-tl', 'start');
   }
-  if (!QUIZ) s += text(PX1, H - 6, `חלון ${num(win)} s · t = ${num(t)} s`, 'pg-tm', 'end') + text(PX0 + 4, 16, `x = ${num(x * 1000)} mm`, 'pg-tv', 'start');
+  if (!QUIZ) s += `<text x="${PX1}" y="${H - 6}" direction="rtl" text-anchor="start" class="pg-t pg-tm">חלון ⁦${num(win)} s⁩ · ⁦t = ${num(t)} s⁩</text>` + text(PX0 + 4, 16, `x = ${num(x * 1000)} mm`, 'pg-tv', 'start');
   return s + '</svg>';
 }
 function editor(playing) {
