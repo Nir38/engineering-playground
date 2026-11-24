@@ -237,6 +237,29 @@
   check('dragging and releasing the mass restarts the motion', tOf() > 0 && parseFloat($('#pgVibEdit [data-f="x0"]').value) > 0);
   $('[data-preset="crit"]').click(); await sleep(60);
   check('critical preset', $('#pgVibRes .pg-status').textContent.includes('קריטי') && !$('#pgVibRes .pg-status').textContent.includes('תת'));
+  // 15. playground: free-body diagram
+  $('[data-mode="fbd"]').click(); await sleep(120);
+  $('[data-sc="floor"]').click(); await sleep(60);
+  check('FBD mode shows the scenario', !!$('#pgFbd') && $('#pgFbdPrompt').textContent.includes('ארגז'));
+  const ftap = (x, y) => {
+    const sv = $('#pgFbd'), p = sv.createSVGPoint(); p.x = x; p.y = y; const q = p.matrixTransform(sv.getScreenCTM());
+    const o = { bubbles: true, clientX: q.x, clientY: q.y, pointerId: 17, isPrimary: true };
+    $('#pgFbdCanvas').dispatchEvent(new W.PointerEvent('pointerdown', o)); $('#pgFbdCanvas').dispatchEvent(new W.PointerEvent('pointerup', o));
+  };
+  const fang = (a) => { const i = $('#pgFbdEdit [data-f="ang"]'); i.value = a; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+  $('[data-tool="W"]').click(); await sleep(40); ftap(180, 170); await sleep(40); fang(270); await sleep(40);
+  $('[data-act="check"]').click(); await sleep(80);
+  check('FBD: a missing normal force is reported', $('#pgFbdRes').textContent.includes('1 מתוך 2') && $('#pgFbdRes').textContent.includes('חסר'));
+  $('[data-tool="N"]').click(); await sleep(40); ftap(180, 200); await sleep(40); fang(90); await sleep(40);
+  $('[data-act="check"]').click(); await sleep(80);
+  check('FBD: W and N on a box on the floor is correct, with magnitudes', !!$('#pgFbdRes .pg-status.good') && $('#pgFbdRes').textContent.includes('גדלי הכוחות'));
+  $('[data-tool="P"]').click(); await sleep(40); ftap(150, 160); await sleep(40); $('[data-act="check"]').click(); await sleep(80);
+  check('FBD: an invented force is flagged as extra', $('#pgFbdRes').textContent.includes('מיותר') && !$('#pgFbdRes .pg-status.good'));
+  $('[data-tool="sel"]').click(); await sleep(40); ftap(150 + 20, 160 - 20); await sleep(40); $('#pgFbdEdit [data-act="del"]').click(); await sleep(40);
+  $('[data-act="check"]').click(); await sleep(80);
+  check('FBD: selecting and deleting the extra force fixes it', !!$('#pgFbdRes .pg-status.good'));
+  $('[data-act="sol"]').click(); await sleep(60);
+  check('FBD: "solution" draws the answer key', D.querySelectorAll('#pgFbd .pg-fsol').length >= 4);
   $('[data-mode="beam"]').click(); await sleep(60);
 
   const fails = log.filter((l) => l.startsWith('FAIL'));

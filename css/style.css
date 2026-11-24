@@ -365,3 +365,33 @@ details.domain-pick summary::-webkit-details-marker { display: none; }
 .pg-pendot { fill: var(--curve2); stroke: var(--surface); stroke-width: 1.5; }
 .pg-curve2 { fill: none; stroke: var(--good); stroke-width: 2; }
 #pgVib [data-mass] { touch-action: none; cursor: grab; }
+#pgFbd { touch-action: none; }
+.pg-prompt { margin: 10px 2px 0; font-weight: 600; }
+.pg-ftools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 8px; }
+.pg-ftools .pg-tool { min-height: 50px; font-size: .72rem; }
+.pg-fenv { fill: var(--surface-2); stroke: var(--muted); stroke-width: 1.4; }
+.pg-fwire { stroke: var(--muted); stroke-width: 2; }
+.pg-fmotion { stroke: var(--muted); fill: var(--muted); stroke-width: 1.6; stroke-dasharray: 4 3; }
+.pg-fbody { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.pg-fuser { stroke: var(--text); fill: var(--text); stroke-width: 2.6; }
+.pg-fok { stroke: var(--good); fill: var(--good); stroke-width: 2.8; }
+.pg-fwarn { stroke: #d97706; fill: #d97706; stroke-width: 2.8; }
+.pg-fbad { stroke: var(--bad); fill: var(--bad); stroke-width: 2.8; }
+.pg-fsel { filter: drop-shadow(0 0 3px var(--accent)); }
+.pg-fsol { stroke: var(--good); fill: var(--good); stroke-width: 2; stroke-dasharray: 5 3; opacity: .75; }
+.pg-tsol { fill: var(--good); font-size: 10px; }
+.pg-tf { font-size: 12px; font-weight: 700; }
+text.pg-fuser { fill: var(--text); stroke: var(--surface); stroke-width: 3px; }
+text.pg-fok { fill: var(--good); stroke: var(--surface); stroke-width: 3px; }
+text.pg-fwarn { fill: #d97706; stroke: var(--surface); stroke-width: 3px; }
+text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
+.pg-fbase { fill: var(--surface); stroke: var(--text); stroke-width: 1.5; }
+.pg-hbase { stroke: var(--accent); }
+.pg-checklist { list-style: none; padding: 0; margin: 10px 0; }
+.pg-checklist li { padding: 8px 10px; border-radius: 10px; margin-bottom: 6px; background: var(--surface-2); }
+.pg-checklist li b { display: block; }
+.pg-checklist li span { display: block; font-size: .85rem; color: var(--muted); margin-top: 2px; }
+.pg-checklist li.ok b { color: var(--good); }
+.pg-checklist li.dir b, .pg-checklist li.place b { color: #d97706; }
+.pg-checklist li.missing b, .pg-checklist li.extra b { color: var(--bad); }
+.pg-form select { min-height: 44px; width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px; background: var(--surface); color: var(--text); font-size: .95rem; }

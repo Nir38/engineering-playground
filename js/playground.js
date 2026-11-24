@@ -8,6 +8,7 @@ import { renderPulleys } from './playground-pulleys.js';
 import { renderTruss } from './playground-truss.js';
 import { renderFluid } from './playground-fluid.js';
 import { renderVib } from './playground-vib.js';
+import { renderFbd } from './playground-fbd.js';
 
 const KEY = 'mh-pg-v1';
 const W = 360, X0 = 34, X1 = 326, BY = 94; // canvas geometry (px in viewBox units)
@@ -241,13 +242,13 @@ const MODE_KEY = 'mh-pg-mode';
 export function renderPlayground(page, ctx) {
   ctx.setTitle('מגרש משחקים');
   let mode = 'beam';
-  try { const m = localStorage.getItem(MODE_KEY); mode = ['pulley', 'truss', 'fluid', 'vib'].includes(m) ? m : 'beam'; } catch (e) { /* ignore */ }
-  page.innerHTML = `<div class="pg-modes"><button class="pg-mode" data-mode="beam">🏗️ קורות</button><button class="pg-mode" data-mode="pulley">🪢 גלגלות</button><button class="pg-mode" data-mode="truss">△ מסבכים</button><button class="pg-mode" data-mode="fluid">💧 נוזלים</button><button class="pg-mode" data-mode="vib">〰 רטט</button></div><div id="pgBody"></div>`;
+  try { const m = localStorage.getItem(MODE_KEY); mode = ['pulley', 'truss', 'fluid', 'vib', 'fbd'].includes(m) ? m : 'beam'; } catch (e) { /* ignore */ }
+  page.innerHTML = `<div class="pg-modes"><button class="pg-mode" data-mode="beam">🏗️ קורות</button><button class="pg-mode" data-mode="pulley">🪢 גלגלות</button><button class="pg-mode" data-mode="truss">△ מסבכים</button><button class="pg-mode" data-mode="fluid">💧 נוזלים</button><button class="pg-mode" data-mode="vib">〰 רטט</button><button class="pg-mode" data-mode="fbd">✎ גוף חופשי</button></div><div id="pgBody"></div>`;
   let body = page.querySelector('#pgBody');
   const show = () => {
     page.querySelectorAll('.pg-mode').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     const fresh = body.cloneNode(false); body.replaceWith(fresh); body = fresh; // drop old listeners
-    if (mode === 'pulley') renderPulleys(fresh, ctx); else if (mode === 'truss') renderTruss(fresh, ctx); else if (mode === 'fluid') renderFluid(fresh, ctx); else if (mode === 'vib') renderVib(fresh, ctx); else renderBeams(fresh, ctx);
+    if (mode === 'pulley') renderPulleys(fresh, ctx); else if (mode === 'truss') renderTruss(fresh, ctx); else if (mode === 'fluid') renderFluid(fresh, ctx); else if (mode === 'vib') renderVib(fresh, ctx); else if (mode === 'fbd') renderFbd(fresh, ctx); else renderBeams(fresh, ctx);
   };
   page.querySelector('.pg-modes').onclick = (ev) => {
     const b = ev.target.closest('[data-mode]'); if (!b || b.dataset.mode === mode) return;

@@ -13,6 +13,7 @@ import { pulleyChecks } from './pulley-cases.mjs';
 import { trussChecks } from './truss-cases.mjs';
 import { hydroChecks } from './hydro-cases.mjs';
 import { vibChecks } from './vib-cases.mjs';
+import { fbdChecks } from './fbd-cases.mjs';
 
 const require = createRequire(import.meta.url);
 const katex = require('../vendor/katex/katex.min.js');
@@ -578,6 +579,7 @@ pulleyChecks(check, near);
 trussChecks(check, near);
 hydroChecks(check, near);
 vibChecks(check, near);
+fbdChecks(check, near);
 
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {
