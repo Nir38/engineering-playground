@@ -35,7 +35,7 @@ const TEMPLATES = [
   { id: 'empty', name: 'ריק', make: () => ({ joints: [], members: [], loads: [] }) },
 ];
 const defaults = () => ({ ...TEMPLATES[0].make(), tool: 'select', sel: null, pend: null, labels: true, d: 60, E: 200, fy: 235 });
-let st = null;
+let st = null, QUIZ = false; // QUIZ: draw without member forces or reactions
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && Array.isArray(s.joints) && Array.isArray(s.members)) st = { ...defaults(), ...s, pend: null }; } catch (e) { /* ignore */ }
   if (!st) st = defaults();
@@ -78,7 +78,7 @@ function svg(res) {
   let s = `<svg viewBox="0 0 ${W} ${H}" class="pg-svg" id="pgTruss" role="img" aria-label="מסבך עם צמתים, מוטות, סמכים וכוחות">`;
   for (let x = 0; x <= WX; x++) for (let y = 0; y <= WY; y++) s += `<circle cx="${px(x)}" cy="${py(y)}" r="${x % 2 || y % 2 ? 1 : 1.6}" class="pg-dot"/>`;
   s += `<line x1="${px(0)}" y1="${YB}" x2="${px(WX)}" y2="${YB}" class="pg-ruler"/>`;
-  const ok = res.status !== 'mechanism';
+  const ok = res.status !== 'mechanism' && !QUIZ;
   const F = ok ? new Map(res.forces.map((f) => [f.id, f.N])) : new Map();
   const Nmax = Math.max(1e-9, ...[...F.values()].map(Math.abs));
   st.members.forEach((q) => {
@@ -292,3 +292,10 @@ export function renderTruss(root, { toast }) {
 function sessionGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return '1'; } }
 function sessionSet(k) { try { sessionStorage.setItem(k, '1'); } catch (e) { /* ignore */ } }
 export { SUP_REACTIONS };
+
+// static picture of a truss scene for a saved question
+export function trussSnapshot(scene) {
+  const prev = st; st = { ...scene, sel: null, pend: null }; QUIZ = true;
+  try { return svg(solve()); } finally { st = prev; QUIZ = false; }
+}
+export const trussScene = () => st && { ...st, sel: null, pend: null };

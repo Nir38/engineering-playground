@@ -13,7 +13,7 @@ const defaults = () => ({
   buoy: { rhoF: 1000, shape: 'box', a: 30, b: 30, h: 24, r: 12, rho: 917, D: 0.8, z: -0.05, released: false },
   pres: { Ht: 5, D: 4, theta: 60, u1: 0.6, u2: 2.6, b: 1, rho2: 1000, top: false, rho1: 900, t: 1, px: 0.8, pz: 2 },
 });
-let st = null;
+let st = null, QUIZ = false, QUIZ_PROBE = false; // QUIZ: draw without forces and computed values
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.buoy && s.pres) st = { ...defaults(), ...s, buoy: { ...defaults().buoy, ...s.buoy }, pres: { ...defaults().pres, ...s.pres } }; } catch (e) { /* ignore */ }
   if (!st) st = defaults();
@@ -55,6 +55,7 @@ function buoySvg() {
   s += `<polyline points="${TX0},${TT} ${TX0},${TB} ${TX1},${TB} ${TX1},${TT}" class="pg-tank"/>`;
   s += `<line x1="${TX0}" y1="${ys}" x2="${TX1}" y2="${ys}" class="pg-surf"/><path d="M${TX1 - 22},${ys - 9} l8,0 l-4,7 z" class="pg-surfmark"/>`;
   s += `<g data-body="1" class="pg-bodyg"><g class="pg-body">${shape}</g><g class="pg-body pg-bodysub" clip-path="url(#pgFluidClip)">${shape}</g><rect x="${cx - Math.max(w, 40) / 2 - 10}" y="${yt - 10}" width="${Math.max(w, 40) + 20}" height="${H * K + 20}" class="pg-hit"/></g>`;
+  if (QUIZ) return s + '</svg>';
   // forces: W at G (centre), Fb at B (centroid of the submerged part), holding force or floor reaction
   const Fs = Math.max(f.W, b.rhoF * G * bodyVolume(bd), 1e-9), L = (F) => 12 + (62 * F) / Fs;
   const yG = yt + (H * K) / 2;
@@ -132,7 +133,7 @@ function presSvg(res) {
   }
   s += `<polyline points="${env}" class="pg-penv"/>`;
   s += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" class="pg-gate"/>`;
-  if (res.F > 0) {
+  if (res.F > 0 && !QUIZ) {
     const [cx, cy] = wall(res.ucp);
     s += arrow(cx + nOut[0] * 4, cy + nOut[1] * 4, cx + nOut[0] * 38, cy + nOut[1] * 38, 'pg-resf', 8) + text(cx + nOut[0] * 44, cy + nOut[1] * 44 + 4, `F ${kN(res.F)}`, 'pg-tl', 'start');
   }
@@ -140,8 +141,8 @@ function presSvg(res) {
   s += `<g data-drag="u2"><circle cx="${bx}" cy="${by}" r="15" class="pg-hit"/><circle cx="${bx}" cy="${by}" r="5.5" class="pg-handle"/></g>`;
   // probe
   const qx = P.X0 + p.px * k, qy = ys + p.pz * k, pp = pressureAt(p.pz, layers);
-  s += `<g data-drag="probe"><circle cx="${qx}" cy="${qy}" r="16" class="pg-hit"/><circle cx="${qx}" cy="${qy}" r="5" class="pg-probe"/></g>`;
-  s += text(Math.min(W - 40, qx + 9), qy - 8, `${num(pp / 1000)} kPa`, 'pg-tp', 'start');
+  if (!QUIZ || QUIZ_PROBE) s += `<g data-drag="probe"><circle cx="${qx}" cy="${qy}" r="16" class="pg-hit"/><circle cx="${qx}" cy="${qy}" r="5" class="pg-probe"/></g>`;
+  if (!QUIZ) s += text(Math.min(W - 40, qx + 9), qy - 8, `${num(pp / 1000)} kPa`, 'pg-tp', 'start');
   s += text(P.X0 + 4, P.B - P.HT - 6, `H = ${num(p.Ht)} m`, 'pg-tm', 'start') + text(g.xB + 2, P.B + 14, `θ = ${num(p.theta)}°`, 'pg-tm', 'start');
   return s + '</svg>';
 }
@@ -279,3 +280,15 @@ export function renderFluid(root, { toast }) {
 }
 function sessionGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return '1'; } }
 function sessionSet(k) { try { sessionStorage.setItem(k, '1'); } catch (e) { /* ignore */ } }
+
+// static picture of a fluids scene for a saved question (probe drawn only when it is asked about)
+export function fluidSnapshot(scene, { probe = false } = {}) {
+  const prev = st; st = JSON.parse(JSON.stringify(scene)); QUIZ = true; QUIZ_PROBE = probe;
+  if (st.sub === 'buoy') { st.buoy.z = -0.03; st.buoy.released = false; }
+  try {
+    if (st.sub === 'buoy') return buoySvg();
+    const p = st.pres;
+    return presSvg(gateForce({ D: p.D, theta: p.theta, u1: p.u1, u2: p.u2, b: p.b, layers: { rho1: p.top ? p.rho1 : 0, t: p.top ? p.t : 0, rho2: p.rho2 } }));
+  } finally { st = prev; QUIZ = false; QUIZ_PROBE = false; }
+}
+export const fluidScene = () => st;

@@ -14,7 +14,7 @@ const PRESETS = [
   { id: 'iso', name: 'בידוד רעידות', set: { zeta: 0.1, force: true, r: 3, x0: 0 } },
 ];
 const defaults = () => ({ m: 2, k: 200, c: 4, x0: 50, v0: 0, force: false, F0: 10, f: 1.5, speed: 1 });
-let st = null;
+let st = null, QUIZ = false; // QUIZ: static picture, no trace or values
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.m > 0 && s.k > 0) st = { ...defaults(), ...s }; } catch (e) { /* ignore */ }
   if (!st) st = defaults();
@@ -83,8 +83,7 @@ function svg(t, S, hist) {
     if (Math.abs(L) > 2) s += L > 0 ? arrow(cx, yTop + MH + 4, cx, yTop + MH + 4 + L, 'pg-load', 6) : arrow(cx, yTop + MH + 4 - L, cx, yTop + MH + 4, 'pg-load', 6);
     s += text(cx + 10, Math.min(H - 4, yTop + MH + 16), `F(t)`, 'pg-tl', 'start');
   }
-  s += text(PX1, H - 6, `חלון ${num(win)} s · t = ${num(t)} s`, 'pg-tm', 'end');
-  s += text(PX0 + 4, 16, `x = ${num(x * 1000)} mm`, 'pg-tv', 'start');
+  if (!QUIZ) s += text(PX1, H - 6, `חלון ${num(win)} s · t = ${num(t)} s`, 'pg-tm', 'end') + text(PX0 + 4, 16, `x = ${num(x * 1000)} mm`, 'pg-tv', 'start');
   return s + '</svg>';
 }
 function editor(playing) {
@@ -212,3 +211,10 @@ export function renderVib(root, { toast }) {
 }
 function sessionGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return '1'; } }
 function sessionSet(k) { try { sessionStorage.setItem(k, '1'); } catch (e) { /* ignore */ } }
+
+// static picture of a vibration scene for a saved question (mass at rest, no trace)
+export function vibSnapshot(scene) {
+  const prev = st; st = { ...scene, x0: 0, v0: 0 }; QUIZ = true;
+  try { return svg(0, 1, []); } finally { st = prev; QUIZ = false; }
+}
+export const vibScene = () => st;

@@ -18,7 +18,7 @@ const defaults = () => ({
   hoist: { n: 4, m: 100, mb: 5, eta: 0.95, pull: 'down', dir: 'lift', p: 0 },
   conn: CONN_TPL[1].make(),
 });
-let st = null;
+let st = null, QUIZ = false; // QUIZ: draw without the answers
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.hoist && s.conn) st = { ...defaults(), ...s }; } catch (e) { /* ignore */ }
   if (!st) st = defaults();
@@ -99,8 +99,8 @@ function hoistSvg(t) {
   const xh = x(eff), yh = handDown ? bot[eff] : top[eff];
   s += `<g data-hand="1"><circle cx="${xh}" cy="${yh}" r="20" class="pg-hit"/><circle cx="${xh}" cy="${yh}" r="7" class="pg-handle"/></g>`;
   s += handDown ? arrow(xh, yh + 6, xh, yh + 30, 'pg-load') : arrow(xh, yh - 6, xh, yh - 28, 'pg-load');
-  s += text(xh - 12, handDown ? yh + 22 : yh - 12, `F = ${num(t.F)} N`, 'pg-tl', 'end');
-  s += `<text x="${W - 10}" y="292" direction="rtl" text-anchor="start" class="pg-t pg-tm">משכת ⁦${num(h.p / PX_PER_M)} m⁩ חבל · המשא עלה ⁦${num(h.p / PX_PER_M / h.n)} m⁩</text>`;
+  s += text(xh - 12, handDown ? yh + 22 : yh - 12, QUIZ ? 'F = ?' : `F = ${num(t.F)} N`, 'pg-tl', 'end');
+  if (!QUIZ) s += `<text x="${W - 10}" y="292" direction="rtl" text-anchor="start" class="pg-t pg-tm">משכת ⁦${num(h.p / PX_PER_M)} m⁩ חבל · המשא עלה ⁦${num(h.p / PX_PER_M / h.n)} m⁩</text>`;
   return s + '</svg>';
 }
 function hoistEditor() {
@@ -164,7 +164,7 @@ function connSvg(res) {
     const T = k === 'L' ? (res.TL ?? (res.Tmin + res.Tmax) / 2) : (res.TR ?? (res.Tmin + res.Tmax) / 2);
     s += `<line x1="${g.P0[0]}" y1="${g.P0[1]}" x2="${g.B[0]}" y2="${g.B[1]}" class="pg-rope" ${ropeStyle(T, Tm)}/>`;
     const mxp = (g.P0[0] + g.B[0]) / 2 + g.n[0] * 14, myp = (g.P0[1] + g.B[1]) / 2 + g.n[1] * 14 + 4;
-    const lab = res.moving || res.unique ? `T = ${num(T)} N` : `T ${num(res.Tmin)}…${num(res.Tmax)} N`;
+    const lab = QUIZ ? 'T' : res.moving || res.unique ? `T = ${num(T)} N` : `T ${num(res.Tmin)}…${num(res.Tmax)} N`;
     s += text(Math.min(W - 40, Math.max(40, mxp)), Math.max(12, myp), lab, 'pg-tr');
   });
   s += `<path d="M${parts[0].g.P0} A${PR},${PR} 0 0 1 ${parts[1].g.P0}" class="pg-rope pg-nofill" stroke-width="2"/>`;
@@ -175,14 +175,14 @@ function connSvg(res) {
     const cx = g.B[0] + g.d[0] * (sd.kind === 'hang' ? hgt / 2 : w / 2), cy = g.B[1] + g.d[1] * (sd.kind === 'hang' ? hgt / 2 : w / 2);
     s += `<g transform="translate(${cx.toFixed(1)},${cy.toFixed(1)}) rotate(${rot.toFixed(1)})"><rect x="${-w / 2}" y="${-hgt / 2}" width="${w}" height="${hgt}" rx="4" class="pg-mass"/></g>`;
     s += text(cx, cy + 4, `${num(sd.m)} kg`);
-    if (res.moving) {
+    if (res.moving && !QUIZ) {
       const away = k === 'R' ? res.dir : -res.dir; // +1: this body moves away from the pulley
       const ex = cx + g.d[0] * away * 46, ey = cy + g.d[1] * away * 46;
       const ox = sd.kind === 'hang' ? (k === 'R' ? 30 : -30) : -g.n[0] * 22, oy = sd.kind === 'hang' ? 0 : -g.n[1] * 22;
       s += arrow(cx + ox, cy + oy, ex + ox, ey + oy, 'pg-accel', 6);
     }
   });
-  if (res.moving) s += text(W / 2, 244, `a = ${num(Math.abs(res.a))} m/s²`, 'pg-ta');
+  if (res.moving && !QUIZ) s += text(W / 2, 244, `a = ${num(Math.abs(res.a))} m/s²`, 'pg-ta');
   return s + '</svg>';
 }
 function sideEditor(k) {
@@ -303,3 +303,10 @@ export function renderPulleys(root, { toast }) {
 function sessionGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return '1'; } }
 function sessionSet(k) { try { sessionStorage.setItem(k, '1'); } catch (e) { /* ignore */ } }
 export { G, sideGeom };
+
+// static picture of a pulley scene for a saved question
+export function pulleySnapshot(scene) {
+  const prev = st; st = JSON.parse(JSON.stringify(scene)); st.hoist.p = 0; QUIZ = true;
+  try { return st.sub === 'hoist' ? hoistSvg(hoistSolve()) : connSvg(connected(st.conn)); } finally { st = prev; QUIZ = false; }
+}
+export const pulleyScene = () => st;

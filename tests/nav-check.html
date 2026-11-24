@@ -261,6 +261,26 @@
   $('[data-act="sol"]').click(); await sleep(60);
   check('FBD: "solution" draws the answer key', D.querySelectorAll('#pgFbd .pg-fsol').length >= 4);
   $('[data-mode="beam"]').click(); await sleep(60);
+  // 16. playground scenes saved as questions
+  try { W.localStorage.removeItem('mh-pg-saved-v1'); } catch (e) { /* ignore */ }
+  $('[data-mode="truss"]').click(); await sleep(100); $('[data-tpl="pratt"]').click(); await sleep(60);
+  $('#pgSaveQ').click(); await sleep(80);
+  check('save sheet lists what can be asked', D.querySelectorAll('#modal [data-t]').length >= 10);
+  $('#pgDoSave').click(); await sleep(80);
+  check('the saved question appears in the list', D.querySelectorAll('.pg-savedlist li').length === 1);
+  $('[data-preview]').click(); await sleep(80);
+  check('preview shows the question picture', !!$('#modal svg') && !$('#modal .pg-ten')); $('#pgPrevClose').click(); await sleep(40);
+  await go('#/quiz');
+  check('quiz builder offers "my questions"', !!$('input[value="pg-mine"]'));
+  await go('#/play'); $('#pgPractice').click(); await sleep(300);
+  check('practice starts a quiz with the scene picture', W.location.hash === '#/quiz/run' && !!$('.card .diagram-wrap svg') && $('.qtext').textContent.includes('מסבך'));
+  $('#num').value = '1'; $('#check').click(); await sleep(150);
+  check('the answer is checked and the link goes back to the playground', !!$('#fb .feedback') && $('#after a.btn').getAttribute('href') === '#/play');
+  $('#nextQ').click(); await sleep(150);
+  check('the next saved question has new numbers or the same structure', !!$('.qtext') && !!$('.card .diagram-wrap svg'));
+  quiz_quit: { W.confirm = () => true; $('#quit').click(); await sleep(150); }
+  await go('#/play'); W.confirm = () => true; $('[data-delq]').click(); await sleep(80);
+  check('a saved question can be deleted', D.querySelectorAll('.pg-savedlist li').length === 0);
 
   const fails = log.filter((l) => l.startsWith('FAIL'));
   out.textContent = log.join('\n') + `\n\n${log.length - fails.length}/${log.length} passed`;

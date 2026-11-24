@@ -89,6 +89,7 @@ main { max-width: 720px; margin: 0 auto; padding: 16px; outline: none; }
 .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .btn.block { display: flex; width: 100%; }
 .btn:disabled { opacity: .45; cursor: default; }
+.btn[hidden] { display: none; }
 .btn:active:not(:disabled) { transform: scale(.98); }
 .btn-row { display: flex; gap: 8px; margin-top: 12px; }
 .btn-row .btn { flex: 1; }
@@ -395,3 +396,11 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-checklist li.dir b, .pg-checklist li.place b { color: #d97706; }
 .pg-checklist li.missing b, .pg-checklist li.extra b { color: var(--bad); }
 .pg-form select { min-height: 44px; width: 100%; border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px; background: var(--surface); color: var(--text); font-size: .95rem; }
+.pg-saved { margin-top: 4px; }
+.pg-savedlist { list-style: none; padding: 0; margin: 6px 0 10px; }
+.pg-savedlist li { display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); margin-bottom: 6px; }
+.pg-savedlist li .grow b { display: block; font-size: .92rem; }
+.pg-targets { max-height: 40vh; overflow-y: auto; margin: 10px 0; }
+.pg-namefield { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+.pg-namefield input { min-height: 44px; border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; background: var(--bg); color: var(--text); font: inherit; }
+.sheet .diagram-wrap svg { max-height: 46vh; }

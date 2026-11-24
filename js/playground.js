@@ -4,11 +4,12 @@
 // (checked against textbook tables in tests/beam-cases.mjs).
 import { solveBeam, rectSection, bendingStress, REACTION_COUNT } from './beam.js';
 import { esc } from './text.js';
-import { renderPulleys } from './playground-pulleys.js';
-import { renderTruss } from './playground-truss.js';
-import { renderFluid } from './playground-fluid.js';
-import { renderVib } from './playground-vib.js';
+import { renderPulleys, pulleyScene } from './playground-pulleys.js';
+import { renderTruss, trussScene } from './playground-truss.js';
+import { renderFluid, fluidScene } from './playground-fluid.js';
+import { renderVib, vibScene } from './playground-vib.js';
 import { renderFbd } from './playground-fbd.js';
+import { renderSaved } from './playground-saved.js';
 
 const KEY = 'mh-pg-v1';
 const W = 360, X0 = 34, X1 = 326, BY = 94; // canvas geometry (px in viewBox units)
@@ -140,7 +141,7 @@ function canvasSvg(res) {
   for (let m = 0; m <= sc.L + 1e-9; m += stepR) s += `<line x1="${X(m)}" y1="${RY - 3}" x2="${X(m)}" y2="${RY + 3}" class="pg-ruler"/>`;
   s += text(X0, RY + 13, '0', 'pg-tm') + text(X1, RY + 13, `${num(sc.L)} m`, 'pg-tm');
   s += `<rect x="${X0}" y="${BY - 6}" width="${X1 - X0}" height="12" rx="2" class="pg-beam"/>`;
-  s += sc.supports.map(drawSupport).join('') + drawReactions(res) + ['dist', 'moment', 'point'].map((t) => sc.loads.filter((l) => l.type === t).map(drawLoad).join('')).join('');
+  s += sc.supports.map(drawSupport).join('') + (QUIZ ? '' : drawReactions(res)) + ['dist', 'moment', 'point'].map((t) => sc.loads.filter((l) => l.type === t).map(drawLoad).join('')).join('');
   return s + '</svg>';
 }
 
@@ -239,16 +240,19 @@ function editorHtml() {
 
 // ---------- view ----------
 const MODE_KEY = 'mh-pg-mode';
+let QUIZ = false; // question mode: draw the scene without the answers
 export function renderPlayground(page, ctx) {
   ctx.setTitle('מגרש משחקים');
   let mode = 'beam';
   try { const m = localStorage.getItem(MODE_KEY); mode = ['pulley', 'truss', 'fluid', 'vib', 'fbd'].includes(m) ? m : 'beam'; } catch (e) { /* ignore */ }
-  page.innerHTML = `<div class="pg-modes"><button class="pg-mode" data-mode="beam">🏗️ קורות</button><button class="pg-mode" data-mode="pulley">🪢 גלגלות</button><button class="pg-mode" data-mode="truss">△ מסבכים</button><button class="pg-mode" data-mode="fluid">💧 נוזלים</button><button class="pg-mode" data-mode="vib">〰 רטט</button><button class="pg-mode" data-mode="fbd">✎ גוף חופשי</button></div><div id="pgBody"></div>`;
+  page.innerHTML = `<div class="pg-modes"><button class="pg-mode" data-mode="beam">🏗️ קורות</button><button class="pg-mode" data-mode="pulley">🪢 גלגלות</button><button class="pg-mode" data-mode="truss">△ מסבכים</button><button class="pg-mode" data-mode="fluid">💧 נוזלים</button><button class="pg-mode" data-mode="vib">〰 רטט</button><button class="pg-mode" data-mode="fbd">✎ גוף חופשי</button></div><div id="pgBody"></div><div id="pgSaved"></div>`;
   let body = page.querySelector('#pgBody');
   const show = () => {
     page.querySelectorAll('.pg-mode').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     const fresh = body.cloneNode(false); body.replaceWith(fresh); body = fresh; // drop old listeners
     if (mode === 'pulley') renderPulleys(fresh, ctx); else if (mode === 'truss') renderTruss(fresh, ctx); else if (mode === 'fluid') renderFluid(fresh, ctx); else if (mode === 'vib') renderVib(fresh, ctx); else if (mode === 'fbd') renderFbd(fresh, ctx); else renderBeams(fresh, ctx);
+    const getScene = { beam: () => sc && { ...sc, sel: null }, pulley: pulleyScene, truss: trussScene, fluid: fluidScene, vib: vibScene }[mode];
+    renderSaved(page.querySelector('#pgSaved'), { mode, getScene, toast: ctx.toast, practice: ctx.practice });
   };
   page.querySelector('.pg-modes').onclick = (ev) => {
     const b = ev.target.closest('[data-mode]'); if (!b || b.dataset.mode === mode) return;
@@ -369,3 +373,9 @@ function clampAll() {
 }
 function sessionStorageGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return '1'; } }
 function sessionStorageSet(k) { try { sessionStorage.setItem(k, '1'); } catch (e) { /* ignore */ } }
+
+// static picture of a beam scene for a saved question (no reactions, no selection)
+export function beamSnapshot(scene) {
+  const prev = sc; sc = { ...scene, sel: null }; QUIZ = true;
+  try { return canvasSvg(solve()); } finally { sc = prev; QUIZ = false; }
+}

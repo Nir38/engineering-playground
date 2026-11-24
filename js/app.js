@@ -4,12 +4,15 @@ import { generators, makeQuestion, fmt } from './generators.js';
 import { draw } from './diagrams.js';
 import { esc, rich } from './text.js';
 import { renderPlayground } from './playground.js';
+import { loadSaved, makeSceneQuestion } from './scenes.js';
 
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.7.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }
 READY.forEach((d) => d.subtopics.forEach((s) => (SUB[s.id] = { sub: s, domain: d })));
+// questions saved from the playground (js/scenes.js): one pseudo-subtopic
+SUB['pg-mine'] = { sub: { id: 'pg-mine', title: 'השאלות שלי (מגרש המשחקים)', questions: [], generators: [] }, domain: { id: 'play', title: 'מגרש המשחקים', icon: '🏗️' } };
 
 // ---------------- storage (wrapped: storage can be blocked) ----------------
 const KEY = 'mh-state-v1';
@@ -75,7 +78,7 @@ const routes = [
   [/^#\/quiz\/run$/, quizRun, 'quiz'],
   [/^#\/progress$/, progressView, 'progress'],
   [/^#\/search$/, searchView, 'learn'],
-  [/^#\/play$/, () => renderPlayground(view, { setTitle, toast }), 'play'],
+  [/^#\/play$/, () => renderPlayground(view, { setTitle, toast, practice: () => startQuiz({ subs: ['pg-mine'], count: 10, mode: 'quiz', diff: 0 }) }), 'play'],
 ];
 function router() {
   const h = location.hash || '#/';
@@ -170,6 +173,7 @@ function domainView(id) {
 }
 function lessonView(did, sid) {
   const entry = SUB[sid];
+  if (entry && !entry.sub.lesson) return (location.hash = '#/play'); // playground questions have no lesson
   if (!entry || entry.domain.id !== did) return (location.hash = `#/learn/${did}`);
   const { sub: s, domain: d } = entry;
   const L = s.lesson;
@@ -218,6 +222,7 @@ function searchView() {
     if (q.length < 2) { $('#res').innerHTML = '<p class="muted small">הקלד לפחות 2 תווים.</p>'; return; }
     const hits = [];
     Object.values(SUB).forEach(({ sub: s, domain: d }) => {
+      if (!s.lesson) return; // "my questions" from the playground has no lesson text
       const blob = [s.title, s.en, s.lesson.intuition, ...s.lesson.implications, ...s.lesson.equations.map((e) => e.label + ' ' + e.tex), ...s.questions.map((x) => x.q)].join(' ').toLowerCase();
       if (blob.includes(q)) hits.push(`<a class="list-item" href="#/learn/${d.id}/${s.id}"><span class="emoji">${d.icon}</span><div class="grow"><b>${esc(s.title)}</b><div class="en">${esc(s.en)}</div></div><span class="chev">‹</span></a>`);
     });
@@ -237,6 +242,7 @@ function quizBuilder() {
     <div class="card"><div class="row"><h3 class="grow">נושאים</h3><button class="link-btn" id="selAll">בחר הכל</button></div>
       ${READY.map((d) => `<details class="domain-pick" open><summary>${d.icon} ${esc(d.title)}</summary>
         ${d.subtopics.map((s) => `<label class="check-row"><input type="checkbox" value="${s.id}" ${builder.subs.has(s.id) ? 'checked' : ''}><span class="grow">${esc(s.title)}</span>${pctBadge(s.id)}</label>`).join('')}</details>`).join('')}
+      ${loadSaved().length ? `<details class="domain-pick" open><summary>🏗️ מגרש המשחקים</summary><label class="check-row"><input type="checkbox" value="pg-mine" ${builder.subs.has('pg-mine') ? 'checked' : ''}><span class="grow">השאלות שלי (${loadSaved().length})</span>${pctBadge('pg-mine')}</label></details>` : ''}
       ${DOMAINS.filter((d) => d.soon).length ? `<p class="muted small">עוד ${DOMAINS.filter((d) => d.soon).length} תחומים יתווספו בהמשך.</p>` : ''}</div>
     <div class="card"><h3>מספר שאלות</h3><div class="chips" id="counts">${[5, 10, 20, 30].map((n) => `<button class="chip" data-v="${n}" aria-pressed="${builder.count === n}">${n}</button>`).join('')}</div>
       <h3 style="margin-top:14px">רמת קושי</h3><div class="chips" id="diffs">${[[0, 'הכל'], [1, 'בסיס'], [2, 'בינוני'], [3, 'מתקדם']].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${builder.diff === v}">${l}</button>`).join('')}</div></div>
@@ -264,6 +270,10 @@ function buildPool({ subs, mode, diff }) {
   const set = new Set(subs);
   const items = [];
   for (const id of set) {
+    if (id === 'pg-mine') { // saved playground scenes: each one twice, new numbers every time
+      loadSaved().forEach((sv) => { for (let k = 0; k < 2; k++) items.push({ kind: 'scene', id: `pgq-${sv.id}`, ref: sv.id, sub: id, difficulty: 2, type: 'numeric' }); });
+      continue;
+    }
     const { sub } = SUB[id] || {};
     if (!sub) continue;
     sub.questions.forEach((q) => items.push({ kind: 'static', id: q.id, sub: id, difficulty: q.difficulty, type: q.type }));
@@ -281,6 +291,7 @@ function buildPool({ subs, mode, diff }) {
 }
 function materialize(item) {
   if (item.kind === 'gen') return { ...makeQuestion(item.id), sub: item.sub };
+  if (item.kind === 'scene') return makeSceneQuestion(loadSaved().find((s) => s.id === item.ref));
   const q = SUB[item.sub].sub.questions.find((x) => x.id === item.id);
   const out = { ...q, sub: item.sub };
   if (q.type === 'mcq') { // shuffle options but remember the right one
@@ -319,7 +330,7 @@ function quizRun() {
     <div class="card">
       <div class="row small muted" style="margin-bottom:6px"><span class="grow">${esc(subTitle)}</span><span>${'●'.repeat(q.difficulty || 1)}${'○'.repeat(3 - (q.difficulty || 1))}</span></div>
       <div class="qtext">${rich(q.q)}</div>
-      ${diagramHtml(q.diagram)}
+      ${q.svg ? `<div class="diagram-wrap">${q.svg}</div>` : diagramHtml(q.diagram)}
       ${body}
       <div id="fb"></div>
     </div>
@@ -401,7 +412,7 @@ function showAnswered(q, ok, detail) {
   $('#fb').insertAdjacentHTML('beforeend', fb);
   const { domain } = SUB[q.sub];
   $('#after').innerHTML = `<button class="btn primary block" id="nextQ">${quiz.i + 1 < quiz.items.length ? 'לשאלה הבאה' : 'לסיכום'}</button>
-    <div class="btn-row"><a class="btn" href="#/learn/${domain.id}/${q.sub}">📖 לחומר</a><button class="btn" id="report">⚑ דווח על טעות</button></div>`;
+    <div class="btn-row"><a class="btn" href="${domain.id === 'play' ? '#/play' : `#/learn/${domain.id}/${q.sub}`}">${domain.id === 'play' ? '🏗️ למגרש' : '📖 לחומר'}</a><button class="btn" id="report">⚑ דווח על טעות</button></div>`;
   $('#nextQ').onclick = () => { quiz.i++; quizRun(); window.scrollTo(0, 0); };
   $('#report').onclick = () => reportSheet(q);
   mathify($('#fb'));
