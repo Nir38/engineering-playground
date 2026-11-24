@@ -144,6 +144,14 @@
   check('delete removes the force', !$('#pgCanvas').textContent.includes('50 kN') && $('#pgEdit h3')?.textContent.includes('הקורה'));
   $('[data-tpl="empty"]').click(); await sleep(50); $('[data-add="roller"]').click(); await sleep(50); $('[data-add="roller"]').click(); await sleep(50);
   check('two rollers are reported as a mechanism', !!$('#pgResults .pg-status.bad'));
+  $('[data-tpl="gerber"]').click(); await sleep(60);
+  check('Gerber template: determinate with a hinge, roller 20 kN', !!$('#pgResults .pg-status.good') && $('#pgResults').textContent.includes('Ry = 20 kN') && !!$('#pgCanvas .pg-hinge'));
+  $('[data-tpl="ss"]').click(); await sleep(60); $('[data-add="hinge"]').click(); await sleep(60);
+  check('a hinge in a simply supported beam is a mechanism', !!$('#pgResults .pg-status.bad') && $('#pgEdit h3').textContent.includes('ציר'));
+  $('#pgEdit [data-act="del"]').click(); await sleep(60); $('[data-add="spring"]').click(); await sleep(60);
+  check('adding a spring support: indeterminate, spring reaction and settlement', !!$('#pgResults .pg-status.warn') && $('#pgResults').textContent.includes('סמך קפיץ') && $('#pgResults').textContent.includes('δ ='));
+  const kIn = $('#pgEdit [data-f="k"]'); kIn.value = '1e9'; kIn.dispatchEvent(new W.Event('input', { bubbles: true })); await sleep(60);
+  check('a very stiff spring acts like a roller (5wL/8 = 37.5 kN)', $('#pgResults').textContent.includes('Ry = 37.5 kN'));
   $('[data-tpl="prop"]').click(); await sleep(50); await go('#/learn'); await go('#/play');
   check('the scene is kept after leaving the tab', $('#pgResults .pg-status.warn') && $('#pgResults').textContent.includes('22.5 kN'));
 

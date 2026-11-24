@@ -404,3 +404,6 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-namefield { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
 .pg-namefield input { min-height: 44px; border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; background: var(--bg); color: var(--text); font: inherit; }
 .sheet .diagram-wrap svg { max-height: 46vh; }
+.pg-tools4 { grid-template-columns: repeat(4, 1fr); }
+.pg-tools4 .pg-tool { font-size: .74rem; }
+.pg-hinge { fill: var(--surface); stroke: var(--text); stroke-width: 2.2; }

@@ -1,7 +1,7 @@
 // Service worker: makes the app work offline and update itself.
 // Strategy: network first (so new content arrives when online), cache fallback (offline).
 // Bump VERSION on every release so old caches are cleaned.
-const VERSION = 'mh-2.7.0';
+const VERSION = 'mh-2.8.0';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/text.js', 'js/beam.js', 'js/playground.js', 'js/pulleys.js', 'js/playground-pulleys.js', 'js/truss.js', 'js/playground-truss.js', 'js/hydro.js', 'js/playground-fluid.js', 'js/vibration.js', 'js/playground-vib.js', 'js/fbd.js', 'js/playground-fbd.js', 'js/scenes.js', 'js/playground-saved.js', 'js/formulas.js', 'js/generators.js', 'js/diagrams.js',

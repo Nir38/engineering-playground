@@ -14,8 +14,8 @@
 // Sign convention of results: forces up/right positive, reaction moment CCW positive,
 // shear V = sum of upward forces left of the cut, bending moment M > 0 = sagging.
 
-export const REACTION_COUNT = { pin: 2, roller: 1, fixed: 3 };
-const FIXED_DOFS = { pin: [0, 1], roller: [1], fixed: [0, 1, 2] };
+export const REACTION_COUNT = { pin: 2, roller: 1, fixed: 3, spring: 1 };
+const FIXED_DOFS = { pin: [0, 1], roller: [1], fixed: [0, 1, 2], spring: [] }; // spring: elastic, k (kN/m) on v
 
 // Gaussian elimination on a Jacobi-scaled copy (unit diagonal); returns null when singular
 function solveDense(A, b) {
@@ -54,12 +54,15 @@ export function solveBeam(model, { divisions = 40 } = {}) {
     ? { ...l, a: clamp(Math.min(l.a, l.b)), b: clamp(Math.max(l.a, l.b)), w1: l.a <= l.b ? l.w1 : l.w2, w2: l.a <= l.b ? l.w2 : l.w1 }
     : { ...l, x: clamp(l.x) }));
   const r = supports.reduce((n, s) => n + REACTION_COUNT[s.type], 0);
+  // internal hinges (moment releases), only strictly inside the beam
+  const hinges = (model.hinges || []).map((q) => clamp(q.x)).filter((x) => x > 1e-4 * L && x < L - 1e-4 * L);
 
   // nodes: grid + every key point
   // key points (ends, supports, load points) are nodes; points closer than 1e-4·L are merged.
   // grid points fill the gaps but keep clear of key points, so no element gets tiny.
   const special = [0, L];
   supports.forEach((s) => special.push(s.x));
+  hinges.forEach((x) => special.push(x));
   loads.forEach((l) => (l.type === 'dist' ? special.push(l.a, l.b) : special.push(l.x)));
   special.sort((p, q) => p - q);
   const keys = []; special.forEach((x) => { if (!keys.length || x - keys[keys.length - 1] > 1e-4 * L) keys.push(x); });
@@ -69,20 +72,23 @@ export function solveBeam(model, { divisions = 40 } = {}) {
   const xs = keys;
   const node = (x) => { let best = 0; xs.forEach((v, i) => { if (Math.abs(v - x) < Math.abs(xs[best] - x)) best = i; }); return best; };
 
-  const n = xs.length * 3;
+  // a hinge node gets a second rotation DOF: the element on its right uses it, so θ may jump there
+  const N3 = xs.length * 3, hingeDof = new Map();
+  [...new Set(hinges.map(node))].forEach((ni, k) => hingeDof.set(ni, N3 + k));
+  const n = N3 + hingeDof.size;
   const K = Array.from({ length: n }, () => new Float64Array(n));
   const F = new Float64Array(n);
   for (let e = 0; e < xs.length - 1; e++) {
     const h = xs[e + 1] - xs[e], i = 3 * e, j = 3 * (e + 1);
     const ka = EA / h; K[i][i] += ka; K[i][j] -= ka; K[j][i] -= ka; K[j][j] += ka;
-    const c = EI / h ** 3, idx = [i + 1, i + 2, j + 1, j + 2];
+    const tL = hingeDof.get(e) ?? i + 2, c = EI / h ** 3, idx = [i + 1, tL, j + 1, j + 2];
     const kb = [[12, 6 * h, -12, 6 * h], [6 * h, 4 * h * h, -6 * h, 2 * h * h], [-12, -6 * h, 12, -6 * h], [6 * h, 2 * h * h, -6 * h, 4 * h * h]];
     for (let p = 0; p < 4; p++) for (let q = 0; q < 4; q++) K[idx[p]][idx[q]] += c * kb[p][q];
     // consistent loads of linear distributed loads that cover this element
     for (const d of loads) {
       if (d.type !== 'dist' || xs[e] < d.a - eps || xs[e + 1] > d.b + eps || d.b - d.a < eps) continue;
       const p1 = -distIntensity(d, xs[e]), p2 = -distIntensity(d, xs[e + 1]); // upward intensity
-      F[i + 1] += (h * (7 * p1 + 3 * p2)) / 20; F[i + 2] += (h * h * (3 * p1 + 2 * p2)) / 60;
+      F[i + 1] += (h * (7 * p1 + 3 * p2)) / 20; F[tL] += (h * h * (3 * p1 + 2 * p2)) / 60;
       F[j + 1] += (h * (3 * p1 + 7 * p2)) / 20; F[j + 2] -= (h * h * (2 * p1 + 3 * p2)) / 60;
     }
   }
@@ -98,12 +104,13 @@ export function solveBeam(model, { divisions = 40 } = {}) {
 
   const fixed = new Map(); // dof -> support index (first one wins)
   supports.forEach((s, si) => FIXED_DOFS[s.type].forEach((o) => { const dof = 3 * node(s.x) + o; if (!fixed.has(dof)) fixed.set(dof, si); }));
+  supports.forEach((s) => { if (s.type === 'spring') K[3 * node(s.x) + 1][3 * node(s.x) + 1] += s.k; });
   const free = []; for (let d = 0; d < n; d++) if (!fixed.has(d)) free.push(d);
-  const base = { r, degree: r - 3, xs };
+  const base = { r, h: hinges.length, degree: r - 3 - hinges.length, xs, hinges };
   if (!supports.length) return { ...base, status: 'mechanism' };
   // axial (u) and bending (v, θ) are uncoupled for a straight beam: solve them apart
   const d = new Float64Array(n);
-  for (const part of [free.filter((x) => x % 3 === 0), free.filter((x) => x % 3 !== 0)]) {
+  for (const part of [free.filter((x) => x < N3 && x % 3 === 0), free.filter((x) => x >= N3 || x % 3 !== 0)]) {
     const sol = solveDense(part.map((a) => part.map((b) => K[a][b])), part.map((a) => F[a]));
     if (!sol) return { ...base, status: 'mechanism' };
     part.forEach((dof, i) => (d[dof] = sol[i]));
@@ -115,6 +122,7 @@ export function solveBeam(model, { divisions = 40 } = {}) {
     if (Math.abs(R) < 1e-9 * (1 + Math.abs(F[dof]))) R = Math.abs(R) < 1e-9 ? 0 : R;
     reactions[si][['Rx', 'Ry', 'M'][dof % 3]] += R;
   }
+  supports.forEach((s, si) => { if (s.type === 'spring') { reactions[si].Ry = -s.k * d[3 * node(s.x) + 1]; reactions[si].k = s.k; } });
 
   // internal forces from equilibrium of the part left of the cut
   const allF = [...pointF, ...reactions.map((q) => ({ x: q.x, Fx: q.Rx, Fy: q.Ry }))];
@@ -134,7 +142,7 @@ export function solveBeam(model, { divisions = 40 } = {}) {
   const defl = xs.map((x, i) => ({ x, v: d[3 * i + 1] }));
   const dmax = defl.reduce((m, p) => (Math.abs(p.v) > Math.abs(m.v) ? p : m), defl[0]);
   return {
-    ...base, status: r - 3 > 0 ? 'indeterminate' : 'determinate',
+    ...base, status: base.degree > 0 ? 'indeterminate' : 'determinate',
     reactions, diag, defl, internal,
     Vmax: ext('V'), Mmax: ext('M'), Mpos: Math.max(0, ...diag.map((p) => p.M)), Mneg: Math.min(0, ...diag.map((p) => p.M)), dmax,
   };

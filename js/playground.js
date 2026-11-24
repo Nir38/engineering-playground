@@ -13,7 +13,7 @@ import { renderSaved } from './playground-saved.js';
 
 const KEY = 'mh-pg-v1';
 const W = 360, X0 = 34, X1 = 326, BY = 94; // canvas geometry (px in viewBox units)
-const SUP_NAME = { pin: 'סמך נייח', roller: 'סמך גלגלת', fixed: 'ריתום' };
+const SUP_NAME = { pin: 'סמך נייח', roller: 'סמך גלגלת', fixed: 'ריתום', spring: 'סמך קפיץ' };
 
 const TEMPLATES = [
   { id: 'ss', name: 'קורה פשוטה', make: () => ({ L: 6, supports: [S('pin', 0), S('roller', 6)], loads: [D(0, 6, 10, 10)] }) },
@@ -23,10 +23,13 @@ const TEMPLATES = [
   { id: 'cont', name: 'קורה רציפה', make: () => ({ L: 8, supports: [S('pin', 0), S('roller', 4), S('roller', 8)], loads: [D(0, 8, 10, 10)] }) },
   { id: 'ff', name: 'ריתום משני הצדדים', make: () => ({ L: 6, supports: [S('fixed', 0), S('fixed', 6)], loads: [P(3, 20, 270)] }) },
   { id: 'tri', name: 'עומס משולש', make: () => ({ L: 6, supports: [S('pin', 0), S('roller', 6)], loads: [D(0, 6, 0, 12)] }) },
+  { id: 'gerber', name: 'קורת גרבר (ציר)', make: () => ({ L: 6, supports: [S('fixed', 0), S('roller', 6)], hinges: [H(2)], loads: [D(0, 6, 10, 10)] }) },
+  { id: 'spring', name: 'סמך קפיץ', make: () => ({ L: 6, supports: [S('pin', 0), S('roller', 6), S('spring', 3)], loads: [D(0, 6, 10, 10)] }) },
   { id: 'empty', name: 'ריק', make: () => ({ L: 6, supports: [], loads: [] }) },
 ];
 let uid = 1;
-function S(type, x) { return { id: uid++, type, x }; }
+function S(type, x) { return type === 'spring' ? { id: uid++, type, x, k: 1000 } : { id: uid++, type, x }; }
+function H(x) { return { id: uid++, type: 'hinge', x }; }
 function P(x, P, angle) { return { id: uid++, type: 'point', x, P, angle }; }
 function D(a, b, w1, w2) { return { id: uid++, type: 'dist', a, b, w1, w2 }; }
 function Mo(x, M) { return { id: uid++, type: 'moment', x, M }; }
@@ -36,7 +39,8 @@ let sc = null;
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.L > 0 && Array.isArray(s.supports) && Array.isArray(s.loads)) sc = s; } catch (e) { /* ignore */ }
   if (!sc) sc = defaultScene();
-  uid = 1 + Math.max(0, ...sc.supports.map((e) => e.id), ...sc.loads.map((e) => e.id));
+  if (!Array.isArray(sc.hinges)) sc.hinges = [];
+  uid = 1 + Math.max(0, ...sc.supports.map((e) => e.id), ...sc.loads.map((e) => e.id), ...sc.hinges.map((e) => e.id));
 }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(sc)); } catch (e) { /* ignore */ } };
 
@@ -53,11 +57,11 @@ const snap = (x) => Math.min(sc.L, Math.max(0, Math.round(x / step()) * step()))
 const fix2 = (x) => Math.round(x * 1000) / 1000;
 const X = (m) => X0 + ((X1 - X0) * m) / sc.L;
 const all = () => [...sc.supports.map((e) => ['s', e]), ...sc.loads.map((e) => ['l', e])];
-const find = (id) => sc.supports.find((e) => e.id === id) || sc.loads.find((e) => e.id === id);
+const find = (id) => sc.supports.find((e) => e.id === id) || sc.loads.find((e) => e.id === id) || (sc.hinges || []).find((e) => e.id === id);
 function section() { const { I, EI } = rectSection(sc.b, sc.h, sc.E); return { I, EI }; }
 function solve() {
   const { EI } = section();
-  return solveBeam({ L: sc.L, EI, supports: sc.supports, loads: sc.loads });
+  return solveBeam({ L: sc.L, EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads });
 }
 
 // ---------- SVG pieces ----------
@@ -70,7 +74,10 @@ const hatch = (x1, y, x2) => { let s = `<line x1="${x1}" y1="${y}" x2="${x2}" y2
 
 function drawSupport(s) {
   const x = X(s.x); let g = '';
-  if (s.type === 'pin') {
+  if (s.type === 'spring') {
+    let d = `M${x},${BY + 6} L${x},${BY + 9}`; for (let i = 0; i < 6; i++) d += ` L${x + (i % 2 ? -7 : 7)},${BY + 11 + i * 3.2}`;
+    g = `<path d="${d} L${x},${BY + 31} L${x},${BY + 33}" class="pg-spring"/>${hatch(x - 14, BY + 33, x + 14)}<text x="${x + 10}" y="${BY + 24}" class="pg-t pg-tm">k</text>`;
+  } else if (s.type === 'pin') {
     g = `<polygon points="${x},${BY + 6} ${x - 11},${BY + 25} ${x + 11},${BY + 25}" class="pg-sup"/>${hatch(x - 16, BY + 25, x + 16)}`;
   } else if (s.type === 'roller') {
     g = `<polygon points="${x},${BY + 6} ${x - 10},${BY + 20} ${x + 10},${BY + 20}" class="pg-sup"/><circle cx="${x - 5}" cy="${BY + 23.5}" r="3.2" class="pg-sup"/><circle cx="${x + 5}" cy="${BY + 23.5}" r="3.2" class="pg-sup"/>${hatch(x - 16, BY + 27, x + 16)}`;
@@ -87,6 +94,10 @@ function drawSupport(s) {
   return `<g data-k="${s.id}" class="${sc.sel === s.id ? 'pg-sel' : ''}"><rect x="${x - 20}" y="${BY - 26}" width="40" height="60" rx="10" class="pg-hit"/>${g}</g>`;
 }
 
+function drawHinge(h) {
+  const x = X(h.x);
+  return `<g data-k="${h.id}" class="${sc.sel === h.id ? 'pg-sel' : ''}"><rect x="${x - 16}" y="${BY - 16}" width="32" height="32" rx="8" class="pg-hit"/><circle cx="${x}" cy="${BY}" r="6.5" class="pg-hinge"/></g>`;
+}
 function distScale() { return Math.max(1e-9, ...sc.loads.filter((l) => l.type === 'dist').map((l) => Math.max(Math.abs(l.w1), Math.abs(l.w2)))); }
 function drawLoad(l) {
   const sel = sc.sel === l.id ? 'pg-sel' : '';
@@ -141,7 +152,7 @@ function canvasSvg(res) {
   for (let m = 0; m <= sc.L + 1e-9; m += stepR) s += `<line x1="${X(m)}" y1="${RY - 3}" x2="${X(m)}" y2="${RY + 3}" class="pg-ruler"/>`;
   s += text(X0, RY + 13, '0', 'pg-tm') + text(X1, RY + 13, `${num(sc.L)} m`, 'pg-tm');
   s += `<rect x="${X0}" y="${BY - 6}" width="${X1 - X0}" height="12" rx="2" class="pg-beam"/>`;
-  s += sc.supports.map(drawSupport).join('') + (QUIZ ? '' : drawReactions(res)) + ['dist', 'moment', 'point'].map((t) => sc.loads.filter((l) => l.type === t).map(drawLoad).join('')).join('');
+  s += sc.supports.map(drawSupport).join('') + (sc.hinges || []).map(drawHinge).join('') + (QUIZ ? '' : drawReactions(res)) + ['dist', 'moment', 'point'].map((t) => sc.loads.filter((l) => l.type === t).map(drawLoad).join('')).join('');
   return s + '</svg>';
 }
 
@@ -166,10 +177,11 @@ function plot(points, key, scale, cls, unit, mul = 1) {
 
 // ---------- panels ----------
 function mechanismHint() {
-  const r = sc.supports.reduce((n, s) => n + REACTION_COUNT[s.type], 0);
+  const r = sc.supports.reduce((n, s) => n + REACTION_COUNT[s.type], 0), h = (sc.hinges || []).length;
   if (!sc.supports.length) return 'אין סמכים. הוסף סמך נייח וסמך גלגלת, או ריתום.';
-  if (r < 3) return `יש רק ${r} תגובות, וצריך לפחות 3: שתי משוואות כוחות ומשוואת מומנט.`;
-  if (!sc.supports.some((s) => s.type !== 'roller')) return 'אין ריסון אופקי: גלגלות לבד לא מונעות החלקה. החלף אחת מהן לסמך נייח.';
+  if (r < 3 + h) return `יש ${r} תגובות, וצריך לפחות ${3 + h}: שלוש משוואות שיווי משקל${h ? ` ועוד משוואה לכל ציר פנימי (M = 0 בציר, ${h} צירים)` : ''}.`;
+  if (!sc.supports.some((s) => s.type === 'pin' || s.type === 'fixed')) return 'אין ריסון אופקי: גלגלות וקפיצים לא מונעים החלקה. החלף אחד מהם לסמך נייח.';
+  if (h) return 'הצירים יוצרים חלק שיכול להסתובב: כל קטע בין צירים צריך מספיק סמכים כדי לעמוד בעצמו (או להישען על קטע יציב).';
   return 'יש מספיק תגובות, אבל הן מסודרות כך שהקורה יכולה לזוז או להסתובב (למשל שני סמכים באותה נקודה).';
 }
 
@@ -179,11 +191,12 @@ function resultsHtml(res) {
   }
   const { I } = section();
   const status = res.degree === 0
-    ? '<div class="pg-status good">✓ מסוים סטטית: 3 תגובות, 3 משוואות</div>'
-    : `<div class="pg-status warn">לא מסוים סטטית מדרגה ${res.degree}</div><p class="small muted">יש יותר תגובות ממשוואות שיווי המשקל. הפותר משתמש גם בגמישות הקורה (אלמנטים סופיים).</p>`;
+    ? `<div class="pg-status good">✓ מסוים סטטית: ${res.r} תגובות, ${3 + res.h} משוואות</div>${res.h ? `<p class="small muted">כל ציר פנימי מוסיף משוואה: M = 0 בציר.</p>` : ''}`
+    : `<div class="pg-status warn">לא מסוים סטטית מדרגה ${res.degree}</div><p class="small muted">${res.r} תגובות מול ${3 + res.h} משוואות${res.h ? ' (3 + צירים)' : ''}. הפותר משתמש גם בגמישות הקורה ובקשיחות הקפיצים (אלמנטים סופיים).</p>`;
   const reacts = res.reactions.map((r) => {
     const parts = [`Ry = ${num(r.Ry)} kN`];
-    if (r.type !== 'roller') parts.push(`Rx = ${num(r.Rx)} kN`);
+    if (r.type === 'pin' || r.type === 'fixed') parts.push(`Rx = ${num(r.Rx)} kN`);
+    if (r.type === 'spring') parts.push(`δ = ${num((1000 * r.Ry) / r.k)} mm`);
     if (r.type === 'fixed') parts.push(`M = ${num(r.M)} kN·m`);
     return `<li>${esc(SUP_NAME[r.type])} ב-${ltr(`x = ${num(r.x)} m`)}: ${parts.map(ltr).join(' · ')}</li>`;
   }).join('');
@@ -220,10 +233,14 @@ function editorHtml() {
   }
   const del = '<button class="btn pg-del" data-act="del">🗑 מחק</button>';
   const chips = (items, cur, act) => `<div class="chips">${items.map(([v, t]) => `<button class="chip" data-act="${act}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${t}</button>`).join('')}</div>`;
+  if (e.type === 'hinge') {
+    return `<h3 class="pg-h">ציר פנימי</h3><div class="pg-form">${field('x', 'מיקום', e.x, 'm', step())}</div>
+      <p class="small muted">מחבר שני חלקי קורה בלי להעביר מומנט: M = 0 בציר, אבל כוח גזירה עובר. כל ציר מוסיף משוואה, ולכן מוריד את דרגת אי-המסוימות באחת. בגשרים: "קורת גרבר".</p>${del}`;
+  }
   if (e.type in REACTION_COUNT) {
     return `<h3 class="pg-h">${esc(SUP_NAME[e.type])}</h3>${chips(Object.entries(SUP_NAME), e.type, 'stype')}
-      <div class="pg-form">${field('x', 'מיקום', e.x, 'm', step())}</div>
-      <p class="small muted">${e.type === 'pin' ? 'סמך נייח: מונע תזוזה אופקית ואנכית, מאפשר סיבוב. 2 תגובות.' : e.type === 'roller' ? 'סמך גלגלת: מונע רק תזוזה אנכית. תגובה אחת.' : 'ריתום: מונע תזוזה וסיבוב. 3 תגובות (כולל מומנט).'}</p>${del}`;
+      <div class="pg-form">${field('x', 'מיקום', e.x, 'm', step())}${e.type === 'spring' ? field('k', 'קשיחות k', e.k, 'kN/m') : ''}</div>
+      <p class="small muted">${e.type === 'pin' ? 'סמך נייח: מונע תזוזה אופקית ואנכית, מאפשר סיבוב. 2 תגובות.' : e.type === 'roller' ? 'סמך גלגלת: מונע רק תזוזה אנכית. תגובה אחת.' : e.type === 'spring' ? 'סמך קפיץ: תגובה אנכית R = k·δ שתלויה בשקיעה. k גדול מאוד = גלגלת, k קטן = כמעט בלי סמך. מתאים לקרקע, לגומי או לקורה שנשענת על קורה אחרת.' : 'ריתום: מונע תזוזה וסיבוב. 3 תגובות (כולל מומנט).'}</p>${del}`;
   }
   if (e.type === 'point') {
     return `<h3 class="pg-h">כוח נקודתי</h3><div class="pg-form">${field('P', 'גודל', e.P, 'kN')}${field('x', 'מיקום', e.x, 'm', step())}${field('angle', 'זווית מציר x', e.angle, '°', 5)}</div>
@@ -268,13 +285,15 @@ function renderBeams(view, { toast }) {
     <div class="card pg-intro"><h2>🏗️ קורות ורתימות</h2><p class="small muted">בונים קורה, גוררים סמכים ועומסים, והתוצאות מתעדכנות מיד.</p>
       <div class="pg-templates">${TEMPLATES.map((t) => `<button class="chip" data-tpl="${t.id}">${esc(t.name)}</button>`).join('')}</div></div>
     <div class="card pg-stage"><div id="pgCanvasWrap"></div>
-      <div class="pg-tools">
+      <div class="pg-tools pg-tools4">
         <button class="pg-tool" data-add="pin"><b>△</b>סמך נייח</button>
         <button class="pg-tool" data-add="roller"><b>⊙</b>גלגלת</button>
         <button class="pg-tool" data-add="fixed"><b>▌</b>ריתום</button>
         <button class="pg-tool" data-add="point"><b>↓</b>כוח</button>
         <button class="pg-tool" data-add="dist"><b>⇊</b>עומס מפורס</button>
         <button class="pg-tool" data-add="moment"><b>↺</b>מומנט</button>
+        <button class="pg-tool" data-add="hinge"><b>◦</b>ציר פנימי</button>
+        <button class="pg-tool" data-add="spring"><b>⌇</b>סמך קפיץ</button>
       </div></div>
     <div class="card" id="pgEdit"></div>
     <div class="card" id="pgResults"></div>`;
@@ -288,13 +307,14 @@ function renderBeams(view, { toast }) {
   view.querySelector('.pg-templates').onclick = (ev) => {
     const b = ev.target.closest('[data-tpl]'); if (!b) return;
     const t = TEMPLATES.find((q) => q.id === b.dataset.tpl);
-    Object.assign(sc, t.make(), { sel: null }); save(); renderAll();
+    Object.assign(sc, { hinges: [] }, t.make(), { sel: null }); save(); renderAll();
   };
   view.querySelector('.pg-tools').onclick = (ev) => {
     const b = ev.target.closest('[data-add]'); if (!b) return;
     const k = b.dataset.add, L = sc.L, has = (x) => sc.supports.some((s) => Math.abs(s.x - x) < 1e-9);
     let e;
-    if (k in REACTION_COUNT) e = S(k, !has(0) ? 0 : !has(L) ? L : snap(L / 2));
+    if (k === 'hinge') { e = H(Math.min(L - step(), Math.max(step(), snap(L / 2)))); sc.hinges.push(e); sc.sel = e.id; save(); renderAll(); return; }
+    if (k in REACTION_COUNT) e = S(k, k === 'spring' ? snap(L / 2) : !has(0) ? 0 : !has(L) ? L : snap(L / 2));
     else if (k === 'point') e = P(snap(L / 2), 10, 270);
     else if (k === 'moment') e = Mo(snap(L / 2), 10);
     else e = sc.loads.some((l) => l.type === 'dist') ? D(snap(L / 4), snap((3 * L) / 4), 5, 5) : D(0, L, 5, 5);
@@ -313,6 +333,7 @@ function renderBeams(view, { toast }) {
     } else if (f === 'Mabs') e.M = (e.M >= 0 ? 1 : -1) * Math.abs(v);
     else if (['x', 'a', 'b'].includes(f)) e[f] = Math.min(sc.L, Math.max(0, v));
     else if (f === 'P') e.P = Math.abs(v);
+    else if (f === 'k') { if (v <= 0) return; e.k = v; }
     else e[f] = v;
     save(); renderLive();
     if (!e) { const n = document.createElement('div'); n.innerHTML = editorHtml(); edit.querySelector('#pgSec')?.replaceWith(n.querySelector('#pgSec')); }
@@ -322,8 +343,8 @@ function renderBeams(view, { toast }) {
     const b = ev.target.closest('[data-act]'); if (!b) return;
     const e = find(sc.sel); if (!e) return;
     const a = b.dataset.act, v = b.dataset.v;
-    if (a === 'del') { sc.supports = sc.supports.filter((q) => q !== e); sc.loads = sc.loads.filter((q) => q !== e); sc.sel = null; }
-    else if (a === 'stype') e.type = v;
+    if (a === 'del') { sc.supports = sc.supports.filter((q) => q !== e); sc.loads = sc.loads.filter((q) => q !== e); sc.hinges = sc.hinges.filter((q) => q !== e); sc.sel = null; }
+    else if (a === 'stype') { e.type = v; if (v === 'spring' && !(e.k > 0)) e.k = 1000; }
     else if (a === 'angle') e.angle = Number(v);
     else if (a === 'mdir') e.M = Number(v) * Math.abs(e.M);
     else if (a === 'dshape') { const w = Math.max(Math.abs(e.w1), Math.abs(e.w2)) || 5; [e.w1, e.w2] = v === 'u' ? [w, w] : v === 't1' ? [0, w] : [w, 0]; }
@@ -354,7 +375,8 @@ function renderBeams(view, { toast }) {
       if (drag.h === 'a') e.a = snap(o.a + dx);
       else if (drag.h === 'b') e.b = snap(o.b + dx);
       else { const len = o.b - o.a, a = Math.min(sc.L - len, Math.max(0, snap(o.a + dx))); e.a = fix2(a); e.b = fix2(a + len); }
-    } else e.x = snap(o.x + dx);
+    } else if (e.type === 'hinge') e.x = Math.min(sc.L - step(), Math.max(step(), snap(o.x + dx)));
+    else e.x = snap(o.x + dx);
     schedule();
   });
   const end = (ev) => {
@@ -369,6 +391,7 @@ function renderBeams(view, { toast }) {
 
 function clampAll() {
   sc.supports.forEach((s) => (s.x = Math.min(s.x, sc.L)));
+  (sc.hinges || []).forEach((h) => (h.x = Math.min(h.x, sc.L * 0.98)));
   sc.loads.forEach((l) => { if (l.type === 'dist') { l.a = Math.min(l.a, sc.L); l.b = Math.min(l.b, sc.L); } else l.x = Math.min(l.x, sc.L); });
 }
 function sessionStorageGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return '1'; } }

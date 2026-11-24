@@ -12,6 +12,8 @@ const rng = (seed) => () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t =
 const SCENES = {
   beam: { L: 6, b: 100, h: 200, E: 200, sel: null, supports: [{ id: 1, type: 'pin', x: 0 }, { id: 2, type: 'roller', x: 4 }], loads: [{ id: 3, type: 'dist', a: 0, b: 4, w1: 10, w2: 10 }, { id: 4, type: 'point', x: 6, P: 15, angle: 270 }] },
   beamFixed: { L: 6, b: 100, h: 200, E: 200, sel: null, supports: [{ id: 1, type: 'fixed', x: 0 }, { id: 2, type: 'roller', x: 6 }], loads: [{ id: 3, type: 'dist', a: 0, b: 6, w1: 10, w2: 10 }] },
+  beamGerber: { L: 8, b: 100, h: 200, E: 200, sel: null, supports: [{ id: 1, type: 'fixed', x: 0 }, { id: 2, type: 'roller', x: 5 }, { id: 3, type: 'roller', x: 8 }], hinges: [{ id: 9, type: 'hinge', x: 2.5 }], loads: [{ id: 4, type: 'dist', a: 0, b: 8, w1: 10, w2: 10 }] },
+  beamSpring: { L: 6, b: 100, h: 200, E: 200, sel: null, supports: [{ id: 1, type: 'pin', x: 0 }, { id: 2, type: 'roller', x: 6 }, { id: 3, type: 'spring', x: 3, k: 1000 }], hinges: [], loads: [{ id: 4, type: 'dist', a: 0, b: 6, w1: 10, w2: 10 }] },
   hoist: { sub: 'hoist', hoist: { n: 4, m: 100, mb: 5, eta: 0.95, pull: 'down', dir: 'lift', p: 0 }, conn: { left: { kind: 'hang', m: 2, theta: 30, mus: 0, muk: 0 }, right: { kind: 'hang', m: 3, theta: 30, mus: 0, muk: 0 }, mp: 0 } },
   conn: { sub: 'conn', hoist: { n: 4, m: 100, mb: 5, eta: 0.95, pull: 'down', dir: 'lift', p: 0 }, conn: { left: { kind: 'incline', m: 4, theta: 30, mus: 0.1, muk: 0.08 }, right: { kind: 'hang', m: 5, theta: 30, mus: 0, muk: 0 }, mp: 1 } },
   truss: { joints: [{ id: 1, x: 2, y: 1, sup: 'pin' }, { id: 2, x: 10, y: 1, sup: 'roller' }, { id: 3, x: 6, y: 4.5, sup: null }], members: [{ id: 4, a: 1, b: 3 }, { id: 5, a: 3, b: 2 }, { id: 6, a: 1, b: 2 }], loads: [{ id: 7, j: 3, P: 20, angle: 270 }], tool: 'select', sel: null, pend: null, labels: true, d: 60, E: 200, fy: 235 },
@@ -19,10 +21,10 @@ const SCENES = {
   pres: { sub: 'pres', buoy: { rhoF: 1000, shape: 'box', a: 30, b: 30, h: 24, r: 12, rho: 917, D: 0.8, z: 0, released: true }, pres: { Ht: 5, D: 4, theta: 60, u1: 0.6, u2: 2.6, b: 1, rho2: 1000, top: true, rho1: 900, t: 1, px: 0.8, pz: 2 } },
   vib: { m: 2, k: 200, c: 4, x0: 50, v0: 0, force: true, F0: 10, f: 1.5, speed: 1 },
 };
-const MODE = { beam: 'beam', beamFixed: 'beam', hoist: 'pulley', conn: 'pulley', truss: 'truss', buoy: 'fluid', pres: 'fluid', vib: 'vib' };
+const MODE = { beam: 'beam', beamFixed: 'beam', beamGerber: 'beam', beamSpring: 'beam', hoist: 'pulley', conn: 'pulley', truss: 'truss', buoy: 'fluid', pres: 'fluid', vib: 'vib' };
 // independent answers for some targets
 const indep = {
-  beam: (sc, key) => { const r = solveBeam({ L: sc.L, EI: rectSection(sc.b, sc.h, sc.E).EI, supports: sc.supports, loads: sc.loads }); const i = sc.supports.findIndex((s) => `R${s.id}` === key); return i >= 0 ? r.reactions[i].Ry : null; },
+  beam: (sc, key) => { const r = solveBeam({ L: sc.L, EI: rectSection(sc.b, sc.h, sc.E).EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads }); const i = sc.supports.findIndex((s) => `R${s.id}` === key); return i >= 0 ? r.reactions[i].Ry : null; },
   truss: (sc, key) => { if (key[0] !== 'N') return null; const mj = methodOfJoints(sc); return mj.N[sc.members.findIndex((m) => `N${m.id}` === key)]; },
   pulley: (sc, key) => { if (sc.sub !== 'hoist' || key !== 'F') return null; const h = sc.hoist, W = (h.m + h.mb) * 9.81, e = h.eta; return e === 1 ? W / h.n : (W * (1 - e)) / (e * (1 - e ** h.n)); },
   fluid: (sc, key) => (key === 'sub' ? (100 * sc.buoy.rho) / sc.buoy.rhoF : key === 'pb' ? pressureAt(sc.pres.D, { rho1: 900, t: sc.pres.t, rho2: 1000 }) / 1000 : null),

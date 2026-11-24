@@ -30,14 +30,14 @@ const factor = (rnd) => 0.5 + rnd() * 1.0;
 const nice2 = (v) => Number(Number(v).toPrecision(2));
 const step = (v, s) => Math.max(s, Math.round(v / s) * s);
 const letter = (i) => (i < 26 ? String.fromCharCode(65 + i) : `J${i + 1}`);
-const SUP = { pin: 'בסמך הנייח', roller: 'בגלגלת', fixed: 'בריתום' };
+const SUP = { pin: 'בסמך הנייח', roller: 'בגלגלת', fixed: 'בריתום', spring: 'בסמך הקפיץ' };
 
 // ------------------------------------------------------------------ per-mode definitions
 const MODES = {
   beam: {
-    valid: (sc) => solveBeam({ L: sc.L, EI: rectSection(sc.b, sc.h, sc.E).EI, supports: sc.supports, loads: sc.loads }).status !== 'mechanism',
+    valid: (sc) => solveBeam({ L: sc.L, EI: rectSection(sc.b, sc.h, sc.E).EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads }).status !== 'mechanism',
     targets(sc) {
-      const r = solveBeam({ L: sc.L, EI: rectSection(sc.b, sc.h, sc.E).EI, supports: sc.supports, loads: sc.loads });
+      const r = solveBeam({ L: sc.L, EI: rectSection(sc.b, sc.h, sc.E).EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads });
       const at = (x) => (x < 1e-9 ? 'בקצה השמאלי' : Math.abs(x - sc.L) < 1e-9 ? 'בקצה הימני' : `במרחק ${num(x)} m מהקצה השמאלי`);
       const list = sc.supports.map((s) => ({ key: `R${s.id}`, label: `התגובה האנכית ${SUP[s.type]} ${at(s.x)}` }));
       sc.supports.filter((s) => s.type === 'fixed').forEach((s) => list.push({ key: `M${s.id}`, label: `מומנט התגובה בריתום ${at(s.x)}` }));
@@ -53,11 +53,12 @@ const MODES = {
         else if (l.type === 'moment') l.M = Math.sign(l.M || 1) * step(Math.abs(l.M) * factor(rnd), 0.5);
         else { const g = factor(rnd); l.w1 = l.w1 ? step(l.w1 * g, 0.5) : 0; l.w2 = l.w2 ? step(l.w2 * g, 0.5) : 0; }
       });
+      out.supports.forEach((q) => { if (q.type === 'spring') q.k = nice2(q.k * factor(rnd)); });
       out.h = step(sc.h * (0.75 + 0.5 * rnd()), 10); out.b = step(sc.b * (0.75 + 0.5 * rnd()), 10); void f;
       return out;
     },
     answer(sc, key) {
-      const { I, EI } = rectSection(sc.b, sc.h, sc.E), r = solveBeam({ L: sc.L, EI, supports: sc.supports, loads: sc.loads });
+      const { I, EI } = rectSection(sc.b, sc.h, sc.E), r = solveBeam({ L: sc.L, EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads });
       const sum = r.degree > 0 ? `\\text{statically indeterminate: } EI\\ \\text{used}` : '\\Sigma F_y=0,\\quad \\Sigma M=0';
       if (key[0] === 'R' || (key[0] === 'M' && /^M\d/.test(key))) {
         const i = sc.supports.findIndex((s) => `R${s.id}` === key || `M${s.id}` === key), q = r.reactions[i];
@@ -73,8 +74,11 @@ const MODES = {
     },
     text(sc, key) {
       const sec = ['sigma', 'dmax'].includes(key) ? ` חתך מלבני ${num(sc.b)}×${num(sc.h)} mm, E = ${num(sc.E)} GPa.` : '';
+      const extra = `${(sc.hinges || []).length ? ` בעיגול הלבן יש ציר פנימי (M = 0).` : ''}${sc.supports.filter((q) => q.type === 'spring').map((q) => ` קשיחות סמך הקפיץ k = ${num(q.k)} kN/m.`).join('')}`;
+      const needsEI = (sc.hinges || []).length < sc.supports.reduce((m, q) => m + ({ pin: 2, roller: 1, fixed: 3, spring: 1 })[q.type], 0) - 3 || sc.supports.some((q) => q.type === 'spring');
+      const secAll = sec || (needsEI ? ` חתך מלבני ${num(sc.b)}×${num(sc.h)} mm, E = ${num(sc.E)} GPa.` : '');
       const lab = this.targets(sc).find((x) => x.key === key)?.label || '';
-      return `קורה באורך ${num(sc.L)} m עם הסמכים והעומסים שבשרטוט.${sec} מה ${lab}?${key[0] === 'R' ? ' (כלפי מעלה חיובי)' : key === 'Mneg' ? ' (ערך שלילי)' : /^M\d/.test(key) ? ' (נגד כיוון השעון חיובי)' : ''}`;
+      return `קורה באורך ${num(sc.L)} m עם הסמכים והעומסים שבשרטוט.${extra}${secAll} מה ${lab}?${key[0] === 'R' ? ' (כלפי מעלה חיובי)' : key === 'Mneg' ? ' (ערך שלילי)' : /^M\d/.test(key) ? ' (נגד כיוון השעון חיובי)' : ''}`;
     },
     svg: (sc) => beamSnapshot(sc),
   },
