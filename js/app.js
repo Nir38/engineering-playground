@@ -6,7 +6,7 @@ import { esc, rich } from './text.js';
 import { renderPlayground } from './playground.js';
 import { loadSaved, makeSceneQuestion } from './scenes.js';
 
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.9.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }

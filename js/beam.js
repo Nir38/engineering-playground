@@ -10,7 +10,9 @@
 //     { type: 'point', x, P, angle }      // P > 0, angle in degrees from +x, CCW (270 = straight down)
 //     { type: 'dist', a, b, w1, w2 }      // downward intensity (kN/m), linear from a to b
 //     { type: 'moment', x, M }            // CCW positive (kN·m)
-//   ] }
+//   ],
+//   thermal?: { dT, dTg, alpha, h }  // uniform rise ΔT (°C), T_bottom − T_top (°C), α (1/°C), depth h (m)
+// }
 // Sign convention of results: forces up/right positive, reaction moment CCW positive,
 // shear V = sum of upward forces left of the cut, bending moment M > 0 = sagging.
 
@@ -48,6 +50,7 @@ function distLeftOf(d, x) {
 export function solveBeam(model, { divisions = 40 } = {}) {
   const L = model.L, EI = model.EI, EA = model.EA || (EI * 1e4) / (L * L);
   const eps = 1e-9 * L;
+  const th = model.thermal && model.thermal.alpha && ((model.thermal.dT || 0) || (model.thermal.dTg || 0)) ? model.thermal : null;
   const clamp = (x) => Math.min(L, Math.max(0, x));
   const supports = model.supports.map((s) => ({ ...s, x: clamp(s.x) }));
   const loads = model.loads.map((l) => (l.type === 'dist'
@@ -84,6 +87,11 @@ export function solveBeam(model, { divisions = 40 } = {}) {
     const tL = hingeDof.get(e) ?? i + 2, c = EI / h ** 3, idx = [i + 1, tL, j + 1, j + 2];
     const kb = [[12, 6 * h, -12, 6 * h], [6 * h, 4 * h * h, -6 * h, 2 * h * h], [-12, -6 * h, 12, -6 * h], [6 * h, 2 * h * h, -6 * h, 4 * h * h]];
     for (let p = 0; p < 4; p++) for (let q = 0; q < 4; q++) K[idx[p]][idx[q]] += c * kb[p][q];
+    // thermal loads as equivalent nodal loads: free axial strain αΔT and free curvature κ = α(Tb − Tt)/h
+    if (th) {
+      const Fa = EA * th.alpha * (th.dT || 0); F[i] -= Fa; F[j] += Fa;
+      const Mk = EI * th.alpha * (th.dTg || 0) / th.h; F[tL] -= Mk; F[j + 2] += Mk;
+    }
     // consistent loads of linear distributed loads that cover this element
     for (const d of loads) {
       if (d.type !== 'dist' || xs[e] < d.a - eps || xs[e + 1] > d.b + eps || d.b - d.a < eps) continue;
@@ -140,10 +148,11 @@ export function solveBeam(model, { divisions = 40 } = {}) {
   xs.forEach((x) => { const a = internal(x, -1), b = internal(x, 1); diag.push({ x, ...a }); if (Math.abs(a.V - b.V) + Math.abs(a.M - b.M) > 1e-9) diag.push({ x, ...b }); });
   const ext = (key) => diag.reduce((m, p) => (Math.abs(p[key]) > Math.abs(m[key]) ? p : m), diag[0]);
   const defl = xs.map((x, i) => ({ x, v: d[3 * i + 1] }));
+  const axial = xs.map((x, i) => ({ x, u: d[3 * i] }));
   const dmax = defl.reduce((m, p) => (Math.abs(p.v) > Math.abs(m.v) ? p : m), defl[0]);
   return {
     ...base, status: base.degree > 0 ? 'indeterminate' : 'determinate',
-    reactions, diag, defl, internal,
+    reactions, diag, defl, axial, internal, Nmax: diag.reduce((m, p) => (Math.abs(p.N) > Math.abs(m) ? p.N : m), 0),
     Vmax: ext('V'), Mmax: ext('M'), Mpos: Math.max(0, ...diag.map((p) => p.M)), Mneg: Math.min(0, ...diag.map((p) => p.M)), dmax,
   };
 }

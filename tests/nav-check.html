@@ -152,6 +152,13 @@
   check('adding a spring support: indeterminate, spring reaction and settlement', !!$('#pgResults .pg-status.warn') && $('#pgResults').textContent.includes('סמך קפיץ') && $('#pgResults').textContent.includes('δ ='));
   const kIn = $('#pgEdit [data-f="k"]'); kIn.value = '1e9'; kIn.dispatchEvent(new W.Event('input', { bubbles: true })); await sleep(60);
   check('a very stiff spring acts like a roller (5wL/8 = 37.5 kN)', $('#pgResults').textContent.includes('Ry = 37.5 kN'));
+  $('[data-tpl="ss"]').click(); await sleep(60);
+  const setB = (f, v) => { const i = $(`#pgEdit [data-f="${f}"]`); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); };
+  setB('dT', 30); await sleep(60);
+  check('heating a pin–roller beam: free expansion, no axial force', !$('#pgResults').textContent.includes('כוח צירי N') && $('#pgResults').textContent.includes('מתארכת'));
+  $('[data-tpl="ff"]').click(); await sleep(60);
+  check('heating a fixed–fixed beam: N = −EAαΔT = −1440 kN', $('#pgResults').textContent.includes('-1440 kN'));
+  setB('dT', 0); await sleep(40);
   $('[data-tpl="prop"]').click(); await sleep(50); await go('#/learn'); await go('#/play');
   check('the scene is kept after leaving the tab', $('#pgResults .pg-status.warn') && $('#pgResults').textContent.includes('22.5 kN'));
 

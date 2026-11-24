@@ -407,3 +407,9 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-tools4 { grid-template-columns: repeat(4, 1fr); }
 .pg-tools4 .pg-tool { font-size: .74rem; }
 .pg-hinge { fill: var(--surface); stroke: var(--text); stroke-width: 2.2; }
+.pg-warm { fill: color-mix(in srgb, #f97316 25%, var(--surface-2)); }
+.pg-cool { fill: color-mix(in srgb, #38bdf8 25%, var(--surface-2)); }
+.pg-hotline { stroke: #dc2626; stroke-width: 3; }
+.pg-coldline { stroke: #2563eb; stroke-width: 3; }
+.pg-ttemp { fill: #dc2626; font-size: 11px; }
+.pg-area-n { fill: color-mix(in srgb, var(--curve2) 20%, transparent); stroke: var(--curve2); stroke-width: 1.6; }

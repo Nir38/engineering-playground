@@ -40,6 +40,7 @@ function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.L > 0 && Array.isArray(s.supports) && Array.isArray(s.loads)) sc = s; } catch (e) { /* ignore */ }
   if (!sc) sc = defaultScene();
   if (!Array.isArray(sc.hinges)) sc.hinges = [];
+  if (!Number.isFinite(sc.dT)) sc.dT = 0; if (!Number.isFinite(sc.dTg)) sc.dTg = 0; if (!(sc.alpha > 0)) sc.alpha = 12;
   uid = 1 + Math.max(0, ...sc.supports.map((e) => e.id), ...sc.loads.map((e) => e.id), ...sc.hinges.map((e) => e.id));
 }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(sc)); } catch (e) { /* ignore */ } };
@@ -61,8 +62,10 @@ const find = (id) => sc.supports.find((e) => e.id === id) || sc.loads.find((e) =
 function section() { const { I, EI } = rectSection(sc.b, sc.h, sc.E); return { I, EI }; }
 function solve() {
   const { EI } = section();
-  return solveBeam({ L: sc.L, EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads });
+  return solveBeam({ L: sc.L, EI, EA: sc.E * sc.b * sc.h, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads, thermal: thermalOf(sc) });
 }
+// E [GPa]·A [mm²] = kN; α is stored in 10⁻⁶ 1/°C, h in mm
+export const thermalOf = (q) => (q.dT || q.dTg ? { dT: q.dT || 0, dTg: q.dTg || 0, alpha: (q.alpha || 12) * 1e-6, h: q.h / 1000 } : null);
 
 // ---------- SVG pieces ----------
 function arrow(x1, y1, x2, y2, cls, head = 7) {
@@ -151,7 +154,9 @@ function canvasSvg(res) {
   s += `<line x1="${X0}" y1="${RY}" x2="${X1}" y2="${RY}" class="pg-ruler"/>`;
   for (let m = 0; m <= sc.L + 1e-9; m += stepR) s += `<line x1="${X(m)}" y1="${RY - 3}" x2="${X(m)}" y2="${RY + 3}" class="pg-ruler"/>`;
   s += text(X0, RY + 13, '0', 'pg-tm') + text(X1, RY + 13, `${num(sc.L)} m`, 'pg-tm');
-  s += `<rect x="${X0}" y="${BY - 6}" width="${X1 - X0}" height="12" rx="2" class="pg-beam"/>`;
+  s += `<rect x="${X0}" y="${BY - 6}" width="${X1 - X0}" height="12" rx="2" class="pg-beam ${sc.dT > 0 ? 'pg-warm' : sc.dT < 0 ? 'pg-cool' : ''}"/>`;
+  if (sc.dTg) { const hot = sc.dTg > 0 ? BY + 6 : BY - 6, cold = sc.dTg > 0 ? BY - 6 : BY + 6; s += `<line x1="${X0}" y1="${hot}" x2="${X1}" y2="${hot}" class="pg-hotline"/><line x1="${X0}" y1="${cold}" x2="${X1}" y2="${cold}" class="pg-coldline"/>`; }
+  if (sc.dT || sc.dTg) s += text(X0, 12, `🌡 ${sc.dT ? `ΔT = ${sc.dT > 0 ? '+' : ''}${num(sc.dT)}°C` : ''}${sc.dT && sc.dTg ? ' · ' : ''}${sc.dTg ? `Tb − Tt = ${num(sc.dTg)}°C` : ''}`, 'pg-ttemp', 'start');
   s += sc.supports.map(drawSupport).join('') + (sc.hinges || []).map(drawHinge).join('') + (QUIZ ? '' : drawReactions(res)) + ['dist', 'moment', 'point'].map((t) => sc.loads.filter((l) => l.type === t).map(drawLoad).join('')).join('');
   return s + '</svg>';
 }
@@ -185,6 +190,13 @@ function mechanismHint() {
   return 'יש מספיק תגובות, אבל הן מסודרות כך שהקורה יכולה לזוז או להסתובב (למשל שני סמכים באותה נקודה).';
 }
 
+function thermalNote(res) {
+  const restrained = sc.supports.filter((q) => q.type === 'pin' || q.type === 'fixed').length >= 2;
+  const parts = [];
+  if (sc.dT) parts.push(restrained ? `הקורה מרוסנת בשני הצדדים ולא יכולה להתארך, ולכן נוצר כוח צירי ${ltr('N = −EAαΔT')} (בחימום: לחיצה).` : `לפחות צד אחד חופשי לזוז אופקית (גלגלת), ולכן הקורה מתארכת ב-${ltr(`αΔT·L = ${num((sc.alpha * 1e-6 * sc.dT * sc.L) * 1000)} mm`)} בלי כוח.`);
+  if (sc.dTg) parts.push(`הפרש הטמפרטורה יוצר עקמומיות חופשית ${ltr('κ = αΔT/h')}. בקורה מסוימת היא רק מכופפת (בלי מאמץ), ובקורה לא מסוימת הסמכים מתנגדים ונוצר מומנט.`);
+  return parts.join(' ');
+}
 function resultsHtml(res) {
   if (res.status === 'mechanism') {
     return `<div class="pg-status bad">⚠ מנגנון: המבנה לא יציב</div><p class="small">${esc(mechanismHint())}</p>`;
@@ -192,7 +204,7 @@ function resultsHtml(res) {
   const { I } = section();
   const status = res.degree === 0
     ? `<div class="pg-status good">✓ מסוים סטטית: ${res.r} תגובות, ${3 + res.h} משוואות</div>${res.h ? `<p class="small muted">כל ציר פנימי מוסיף משוואה: M = 0 בציר.</p>` : ''}`
-    : `<div class="pg-status warn">לא מסוים סטטית מדרגה ${res.degree}</div><p class="small muted">${res.r} תגובות מול ${3 + res.h} משוואות${res.h ? ' (3 + צירים)' : ''}. הפותר משתמש גם בגמישות הקורה ובקשיחות הקפיצים (אלמנטים סופיים).</p>`;
+    : `<div class="pg-status warn">לא מסוים סטטית מדרגה ${res.degree}</div><p class="small muted">${res.r} תגובות מול ${3 + res.h} משוואות${res.h ? ' (3 + צירים)' : ''}. הפותר משתמש גם בגמישות הקורה${sc.supports.some((q) => q.type === 'spring') ? ' ובקשיחות הקפיצים' : ''} (אלמנטים סופיים).</p>`;
   const reacts = res.reactions.map((r) => {
     const parts = [`Ry = ${num(r.Ry)} kN`];
     if (r.type === 'pin' || r.type === 'fixed') parts.push(`Rx = ${num(r.Rx)} kN`);
@@ -213,9 +225,12 @@ function resultsHtml(res) {
       <div><span>מאמץ כפיפה מקסימלי</span><b>${ltr(`${num(sigma)} MPa`)}</b></div>
       <div><span>שקיעה מקסימלית</span><b>${ltr(`${num(Math.abs(dm))} mm`)}</b></div>
       <div><span>מיקום השקיעה</span><b>${ltr(`x = ${num(res.dmax.x)} m`)}</b></div>
+      ${Math.abs(res.Nmax) > 1e-6 ? `<div><span>כוח צירי N ${res.Nmax < 0 ? '(לחיצה)' : '(מתיחה)'}</span><b>${ltr(`${num(res.Nmax)} kN`)}</b></div><div><span>מאמץ כולל ${ltr('|N|/A + Mc/I')}</span><b>${ltr(`${num((Math.abs(res.Nmax) * 1000) / (sc.b * sc.h) + sigma)} MPa`)}</b></div>` : ''}
     </div>
     <h3 class="pg-h">כוח גזירה V ${ltr('[kN]')}</h3>${plot(pts, 'V', 1, 'pg-area-v', 'kN')}
     <h3 class="pg-h">מומנט כפיפה M ${ltr('[kN·m]')}</h3>${plot(pts, 'M', 1, 'pg-area-m', 'kN·m')}
+    ${Math.abs(res.Nmax) > 1e-6 ? `<h3 class="pg-h">כוח צירי N ${ltr('[kN]')}</h3>${plot(pts, 'N', 1, 'pg-area-n', 'kN')}` : ''}
+    ${sc.dT || sc.dTg ? `<p class="small">🌡 ${thermalNote(res)}</p>` : ''}
     <h3 class="pg-h">קו הכפיפה ${ltr('[mm]')} <span class="muted small">(מוגדל לתצוגה)</span></h3>${plot(res.defl, 'v', 1, 'pg-curve', 'mm', 1000)}
     <p class="small muted">מוסכמה: כוח כלפי מעלה חיובי, מומנט נגד כיוון השעון חיובי. M חיובי = כפיפה "מחייכת" (sagging). V = סכום הכוחות כלפי מעלה משמאל לחתך.</p>`;
 }
@@ -229,6 +244,10 @@ function editorHtml() {
       ${field('L', 'אורך', sc.L, 'm')}${field('E', 'מודול אלסטיות', sc.E, 'GPa')}
       ${field('b', 'רוחב החתך b', sc.b, 'mm')}${field('h', 'גובה החתך h', sc.h, 'mm')}</div>
       <p class="small muted" id="pgSec">חתך מלבני: ${ltr(`I = bh³/12 = ${num(I / 1e4)} cm⁴`)} · ${ltr(`EI = ${num(EI)} kN·m²`)}. פלדה 200, אלומיניום 70 GPa.</p>
+      <h3 class="pg-h">🌡 טמפרטורה</h3>
+      <div class="pg-form">${field('dT', 'שינוי אחיד ΔT', sc.dT, '°C')}${field('dTg', 'הפרש Tb − Tt', sc.dTg, '°C')}${field('alpha', 'מקדם התפשטות α', sc.alpha, '10⁻⁶/°C')}</div>
+      <div class="chips">${[['steel', 'פלדה (200 GPa, 12)'], ['al', 'אלומיניום (69 GPa, 23)'], ['cu', 'נחושת (110 GPa, 17)']].map(([v, t]) => `<button class="chip" data-mat="${v}">${t}</button>`).join('')}</div>
+      <p class="small muted">ΔT מאריך או מקצר את כל הקורה. Tb − Tt חיובי = התחתית חמה יותר, והקורה רוצה להתכופף. ערכי α בקירוב (Callister).</p>
       <p class="small muted">טיפ: לחץ על רכיב כדי לערוך אותו, וגרור אותו לאורך הקורה.</p>`;
   }
   const del = '<button class="btn pg-del" data-act="del">🗑 מחק</button>';
@@ -329,7 +348,7 @@ function renderBeams(view, { toast }) {
     const v = parseFloat(ev.target.value); if (!Number.isFinite(v)) return;
     const e = sc.sel != null ? find(sc.sel) : null;
     if (!e) {
-      if (f === 'L' && v > 0.1 && v <= 100) { sc.L = v; clampAll(); } else if (f !== 'L' && v > 0) sc[f] = v; else return;
+      if (f === 'L' && v > 0.1 && v <= 100) { sc.L = v; clampAll(); } else if (f === 'dT' || f === 'dTg') { if (Math.abs(v) > 1000) return; sc[f] = v; } else if (f !== 'L' && v > 0) sc[f] = v; else return;
     } else if (f === 'Mabs') e.M = (e.M >= 0 ? 1 : -1) * Math.abs(v);
     else if (['x', 'a', 'b'].includes(f)) e[f] = Math.min(sc.L, Math.max(0, v));
     else if (f === 'P') e.P = Math.abs(v);
@@ -340,6 +359,8 @@ function renderBeams(view, { toast }) {
   });
   edit.addEventListener('change', () => { if (sc.sel == null) return; edit.innerHTML = editorHtml(); });
   edit.addEventListener('click', (ev) => {
+    const mt = ev.target.closest('[data-mat]');
+    if (mt) { const [E, al] = { steel: [200, 12], al: [69, 23], cu: [110, 17] }[mt.dataset.mat]; sc.E = E; sc.alpha = al; save(); renderAll(); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
     const e = find(sc.sel); if (!e) return;
     const a = b.dataset.act, v = b.dataset.v;

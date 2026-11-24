@@ -16,6 +16,7 @@ import { vibChecks } from './vib-cases.mjs';
 import { fbdChecks } from './fbd-cases.mjs';
 import { sceneChecks } from './scene-cases.mjs';
 import { hingeSpringChecks } from './beam-hinge-cases.mjs';
+import { thermalChecks } from './beam-thermal-cases.mjs';
 
 const require = createRequire(import.meta.url);
 const katex = require('../vendor/katex/katex.min.js');
@@ -584,6 +585,7 @@ vibChecks(check, near);
 fbdChecks(check, near);
 sceneChecks(check, near);
 hingeSpringChecks(check, near);
+thermalChecks(check, near);
 
 // ---------- bar charts in lessons: values read from the content, checked against formulas ----------
 {

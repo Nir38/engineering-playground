@@ -7,7 +7,7 @@ import { tackle, connected } from './pulleys.js';
 import { solveTruss } from './truss.js';
 import { equilibrium, metacentric, bodyVolume, bodyHeight, gateForce, pressureAt, G } from './hydro.js';
 import { params as vibParams, steady, magnification, transmissibility } from './vibration.js';
-import { beamSnapshot } from './playground.js';
+import { beamSnapshot, thermalOf } from './playground.js';
 import { pulleySnapshot } from './playground-pulleys.js';
 import { trussSnapshot } from './playground-truss.js';
 import { fluidSnapshot } from './playground-fluid.js';
@@ -35,14 +35,15 @@ const SUP = { pin: 'בסמך הנייח', roller: 'בגלגלת', fixed: 'ברי
 // ------------------------------------------------------------------ per-mode definitions
 const MODES = {
   beam: {
-    valid: (sc) => solveBeam({ L: sc.L, EI: rectSection(sc.b, sc.h, sc.E).EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads }).status !== 'mechanism',
+    valid: (sc) => solveBeam({ L: sc.L, EI: rectSection(sc.b, sc.h, sc.E).EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads, EA: sc.E * sc.b * sc.h, thermal: thermalOf(sc) }).status !== 'mechanism',
     targets(sc) {
-      const r = solveBeam({ L: sc.L, EI: rectSection(sc.b, sc.h, sc.E).EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads });
+      const r = solveBeam({ L: sc.L, EI: rectSection(sc.b, sc.h, sc.E).EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads, EA: sc.E * sc.b * sc.h, thermal: thermalOf(sc) });
       const at = (x) => (x < 1e-9 ? 'בקצה השמאלי' : Math.abs(x - sc.L) < 1e-9 ? 'בקצה הימני' : `במרחק ${num(x)} m מהקצה השמאלי`);
       const list = sc.supports.map((s) => ({ key: `R${s.id}`, label: `התגובה האנכית ${SUP[s.type]} ${at(s.x)}` }));
       sc.supports.filter((s) => s.type === 'fixed').forEach((s) => list.push({ key: `M${s.id}`, label: `מומנט התגובה בריתום ${at(s.x)}` }));
       if (r.Mpos > 1e-6) list.push({ key: 'Mpos', label: 'מומנט הכפיפה החיובי המרבי' });
       if (r.Mneg < -1e-6) list.push({ key: 'Mneg', label: 'מומנט הכפיפה השלילי המרבי' });
+      if (Math.abs(r.Nmax) > 1e-6) list.push({ key: 'N', label: 'הכוח הצירי N' });
       list.push({ key: 'Vmax', label: 'כוח הגזירה המרבי |V|' }, { key: 'sigma', label: 'מאמץ הכפיפה המרבי' }, { key: 'dmax', label: 'השקיעה המרבית' });
       return list;
     },
@@ -54,11 +55,12 @@ const MODES = {
         else { const g = factor(rnd); l.w1 = l.w1 ? step(l.w1 * g, 0.5) : 0; l.w2 = l.w2 ? step(l.w2 * g, 0.5) : 0; }
       });
       out.supports.forEach((q) => { if (q.type === 'spring') q.k = nice2(q.k * factor(rnd)); });
+      if (out.dT) out.dT = Math.round(out.dT * factor(rnd)) || Math.sign(sc.dT); if (out.dTg) out.dTg = Math.round(out.dTg * factor(rnd)) || Math.sign(sc.dTg);
       out.h = step(sc.h * (0.75 + 0.5 * rnd()), 10); out.b = step(sc.b * (0.75 + 0.5 * rnd()), 10); void f;
       return out;
     },
     answer(sc, key) {
-      const { I, EI } = rectSection(sc.b, sc.h, sc.E), r = solveBeam({ L: sc.L, EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads });
+      const { I, EI } = rectSection(sc.b, sc.h, sc.E), r = solveBeam({ L: sc.L, EI, supports: sc.supports, hinges: sc.hinges || [], loads: sc.loads, EA: sc.E * sc.b * sc.h, thermal: thermalOf(sc) });
       const sum = r.degree > 0 ? `\\text{statically indeterminate: } EI\\ \\text{used}` : '\\Sigma F_y=0,\\quad \\Sigma M=0';
       if (key[0] === 'R' || (key[0] === 'M' && /^M\d/.test(key))) {
         const i = sc.supports.findIndex((s) => `R${s.id}` === key || `M${s.id}` === key), q = r.reactions[i];
@@ -66,6 +68,7 @@ const MODES = {
       }
       if (key === 'Mpos') return { value: r.Mpos, unit: 'kN·m', steps: ['M(x)=\\Sigma F_i(x-x_i)-\\Sigma M_i', tx('M_{max}^{+}', r.Mpos, 'kN·m')] };
       if (key === 'Mneg') return { value: r.Mneg, unit: 'kN·m', steps: ['M(x)=\\Sigma F_i(x-x_i)-\\Sigma M_i', tx('M_{max}^{-}', r.Mneg, 'kN·m')] };
+      if (key === 'N') return { value: r.Nmax, unit: 'kN', steps: ['\\varepsilon_T=\\alpha\\Delta T,\\quad EA=E\\,b\\,h', tx('N', r.Nmax, 'kN'), r.Nmax < 0 ? '\\text{compression}' : '\\text{tension}'] };
       if (key === 'Vmax') return { value: Math.abs(r.Vmax.V), unit: 'kN', steps: ['V(x)=\\Sigma F_{y,\\text{left}}', tx('|V|_{max}', Math.abs(r.Vmax.V), 'kN')] };
       const Mabs = Math.max(r.Mpos, -r.Mneg);
       if (key === 'sigma') { const s = bendingStress(Mabs, sc.h, I); return { value: s, unit: 'MPa', steps: [`I=\\frac{bh^3}{12}=${num(I / 1e4)}\\ \\text{cm}^4`, `\\sigma=\\frac{M c}{I}=\\frac{${num(Mabs)}\\cdot 10^6\\cdot ${num(sc.h / 2)}}{${num(I)}}`, tx('\\sigma_{max}', s, 'MPa')] }; }
@@ -76,7 +79,8 @@ const MODES = {
       const sec = ['sigma', 'dmax'].includes(key) ? ` חתך מלבני ${num(sc.b)}×${num(sc.h)} mm, E = ${num(sc.E)} GPa.` : '';
       const extra = `${(sc.hinges || []).length ? ` בעיגול הלבן יש ציר פנימי (M = 0).` : ''}${sc.supports.filter((q) => q.type === 'spring').map((q) => ` קשיחות סמך הקפיץ k = ${num(q.k)} kN/m.`).join('')}`;
       const needsEI = (sc.hinges || []).length < sc.supports.reduce((m, q) => m + ({ pin: 2, roller: 1, fixed: 3, spring: 1 })[q.type], 0) - 3 || sc.supports.some((q) => q.type === 'spring');
-      const secAll = sec || (needsEI ? ` חתך מלבני ${num(sc.b)}×${num(sc.h)} mm, E = ${num(sc.E)} GPa.` : '');
+      const temp = sc.dT || sc.dTg ? ` טמפרטורה: ${sc.dT ? `שינוי אחיד ΔT = ${num(sc.dT)}°C` : ''}${sc.dT && sc.dTg ? ', ' : ''}${sc.dTg ? `הפרש בין התחתית לחלק העליון Tb − Tt = ${num(sc.dTg)}°C` : ''}, α = ${num(sc.alpha || 12)}·10⁻⁶ 1/°C.` : '';
+      const secAll = (sec || (needsEI || temp ? ` חתך מלבני ${num(sc.b)}×${num(sc.h)} mm, E = ${num(sc.E)} GPa.` : '')) + temp;
       const lab = this.targets(sc).find((x) => x.key === key)?.label || '';
       return `קורה באורך ${num(sc.L)} m עם הסמכים והעומסים שבשרטוט.${extra}${secAll} מה ${lab}?${key[0] === 'R' ? ' (כלפי מעלה חיובי)' : key === 'Mneg' ? ' (ערך שלילי)' : /^M\d/.test(key) ? ' (נגד כיוון השעון חיובי)' : ''}`;
     },
