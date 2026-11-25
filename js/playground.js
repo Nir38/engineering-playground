@@ -9,6 +9,7 @@ import { renderTruss, trussScene } from './playground-truss.js';
 import { renderFluid, fluidScene } from './playground-fluid.js';
 import { renderVib, vibScene } from './playground-vib.js';
 import { renderAir } from './playground-air.js';
+import { renderTunnel } from './playground-tunnel.js';
 import { renderFbd } from './playground-fbd.js';
 import { renderSaved } from './playground-saved.js';
 
@@ -282,24 +283,24 @@ const HIST = {}; // undo history per mode, kept while the app is open
 export function renderPlayground(page, ctx) {
   ctx.setTitle('מגרש משחקים');
   let mode = 'beam';
-  try { const m = localStorage.getItem(MODE_KEY); mode = ['pulley', 'truss', 'fluid', 'vib', 'fbd', 'air'].includes(m) ? m : 'beam'; } catch (e) { /* ignore */ }
-  page.innerHTML = `<div id="pgRoot"><div class="pg-head"><div class="pg-modes"><button class="pg-mode" data-mode="beam">🏗️ קורות</button><button class="pg-mode" data-mode="pulley">🪢 גלגלות</button><button class="pg-mode" data-mode="truss">△ מסבכים</button><button class="pg-mode" data-mode="fluid">💧 נוזלים</button><button class="pg-mode" data-mode="vib">〰 רטט</button><button class="pg-mode" data-mode="fbd">✎ גוף חופשי</button><button class="pg-mode" data-mode="air">✈ כנף</button></div><div class="pg-undo"><button class="btn" id="pgRedo" disabled aria-label="חזור על הפעולה" title="חזור">↷</button><button class="btn" id="pgUndo" disabled aria-label="בטל את הפעולה האחרונה" title="בטל">↶</button></div></div><div id="pgBody"></div><div id="pgSaved"></div></div>`;
+  try { const m = localStorage.getItem(MODE_KEY); mode = ['pulley', 'truss', 'fluid', 'vib', 'fbd', 'air', 'tunnel'].includes(m) ? m : 'beam'; } catch (e) { /* ignore */ }
+  page.innerHTML = `<div id="pgRoot"><div class="pg-head"><div class="pg-modes"><button class="pg-mode" data-mode="beam">🏗️ קורות</button><button class="pg-mode" data-mode="pulley">🪢 גלגלות</button><button class="pg-mode" data-mode="truss">△ מסבכים</button><button class="pg-mode" data-mode="fluid">💧 נוזלים</button><button class="pg-mode" data-mode="vib">〰 רטט</button><button class="pg-mode" data-mode="fbd">✎ גוף חופשי</button><button class="pg-mode" data-mode="air">✈ כנף</button><button class="pg-mode" data-mode="tunnel">🌬 מנהרת רוח</button></div><div class="pg-undo"><button class="btn" id="pgRedo" disabled aria-label="חזור על הפעולה" title="חזור">↷</button><button class="btn" id="pgUndo" disabled aria-label="בטל את הפעולה האחרונה" title="בטל">↶</button></div></div><div id="pgBody"></div><div id="pgSaved"></div></div>`;
   const root = page.querySelector('#pgRoot'); // listeners live on this node, which is replaced when the route changes
   const undoBox = root.querySelector('.pg-undo'); // kept by reference: each mode's drawing card gets it in its corner
   let body = page.querySelector('#pgBody');
   const show = () => {
     page.querySelectorAll('.pg-mode').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
     const fresh = body.cloneNode(false); body.replaceWith(fresh); body = fresh; // drop old listeners
-    if (mode === 'pulley') renderPulleys(fresh, ctx); else if (mode === 'truss') renderTruss(fresh, ctx); else if (mode === 'fluid') renderFluid(fresh, ctx); else if (mode === 'vib') renderVib(fresh, ctx); else if (mode === 'fbd') renderFbd(fresh, ctx); else if (mode === 'air') renderAir(fresh, ctx); else renderBeams(fresh, ctx);
+    if (mode === 'pulley') renderPulleys(fresh, ctx); else if (mode === 'truss') renderTruss(fresh, ctx); else if (mode === 'fluid') renderFluid(fresh, ctx); else if (mode === 'vib') renderVib(fresh, ctx); else if (mode === 'fbd') renderFbd(fresh, ctx); else if (mode === 'air') renderAir(fresh, ctx); else if (mode === 'tunnel') renderTunnel(fresh, ctx); else renderBeams(fresh, ctx);
     const getScene = { beam: () => sc && { ...sc, sel: null }, pulley: pulleyScene, truss: trussScene, fluid: fluidScene, vib: vibScene }[mode];
     renderSaved(page.querySelector('#pgSaved'), { mode, getScene, toast: ctx.toast, practice: ctx.practice });
     // undo/redo live in the corner of the drawing card, next to what they change
     const stage = body.querySelector('.pg-stage'); if (undoBox && stage) stage.prepend(undoBox);
-    if (undoBox) setTimeout(() => { const h = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined }); if (h.cur === undefined) { try { h.cur = localStorage.getItem({ beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1' }[mode]); } catch (e) { h.cur = null; } } undoBox.querySelector('#pgUndo').disabled = !h.past.length; undoBox.querySelector('#pgRedo').disabled = !h.future.length; }, 0);
+    if (undoBox) setTimeout(() => { const h = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined }); if (h.cur === undefined) { try { h.cur = localStorage.getItem({ beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1', tunnel: 'mh-pg-tunnel-v1' }[mode]); } catch (e) { h.cur = null; } } undoBox.querySelector('#pgUndo').disabled = !h.past.length; undoBox.querySelector('#pgRedo').disabled = !h.future.length; }, 0);
   };
   // ---- undo / redo: every mode keeps its whole scene in localStorage, so history is a list of
   // snapshots of that key, taken after each interaction (selection changes are ignored)
-  const STORE = { beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1' };
+  const STORE = { beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1', tunnel: 'mh-pg-tunnel-v1' };
   const read = () => { try { return localStorage.getItem(STORE[mode]); } catch (e) { return null; } };
   const norm = (raw) => { try { const o = JSON.parse(raw); delete o.sel; delete o.pend; return JSON.stringify(o); } catch (e) { return raw; } };
   const hist = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined });
