@@ -11,6 +11,7 @@ import { domains } from '../data/catalog.js';
 import { beamChecks } from './beam-cases.mjs';
 import { pulleyChecks } from './pulley-cases.mjs';
 import { trussChecks } from './truss-cases.mjs';
+import { airfoilChecks } from './airfoil-cases.mjs';
 import { hydroChecks } from './hydro-cases.mjs';
 import { vibChecks } from './vib-cases.mjs';
 import { fbdChecks } from './fbd-cases.mjs';
@@ -582,6 +583,7 @@ const ex = [
 beamChecks(check, near);
 pulleyChecks(check, near);
 trussChecks(check, near);
+airfoilChecks(check, near);
 hydroChecks(check, near);
 vibChecks(check, near);
 fbdChecks(check, near);
