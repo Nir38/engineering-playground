@@ -12,7 +12,7 @@ const HINT = {
   joint: 'לחץ על מקום ריק ברשת כדי להוסיף צומת.',
   member: 'לחץ צומת ואז צומת נוסף (או מקום ריק) כדי לחבר מוט. אפשר להמשיך ברצף. לחיצה שוב על אותו צומת מסיימת.',
   pin: 'לחץ על צומת כדי לשים או להוריד סמך נייח (2 תגובות).',
-  roller: 'לחץ על צומת כדי לשים או להוריד גלגלת (תגובה אנכית אחת).',
+  roller: 'לחץ על צומת כדי לשים או להוריד גלגלת (תגובה אחת, ניצבת למשטח). את זווית המשטח θ משנים בבחירת הצומת.',
   force: 'לחץ על צומת כדי להוסיף כוח (10 kN כלפי מטה). לחץ על הכוח כדי לשנות.',
   del: 'לחץ על צומת, מוט או כוח כדי למחוק.',
 };
@@ -32,6 +32,7 @@ const TEMPLATES = [
     [[0, 1], [1, 2], [2, 3], [4, 5], [5, 6], [0, 4], [4, 1], [1, 5], [5, 2], [2, 6], [6, 3]], { 0: 'pin', 3: 'roller' }, [[1, 10], [2, 10]]) },
   { id: 'tri', name: 'משולש', make: () => build([[2, 1], [10, 1], [6, 4.5]], [[0, 2], [2, 1], [0, 1]], { 0: 'pin', 1: 'roller' }, [[2, 20]]) },
   { id: 'cant', name: 'זיז מקיר', make: () => build([[0.5, 1.5], [0.5, 5.5], [4.5, 4.5], [4.5, 1.5], [9, 3]], [[0, 3], [3, 4], [1, 2], [2, 4], [2, 3], [0, 2]], { 0: 'pin', 1: 'pin' }, [[4, 15]]) },
+  { id: 'incl', name: 'גלגלת משופעת θ', make: () => { const m = build([[2, 1.5], [10, 1.5], [6, 5]], [[0, 2], [2, 1], [0, 1]], { 0: 'pin', 1: 'roller' }, [[2, 20]]); m.joints[1].theta = 30; return m; } },
   { id: 'empty', name: 'ריק', make: () => ({ joints: [], members: [], loads: [] }) },
 ];
 const defaults = () => ({ ...TEMPLATES[0].make(), tool: 'select', sel: null, pend: null, labels: true, d: 60, E: 200, fy: 235 });
@@ -73,6 +74,17 @@ function loadSeg(l) {
   return blocked ? [x + d[0] * 9, y + d[1] * 9, x + d[0] * 44, y + d[1] * 44] : [x - d[0] * 40, y - d[1] * 40, x - d[0] * 7, y - d[1] * 7];
 }
 
+// the rolling surface's angle: dashed horizontal, an arc from it to the surface, and the value
+function rollerBase(j) { const t = ((j.theta || 0) * Math.PI) / 180; return [px(j.x) + 21 * Math.sin(t), py(j.y) + 21 * Math.cos(t), t]; }
+function thetaArc(j) {
+  const [bx, by, t] = rollerBase(j), r = 20, sg = t > 0 ? 1 : -1;
+  const ex = bx + r * Math.cos(t) * sg, ey = by - r * Math.sin(t) * sg, hx = bx + sg * 28;
+  const mid = t / 2, lx = bx + sg * 33 * Math.cos(mid), ly = by - sg * 33 * Math.sin(mid) + 4;
+  return `<line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${hx.toFixed(1)}" y2="${by.toFixed(1)}" class="pg-theta" stroke-dasharray="3 2"/>`
+    + `<path d="M${(bx + sg * r).toFixed(1)},${by.toFixed(1)} A${r},${r} 0 0 ${t > 0 ? 0 : 1} ${ex.toFixed(1)},${ey.toFixed(1)}" class="pg-theta"/>`
+    + text(Math.min(W - 36, Math.max(36, lx)), ly, `θ=${num(Math.abs(j.theta))}°`, 'pg-tl', sg > 0 ? 'start' : 'end');
+}
+
 function solve() { return solveTruss({ joints: st.joints, members: st.members, loads: st.loads }); }
 
 function svg(res) {
@@ -96,11 +108,25 @@ function svg(res) {
   st.joints.forEach((j) => {
     const x = px(j.x), y = py(j.y);
     if (j.sup === 'pin') s += `<polygon points="${x},${y + 4} ${x - 9},${y + 19} ${x + 9},${y + 19}" class="pg-sup"/><line x1="${x - 13}" y1="${y + 19}" x2="${x + 13}" y2="${y + 19}" class="pg-ground"/>`;
-    if (j.sup === 'roller') s += `<polygon points="${x},${y + 4} ${x - 8},${y + 15} ${x + 8},${y + 15}" class="pg-sup"/><circle cx="${x - 4}" cy="${y + 18}" r="2.6" class="pg-sup"/><circle cx="${x + 4}" cy="${y + 18}" r="2.6" class="pg-sup"/><line x1="${x - 13}" y1="${y + 21}" x2="${x + 13}" y2="${y + 21}" class="pg-ground"/>`;
+    if (j.sup === 'roller') {
+      const th = j.theta || 0, g = th ? 20 : 13;
+      s += `<g transform="rotate(${-th} ${x} ${y})"><polygon points="${x},${y + 4} ${x - 8},${y + 15} ${x + 8},${y + 15}" class="pg-sup"/><circle cx="${x - 4}" cy="${y + 18}" r="2.6" class="pg-sup"/><circle cx="${x + 4}" cy="${y + 18}" r="2.6" class="pg-sup"/><line x1="${x - g}" y1="${y + 21}" x2="${x + g}" y2="${y + 21}" class="pg-ground"/></g>`;
+      if (th) s += thetaArc(j);
+    }
   });
   // reactions
   if (ok) res.reactions.forEach((r) => {
-    const j = J(r.id), x = px(j.x), y = py(j.y) + 24, lines = [];
+    const j = J(r.id);
+    if (r.sup === 'roller' && r.theta) {
+      if (Math.abs(r.R) < 1e-9) return;
+      const [bx, by, t] = rollerBase(j), dx = Math.sin(t), dy = Math.cos(t), sgn = r.R > 0;
+      const a = [bx + 30 * dx, by + 30 * dy], b = [bx + 6 * dx, by + 6 * dy];
+      s += sgn ? arrow(a[0], a[1], b[0], b[1], 'pg-react', 6) : arrow(b[0], b[1], a[0], a[1], 'pg-react', 6);
+      const lx = a[0] + (dx >= 0 ? 6 : -6);
+      s += text(Math.min(W - 26, Math.max(26, lx)), Math.min(H - 4, a[1] + 4), `R ${num(Math.abs(r.R))}`, 'pg-tr', dx >= 0 ? 'start' : 'end');
+      return;
+    }
+    const x = px(j.x), y = py(j.y) + 24, lines = [];
     if (Math.abs(r.Ry) > 1e-9) { s += r.Ry > 0 ? arrow(x, y + 26, x, y + 2, 'pg-react', 6) : arrow(x, y + 2, x, y + 26, 'pg-react', 6); lines.push(`Ry ${num(r.Ry)}`); }
     if (Math.abs(r.Rx) > 1e-9) { s += r.Rx > 0 ? arrow(x - 30, y - 12, x - 12, y - 12, 'pg-react', 6) : arrow(x + 30, y - 12, x + 12, y - 12, 'pg-react', 6); lines.push(`Rx ${num(r.Rx)}`); }
     lines.forEach((t, i) => (s += text(Math.min(W - 26, Math.max(26, x + (x > W / 2 ? -8 : 8))), Math.min(H - 4 - 11 * (lines.length - 1 - i), y + 22 + 11 * i), t, 'pg-tr', x > W / 2 ? 'end' : 'start')));
@@ -125,7 +151,8 @@ function mechanismHint(res) {
   if (!j) return 'אין צמתים. בחר תבנית או בנה עם הכלים.';
   if (loose.length) return `יש צמתים שלא מחוברים לאף מוט: ${loose.map(jointName).join(', ')}.`;
   if (!st.joints.some((q) => q.sup)) return 'אין סמכים. הוסף סמך נייח וגלגלת.';
-  if (!st.joints.some((q) => q.sup === 'pin')) return 'אין ריסון אופקי: גלגלות לבד לא מונעות החלקה. הוסף סמך נייח.';
+  const rolls = st.joints.filter((q) => q.sup === 'roller').map((q) => q.theta || 0);
+  if (!st.joints.some((q) => q.sup === 'pin') && rolls.every((t) => (t - rolls[0]) % 180 === 0)) return 'אין ריסון אופקי: גלגלות לבד לא מונעות החלקה. הוסף סמך נייח.';
   if (m + r < 2 * j) return `${ltr(`m + r = ${m} + ${r} = ${m + r}`)}, אבל צריך לפחות ${ltr(`2j = ${2 * j}`)}. חסרים ${2 * j - m - r} מוטות או תגובות.`;
   return 'יש מספיק מוטות ותגובות, אבל הסידור שלהם מאפשר תזוזה: חסר משולש באחד הפאנלים, או ששלושה צמתים על קו אחד.';
 }
@@ -140,13 +167,17 @@ function results(res) {
   const com = rows.filter((r) => r.f.N < -1e-7).sort((a, b) => a.f.N - b.f.N)[0];
   const crit = rows.slice().sort((a, b) => b.c.util - a.c.util)[0];
   const zeros = rows.filter((r) => Math.abs(r.f.N) < 1e-7).map((r) => memName(r.q));
-  const reacts = res.reactions.map((r) => `<li>${esc(jointName(r.id))} (${r.sup === 'pin' ? 'סמך נייח' : 'גלגלת'}): ${ltr(`Ry = ${num(r.Ry)} kN`)}${r.sup === 'pin' ? ` · ${ltr(`Rx = ${num(r.Rx)} kN`)}` : ''}</li>`).join('');
+  const reacts = res.reactions.map((r) => (r.sup === 'roller' && r.theta
+    ? `<li>${esc(jointName(r.id))} (גלגלת על משטח בזווית ${ltr(`θ = ${num(r.theta)}°`)}): ${ltr(`R = ${num(r.R)} kN`)} ניצב למשטח · ${ltr(`Rx = ${num(r.Rx)} kN`)} · ${ltr(`Ry = ${num(r.Ry)} kN`)}</li>`
+    : `<li>${esc(jointName(r.id))} (${r.sup === 'pin' ? 'סמך נייח' : 'גלגלת'}): ${ltr(`Ry = ${num(r.Ry)} kN`)}${r.sup === 'pin' ? ` · ${ltr(`Rx = ${num(r.Rx)} kN`)}` : ''}</li>`)).join('');
+  const incl = res.reactions.some((r) => r.sup === 'roller' && r.theta)
+    ? `<p class="small muted">גלגלת על משטח משופע דוחפת ניצב למשטח, בכיוון ${ltr('(−sinθ, cosθ)')}. לכן ${ltr('Ry = R·cosθ')} ו-${ltr('Rx = −R·sinθ')}: ככל ש-θ גדל, נוצר רכיב אופקי שהסמך הנייח והמוטות צריכים לאזן. נסה לשנות את θ ולראות איך הכוחות זזים.</p>` : '';
   const table = rows.map(({ f, q, c }) => {
     const kind = Math.abs(f.N) < 1e-7 ? '<span class="pg-kz">אפס</span>' : f.N > 0 ? '<span class="pg-kt">מתיחה</span>' : '<span class="pg-kc">לחיצה</span>';
     return `<tr data-row="${q.id}" class="${st.sel === q.id ? 'pg-rowsel' : ''}"><td>${esc(memName(q))}</td><td>${ltr(num(f.L))}</td><td>${ltr(num(Math.abs(f.N)))}</td><td>${kind}</td><td class="${c.util > 1 ? 'pg-over' : ''}">${ltr(`${num(100 * c.util)}%`)}</td></tr>`;
   }).join('');
   return `${status}
-    <h3 class="pg-h">כוחות תגובה</h3><ul class="pg-list">${reacts}</ul>
+    <h3 class="pg-h">כוחות תגובה</h3><ul class="pg-list">${reacts}</ul>${incl}
     <div class="pg-max">
       <div><span>מתיחה מרבית</span><b>${ten ? `${ltr(`${num(ten.f.N)} kN`)} <small class="muted">${esc(memName(ten.q))}</small>` : '—'}</b></div>
       <div><span>לחיצה מרבית</span><b>${com ? `${ltr(`${num(-com.f.N)} kN`)} <small class="muted">${esc(memName(com.q))}</small>` : '—'}</b></div>
@@ -164,7 +195,10 @@ function editor(res) {
   const j = st.joints.find((q) => q.id === sel), m = st.members.find((q) => q.id === sel), l = st.loads.find((q) => q.id === sel);
   const del = '<button class="btn pg-del" data-act="del">🗑 מחק</button>';
   if (j) return `<h3 class="pg-h">צומת ${esc(jointName(j.id))}</h3><div class="pg-form">${field('x', 'x', j.x, 'm', 'step="0.5"')}${field('y', 'y', j.y, 'm', 'step="0.5"')}</div>
-    ${chips([['', 'בלי סמך'], ['pin', 'סמך נייח'], ['roller', 'גלגלת']], j.sup || '', 'sup')}${del}`;
+    ${chips([['', 'בלי סמך'], ['pin', 'סמך נייח'], ['roller', 'גלגלת']], j.sup || '', 'sup')}
+    ${j.sup === 'roller' ? `<h3 class="pg-h">זווית המשטח של הגלגלת</h3><div class="pg-form">${field('theta', 'θ מהאופק', j.theta || 0, '°', 'step="5" min="-80" max="80"')}</div>
+    ${chips([[0, '0°'], [15, '15°'], [30, '30°'], [45, '45°'], [60, '60°'], [-30, '−30°']], j.theta || 0, 'theta')}
+    <p class="small muted">${ltr('θ = 0')}: משטח אופקי, תגובה אנכית. θ חיובי: המשטח עולה ימינה.</p>` : ''}${del}`;
   if (l) return `<h3 class="pg-h">כוח בצומת ${esc(jointName(l.j))}</h3><div class="pg-form">${field('P', 'גודל', l.P, 'kN')}${field('angle', 'זווית מציר x', l.angle, '°', 'step="5"')}</div>
     ${chips([[270, '↓'], [90, '↑'], [315, '↘'], [225, '↙'], [0, '→'], [180, '←']], l.angle, 'angle')}${del}`;
   if (m) {
@@ -211,6 +245,7 @@ export function renderTruss(root, { toast }) {
     if (a === 'labels') st.labels = v === '1';
     else if (a === 'del') removeSel();
     else if (a === 'sup') { const j = J(st.sel); if (j) j.sup = v || null; }
+    else if (a === 'theta') { const j = J(st.sel); if (j) j.theta = Number(v); }
     else if (a === 'angle') { const l = st.loads.find((q) => q.id === st.sel); if (l) l.angle = Number(v); }
     else return;
     save(); all();
@@ -222,6 +257,7 @@ export function renderTruss(root, { toast }) {
     if (j && (f === 'x' || f === 'y')) { const nv = Math.min(f === 'x' ? WX : WY, Math.max(0, Math.round(v * 2) / 2)); if (!occupied(f === 'x' ? nv : j.x, f === 'y' ? nv : j.y, j.id)) j[f] = nv; }
     else if (l && f === 'P') { if (v <= 0) return; l.P = v; }
     else if (l && f === 'angle') l.angle = v;
+    else if (j && f === 'theta') j.theta = Math.max(-80, Math.min(80, v));
     else if (['d', 'E', 'fy'].includes(f)) { if (v <= 0) return; st[f] = v; }
     else return;
     save(); live();

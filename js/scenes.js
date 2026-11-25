@@ -128,7 +128,7 @@ const MODES = {
     targets(sc) {
       const name = (id) => letter(sc.joints.findIndex((j) => j.id === id));
       const list = sc.members.map((m) => ({ key: `N${m.id}`, label: `הכוח במוט ${name(m.a)}${name(m.b)}` }));
-      sc.joints.filter((j) => j.sup).forEach((j) => { list.push({ key: `Ry${j.id}`, label: `התגובה האנכית בצומת ${name(j.id)}` }); if (j.sup === 'pin') list.push({ key: `Rx${j.id}`, label: `התגובה האופקית בצומת ${name(j.id)}` }); });
+      sc.joints.filter((j) => j.sup).forEach((j) => { list.push({ key: `Ry${j.id}`, label: `התגובה האנכית בצומת ${name(j.id)}` }); if (j.sup === 'pin' || j.theta) list.push({ key: `Rx${j.id}`, label: `התגובה האופקית בצומת ${name(j.id)}` }); });
       return list;
     },
     randomize(sc, rnd) { const out = clone(sc); out.loads.forEach((l) => (l.P = step(l.P * factor(rnd), 0.5))); return out; },

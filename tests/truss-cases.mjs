@@ -31,8 +31,21 @@ export function trussChecks(check, near) {
   model = { joints: [J(1, 0, 0, 'pin'), J(2, 0, 2, 'pin'), J(3, 2, 0)], members: [Mb(1, 1, 3), Mb(2, 2, 3)], loads: [down(3)] };
   s = solveTruss(model);
   check('wall cantilever: tie = P√2, strut = -P', near(force(s, 2, 3), 10 * Math.SQRT2, 1e-9) && near(force(s, 1, 3), -10, 1e-9) && s.status === 'determinate');
+  // roller on a surface inclined θ = 30°: ΣM_A → R·cosθ·4 = 10·2 → R = 5/cos30°, Rx_B = −5·tan30°,
+  // pin A balances it: Ax = +5·tan30°; joint B: N_BC = −5√2, N_AB = 5 − 5·tan30°
+  {
+    const t = Math.PI / 6, inc = { joints: [J(1, 0, 0, 'pin'), { ...J(2, 4, 0, 'roller'), theta: 30 }, J(3, 2, 2)], members: [Mb(1, 1, 3), Mb(2, 3, 2), Mb(3, 1, 2)], loads: [down(3)] };
+    s = solveTruss(inc);
+    const B = s.reactions.find((r) => r.id === 2), A = s.reactions.find((r) => r.id === 1);
+    check('inclined roller 30°: R = 5/cosθ, normal to the surface', near(B.R, 5 / Math.cos(t), 1e-9) && near(B.Ry, 5, 1e-9) && near(B.Rx, -5 * Math.tan(t), 1e-9));
+    check('inclined roller 30°: pin takes Ax = +5·tanθ, Ay = 5', near(A.Rx, 5 * Math.tan(t), 1e-9) && near(A.Ry, 5, 1e-9));
+    check('inclined roller 30°: tie N_AB = 5 − 5·tanθ, N_BC = −5√2', near(force(s, 1, 2), 5 - 5 * Math.tan(t), 1e-9) && near(force(s, 3, 2), -5 * Math.SQRT2, 1e-9));
+    const mj2 = methodOfJoints(inc);
+    check('inclined roller: stiffness = method of joints', mj2 && s.forces.every((f, i) => Math.abs(f.N - mj2.N[i]) < 1e-9));
+    check('flat roller (θ = 0) unchanged', near(solveTruss({ ...inc, joints: [J(1, 0, 0, 'pin'), { ...J(2, 4, 0, 'roller'), theta: 0 }, J(3, 2, 2)] }).reactions[1].Ry, 5, 1e-9));
+  }
   // mechanisms
-  const sq = [J(1, 0, 0, 'pin'), J(2, 2, 0, 'roller'), J(3, 2, 2), J(4, 0, 2)];
+  const sq =[J(1, 0, 0, 'pin'), J(2, 2, 0, 'roller'), J(3, 2, 2), J(4, 0, 2)];
   check('square without a diagonal is a mechanism', solveTruss({ joints: sq, members: [Mb(1, 1, 2), Mb(2, 2, 3), Mb(3, 3, 4), Mb(4, 4, 1)], loads: [down(3)] }).status === 'mechanism');
   check('m + r < 2j is a mechanism', solveTruss({ joints: sq, members: [Mb(1, 1, 2), Mb(2, 2, 3), Mb(3, 3, 4)], loads: [] }).status === 'mechanism');
   check('two rollers only: mechanism', solveTruss({ joints: [J(1, 0, 0, 'roller'), J(2, 4, 0, 'roller'), J(3, 2, 2)], members: [Mb(1, 1, 3), Mb(2, 3, 2), Mb(3, 1, 2)], loads: [down(3)] }).status === 'mechanism');

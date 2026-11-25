@@ -3,7 +3,8 @@
 // exact; for statically determinate trusses they do not depend on EA at all.
 //
 // model = {
-//   joints:  [{ id, x, y, sup: null | 'pin' | 'roller' }]   // roller: vertical reaction only
+//   joints:  [{ id, x, y, sup: null | 'pin' | 'roller', theta }] // roller: one reaction, normal to its rolling
+//            surface; theta = surface angle from horizontal in degrees, CCW (0 = flat: vertical reaction)
 //   members: [{ id, a, b }]                                  // joint ids
 //   loads:   [{ id, j, P, angle }]                           // P > 0 (kN), angle from +x, CCW (270 = down)
 // }
@@ -57,10 +58,20 @@ export function solveTruss(model, { EA = 1 } = {}) {
   }
   const fixed = new Set();
   J.forEach((q, i) => { if (q.sup === 'pin') { fixed.add(2 * i); fixed.add(2 * i + 1); } else if (q.sup === 'roller') fixed.add(2 * i + 1); });
+  // inclined rollers: turn that joint's two dofs to (along the surface, normal to it); the normal one is fixed
+  const rot = J.map((q, i) => [i, q.sup === 'roller' && q.theta ? (q.theta * Math.PI) / 180 : 0]).filter(([, t]) => t);
+  const Kr = K.map((row) => Float64Array.from(row)), Fr = Float64Array.from(F);
+  for (const [i, t] of rot) {
+    const c = Math.cos(t), sn = Math.sin(t), a = 2 * i, b = a + 1;
+    for (let k = 0; k < n; k++) { const x = Kr[a][k], y = Kr[b][k]; Kr[a][k] = c * x + sn * y; Kr[b][k] = -sn * x + c * y; }
+    for (let k = 0; k < n; k++) { const x = Kr[k][a], y = Kr[k][b]; Kr[k][a] = c * x + sn * y; Kr[k][b] = -sn * x + c * y; }
+    const x = Fr[a], y = Fr[b]; Fr[a] = c * x + sn * y; Fr[b] = -sn * x + c * y;
+  }
   const free = []; for (let d = 0; d < n; d++) if (!fixed.has(d)) free.push(d);
-  const sol = solveScaled(free.map((a) => free.map((b) => K[a][b])), free.map((a) => F[a]));
+  const sol = solveScaled(free.map((a) => free.map((b) => Kr[a][b])), free.map((a) => Fr[a]));
   if (!sol) return { ...base, status: 'mechanism' };
   const u = new Float64Array(n); free.forEach((d, i) => (u[d] = sol[i]));
+  for (const [i, t] of rot) { const c = Math.cos(t), sn = Math.sin(t), ut = u[2 * i], un = u[2 * i + 1]; u[2 * i] = c * ut - sn * un; u[2 * i + 1] = sn * ut + c * un; }
 
   const tiny = (v, ref) => (Math.abs(v) < 1e-9 * Math.max(1, ref) ? 0 : v);
   const Fmax = Math.max(1, ...[...F].map(Math.abs));
@@ -70,8 +81,11 @@ export function solveTruss(model, { EA = 1 } = {}) {
   });
   const reactions = J.map((q, i) => {
     if (!q.sup) return null;
-    const R = [0, 1].map((o) => { const d = 2 * i + o; if (!fixed.has(d)) return 0; let v = -F[d]; for (let k = 0; k < n; k++) v += K[d][k] * u[k]; return tiny(v, Fmax); });
-    return { id: q.id, sup: q.sup, Rx: R[0], Ry: R[1] };
+    const inc = q.sup === 'roller' && q.theta;
+    const R = [0, 1].map((o) => { const d = 2 * i + o; if (!fixed.has(d) && !inc) return 0; let v = -F[d]; for (let k = 0; k < n; k++) v += K[d][k] * u[k]; return tiny(v, Fmax); });
+    const out = { id: q.id, sup: q.sup, Rx: R[0], Ry: R[1] };
+    if (q.sup === 'roller') { const t = ((q.theta || 0) * Math.PI) / 180; out.theta = q.theta || 0; out.R = tiny(-Math.sin(t) * R[0] + Math.cos(t) * R[1], Fmax); } // along the surface normal (-sinθ, cosθ)
+    return out;
   }).filter(Boolean);
   return { ...base, status: count.degree > 0 ? 'indeterminate' : 'determinate', forces, reactions, u };
 }
@@ -82,7 +96,7 @@ export function methodOfJoints(model) {
   const J = model.joints, idx = new Map(J.map((j, i) => [j.id, i]));
   const unk = [];
   model.members.forEach((q) => unk.push({ kind: 'N', q }));
-  J.forEach((q, i) => { if (q.sup === 'pin') unk.push({ kind: 'Rx', i }, { kind: 'Ry', i }); else if (q.sup === 'roller') unk.push({ kind: 'Ry', i }); });
+  J.forEach((q, i) => { if (q.sup === 'pin') unk.push({ kind: 'Rx', i }, { kind: 'Ry', i }); else if (q.sup === 'roller') unk.push({ kind: 'Rn', i, t: ((q.theta || 0) * Math.PI) / 180 }); });
   const n = 2 * J.length; if (unk.length !== n) return null;
   const A = Array.from({ length: n }, () => Array(n).fill(0)), b = Array(n).fill(0);
   unk.forEach((x, c) => {
@@ -90,7 +104,8 @@ export function methodOfJoints(model) {
       const i = idx.get(x.q.a), k = idx.get(x.q.b), dx = J[k].x - J[i].x, dy = J[k].y - J[i].y, L = Math.hypot(dx, dy);
       // tension pulls joint i toward k and joint k toward i
       A[2 * i][c] += dx / L; A[2 * i + 1][c] += dy / L; A[2 * k][c] -= dx / L; A[2 * k + 1][c] -= dy / L;
-    } else A[2 * x.i + (x.kind === 'Ry' ? 1 : 0)][c] += 1;
+    } else if (x.kind === 'Rn') { A[2 * x.i][c] += -Math.sin(x.t); A[2 * x.i + 1][c] += Math.cos(x.t); }
+    else A[2 * x.i + (x.kind === 'Ry' ? 1 : 0)][c] += 1;
   });
   (model.loads || []).forEach((l) => { const i = idx.get(l.j), t = (l.angle * Math.PI) / 180; b[2 * i] -= l.P * Math.cos(t); b[2 * i + 1] -= l.P * Math.sin(t); });
   // plain Gaussian elimination with partial pivoting

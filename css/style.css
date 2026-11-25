@@ -264,6 +264,7 @@ details.domain-pick summary::-webkit-details-marker { display: none; }
 .pg-t { font-size: 10.5px; fill: var(--text); font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
 .pg-plot .pg-t { stroke: var(--surface-2); }
 .pg-tl { fill: var(--load); }
+.pg-theta { stroke: var(--load); stroke-width: 1.4; fill: none; }
 .pg-tr { fill: var(--good); }
 .pg-tm, .pg-tv { fill: var(--muted); font-weight: 500; }
 .pg-tv { fill: var(--text); }
