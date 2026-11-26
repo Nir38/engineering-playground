@@ -7,7 +7,7 @@ import { renderPlayground } from './playground.js';
 import { loadSaved, makeSceneQuestion } from './scenes.js';
 import { review, dueIds, parseAnswer, isCorrect, sanitizeState, spread, DAILY_LIMIT } from './srs.js';
 
-const APP_VERSION = '3.2.1';
+const APP_VERSION = '3.2.2';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }

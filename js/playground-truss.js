@@ -12,7 +12,7 @@ const HINT = {
   joint: 'לחץ על מקום ריק ברשת כדי להוסיף צומת.',
   member: 'לחץ צומת ואז צומת נוסף (או מקום ריק) כדי לחבר מוט. אפשר להמשיך ברצף. לחיצה שוב על אותו צומת מסיימת.',
   pin: 'לחץ על צומת כדי לשים או להוריד סמך נייח (2 תגובות).',
-  roller: 'לחץ על צומת כדי לשים או להוריד גלגלת (תגובה אחת, ניצבת למשטח). את זווית המשטח θ משנים בבחירת הצומת.',
+  roller: 'לחץ על צומת כדי לשים או להוריד גלגלת (תגובה אחת, ניצבת למשטח). את זווית המשטח β משנים בבחירת הצומת.',
   force: 'לחץ על צומת כדי להוסיף כוח (10 kN כלפי מטה). לחץ על הכוח כדי לשנות.',
   del: 'לחץ על צומת, מוט או כוח כדי למחוק.',
 };
@@ -32,7 +32,7 @@ const TEMPLATES = [
     [[0, 1], [1, 2], [2, 3], [4, 5], [5, 6], [0, 4], [4, 1], [1, 5], [5, 2], [2, 6], [6, 3]], { 0: 'pin', 3: 'roller' }, [[1, 10], [2, 10]]) },
   { id: 'tri', name: 'משולש', make: () => build([[2, 1], [10, 1], [6, 4.5]], [[0, 2], [2, 1], [0, 1]], { 0: 'pin', 1: 'roller' }, [[2, 20]]) },
   { id: 'cant', name: 'זיז מקיר', make: () => build([[0.5, 1.5], [0.5, 5.5], [4.5, 4.5], [4.5, 1.5], [9, 3]], [[0, 3], [3, 4], [1, 2], [2, 4], [2, 3], [0, 2]], { 0: 'pin', 1: 'pin' }, [[4, 15]]) },
-  { id: 'incl', name: 'גלגלת משופעת θ', make: () => { const m = build([[2, 1.5], [10, 1.5], [6, 5]], [[0, 2], [2, 1], [0, 1]], { 0: 'pin', 1: 'roller' }, [[2, 20]]); m.joints[1].theta = 30; return m; } },
+  { id: 'incl', name: 'גלגלת משופעת β', make: () => { const m = build([[2, 1.5], [10, 1.5], [6, 5]], [[0, 2], [2, 1], [0, 1]], { 0: 'pin', 1: 'roller' }, [[2, 20]]); m.joints[1].theta = 30; return m; } },
   { id: 'empty', name: 'ריק', make: () => ({ joints: [], members: [], loads: [] }) },
 ];
 const defaults = () => ({ ...TEMPLATES[0].make(), tool: 'select', sel: null, pend: null, labels: true, d: 60, E: 200, fy: 235 });
@@ -82,7 +82,7 @@ function thetaArc(j) {
   const mid = t / 2, lx = bx + sg * 33 * Math.cos(mid), ly = by - sg * 33 * Math.sin(mid) + 4;
   return `<line x1="${bx.toFixed(1)}" y1="${by.toFixed(1)}" x2="${hx.toFixed(1)}" y2="${by.toFixed(1)}" class="pg-theta" stroke-dasharray="3 2"/>`
     + `<path d="M${(bx + sg * r).toFixed(1)},${by.toFixed(1)} A${r},${r} 0 0 ${t > 0 ? 0 : 1} ${ex.toFixed(1)},${ey.toFixed(1)}" class="pg-theta"/>`
-    + text(Math.min(W - 36, Math.max(36, lx)), ly, `θ=${num(Math.abs(j.theta))}°`, 'pg-tl', sg > 0 ? 'start' : 'end');
+    + text(Math.min(W - 36, Math.max(36, lx)), ly, `β=${num(Math.abs(j.theta))}°`, 'pg-tl', sg > 0 ? 'start' : 'end');
 }
 
 function solve() { return solveTruss({ joints: st.joints, members: st.members, loads: st.loads }); }
@@ -104,6 +104,7 @@ function svg(res) {
     const A = J(q.a), B = J(q.b), N = F.get(q.id); if (!A || !B || N == null) return;
     s += text((px(A.x) + px(B.x)) / 2, (py(A.y) + py(B.y)) / 2 + 3.5, sig3(Math.abs(N)), Math.abs(N) < 1e-7 ? 'pg-tz' : N > 0 ? 'pg-tt' : 'pg-tc');
   });
+  { const r = angRef(); if (r) s += memberArc(r); } // θ between the members
   // supports
   st.joints.forEach((j) => {
     const x = px(j.x), y = py(j.y);
@@ -111,7 +112,7 @@ function svg(res) {
     if (j.sup === 'roller') {
       const th = j.theta || 0, g = th ? 20 : 13;
       s += `<g transform="rotate(${-th} ${x} ${y})"><polygon points="${x},${y + 4} ${x - 8},${y + 15} ${x + 8},${y + 15}" class="pg-sup"/><circle cx="${x - 4}" cy="${y + 18}" r="2.6" class="pg-sup"/><circle cx="${x + 4}" cy="${y + 18}" r="2.6" class="pg-sup"/><line x1="${x - g}" y1="${y + 21}" x2="${x + g}" y2="${y + 21}" class="pg-ground"/></g>`;
-      s += th ? thetaArc(j) : text(x > W - 60 ? x - 16 : x + 16, y + 29, 'θ=0°', 'pg-tl', x > W - 60 ? 'end' : 'start');
+      if (th) s += thetaArc(j);
     }
   });
   // reactions
@@ -168,10 +169,10 @@ function results(res) {
   const crit = rows.slice().sort((a, b) => b.c.util - a.c.util)[0];
   const zeros = rows.filter((r) => Math.abs(r.f.N) < 1e-7).map((r) => memName(r.q));
   const reacts = res.reactions.map((r) => (r.sup === 'roller' && r.theta
-    ? `<li>${esc(jointName(r.id))} (גלגלת על משטח בזווית ${ltr(`θ = ${num(r.theta)}°`)}): ${ltr(`R = ${num(r.R)} kN`)} ניצב למשטח · ${ltr(`Rx = ${num(r.Rx)} kN`)} · ${ltr(`Ry = ${num(r.Ry)} kN`)}</li>`
+    ? `<li>${esc(jointName(r.id))} (גלגלת על משטח בזווית ${ltr(`β = ${num(r.theta)}°`)}): ${ltr(`R = ${num(r.R)} kN`)} ניצב למשטח · ${ltr(`Rx = ${num(r.Rx)} kN`)} · ${ltr(`Ry = ${num(r.Ry)} kN`)}</li>`
     : `<li>${esc(jointName(r.id))} (${r.sup === 'pin' ? 'סמך נייח' : 'גלגלת'}): ${ltr(`Ry = ${num(r.Ry)} kN`)}${r.sup === 'pin' ? ` · ${ltr(`Rx = ${num(r.Rx)} kN`)}` : ''}</li>`)).join('');
   const incl = res.reactions.some((r) => r.sup === 'roller' && r.theta)
-    ? `<p class="small muted">גלגלת על משטח משופע דוחפת ניצב למשטח, בכיוון ${ltr('(−sinθ, cosθ)')}. לכן ${ltr('Ry = R·cosθ')} ו-${ltr('Rx = −R·sinθ')}: ככל ש-θ גדל, נוצר רכיב אופקי שהסמך הנייח והמוטות צריכים לאזן. נסה לשנות את θ ולראות איך הכוחות זזים.</p>` : '';
+    ? `<p class="small muted">גלגלת על משטח משופע דוחפת ניצב למשטח, בכיוון ${ltr('(−sinβ, cosβ)')}. לכן ${ltr('Ry = R·cosβ')} ו-${ltr('Rx = −R·sinβ')}: ככל ש-β גדל, נוצר רכיב אופקי שהסמך הנייח והמוטות צריכים לאזן. נסה לשנות את β ולראות איך הכוחות זזים.</p>` : '';
   const table = rows.map(({ f, q, c }) => {
     const kind = Math.abs(f.N) < 1e-7 ? '<span class="pg-kz">אפס</span>' : f.N > 0 ? '<span class="pg-kt">מתיחה</span>' : '<span class="pg-kc">לחיצה</span>';
     return `<tr data-row="${q.id}" class="${st.sel === q.id ? 'pg-rowsel' : ''}"><td>${esc(memName(q))}</td><td>${ltr(num(f.L))}</td><td>${ltr(num(Math.abs(f.N)))}</td><td>${kind}</td><td class="${c.util > 1 ? 'pg-over' : ''}">${ltr(`${num(100 * c.util)}%`)}</td></tr>`;
@@ -190,21 +191,91 @@ function results(res) {
     <p class="small muted">כחול = מתיחה, אדום = לחיצה, אפור מקווקו = מוט אפס. ניצול: מוט עגול מלא בקוטר ${ltr(`${num(st.d)} mm`)}, הגדול מבין ${ltr('σ/σy')} ו-${ltr('|N|/Pcr')} (קריסת Euler, קצוות מפרקיים, ${ltr('K = 1')}). בלי מקדם ביטחון.</p>`;
 }
 
-// θ slider of one roller, always reachable (not only after selecting the joint)
-const thetaSlider = (j) => `<label class="pg-range"><span>θ של הגלגלת ב-${esc(jointName(j.id))} <b>${ltr(`${num(j.theta || 0)}°`)}</b></span><input type="range" data-f="rtheta" data-j="${j.id}" min="-80" max="80" step="5" value="${j.theta || 0}" aria-label="θ"></label>`;
-function rollerAngles() {
-  const rs = st.joints.filter((q) => q.sup === 'roller');
-  return rs.length ? `<h3 class="pg-h">זווית θ של המשטח מתחת לגלגלת</h3>${rs.map(thetaSlider).join('')}<p class="small muted">${ltr('θ = 0')}: משטח אופקי, תגובה אנכית. הזז ורואים איך כוחות התגובה והמוטות משתנים.</p>` : '';
+// roller surface angle β (only in the joint editor)
+const betaSlider = (j) => `<label class="pg-range"><span>β, זווית המשטח <b>${ltr(`${num(j.theta || 0)}°`)}</b></span><input type="range" data-f="rtheta" data-j="${j.id}" min="-80" max="80" step="5" value="${j.theta || 0}" aria-label="β"></label>`;
+
+// θ: the angle between an inclined member and a horizontal member (chord) at their joint.
+// Changing θ scales every joint's height above the lowest joint, so all diagonals turn together
+// (the horizontal spans stay). In a parallel-chord truss: diagonal ≈ V/sinθ, chords ≈ M/h.
+const TH_MIN = 10, TH_MAX = 80;
+function angRef() {
+  const inc = (m) => { const A = J(m.a), B = J(m.b); return A && B && Math.abs(A.y - B.y) > 1e-9 && Math.abs(A.x - B.x) > 1e-9; };
+  const hor = (m) => { const A = J(m.a), B = J(m.b); return A && B && Math.abs(A.y - B.y) < 1e-9; };
+  const pairs = (m) => {
+    const out = [];
+    for (const end of [m.a, m.b]) {
+      const P = J(end), A = J(end === m.a ? m.b : m.a);
+      for (const h of st.members) {
+        if (h === m || !hor(h) || (h.a !== end && h.b !== end)) continue;
+        const H = J(h.a === end ? h.b : h.a);
+        if ((A.x - P.x) * (H.x - P.x) > 0) out.push({ m, h, P, A, H });
+      }
+    }
+    return out;
+  };
+  const sel = st.members.find((q) => q.id === st.sel);
+  if (sel && inc(sel)) {
+    const r = pairs(sel)[0]; if (r) return r;
+    const A = J(sel.a), B = J(sel.b), P = A.y < B.y ? A : B;
+    return { m: sel, h: null, P, A: P === A ? B : A, H: null };
+  }
+  const sup = (m) => (J(m.a).sup || J(m.b).sup ? 0 : 1);
+  for (const m of st.members.filter(inc).sort((a, b) => sup(a) - sup(b))) { const r = pairs(m)[0]; if (r) return r; }
+  return null;
 }
+const refTheta = (r) => (Math.atan2(Math.abs(r.A.y - r.P.y), Math.abs(r.A.x - r.P.x)) * 180) / Math.PI;
+function thetaLimit(r) { // the largest θ that still fits on the grid
+  const ys = st.joints.map((q) => q.y), yb = Math.min(...ys), top = Math.max(...ys) - yb;
+  const kmax = top > 1e-9 ? (WY - yb) / top : Infinity, dy = Math.abs(r.A.y - r.P.y), dx = Math.abs(r.A.x - r.P.x);
+  return Math.min(TH_MAX, (Math.atan((kmax * dy) / dx) * 180) / Math.PI);
+}
+function setTheta(r, deg) {
+  const dy = Math.abs(r.A.y - r.P.y), dx = Math.abs(r.A.x - r.P.x);
+  const t = Math.max(TH_MIN, Math.min(thetaLimit(r), deg)), k = (Math.tan((t * Math.PI) / 180) * dx) / dy;
+  const yb = Math.min(...st.joints.map((q) => q.y));
+  st.joints.forEach((q) => { q.y = Math.round((yb + (q.y - yb) * k) * 1000) / 1000; });
+}
+function memberArc(r) {
+  const x = px(r.P.x), y = py(r.P.y), sx = r.A.x > r.P.x ? 1 : -1;
+  const a0 = sx > 0 ? 0 : Math.PI, a1 = Math.atan2(-(r.A.y - r.P.y), r.A.x - r.P.x);
+  let d = a1 - a0; while (d > Math.PI) d -= 2 * Math.PI; while (d <= -Math.PI) d += 2 * Math.PI;
+  const R = 24, am = a0 + d / 2, e0 = [x + R * Math.cos(a0), y + R * Math.sin(a0)], e1 = [x + R * Math.cos(a1), y + R * Math.sin(a1)];
+  const base = r.h ? '' : `<line x1="${x}" y1="${y}" x2="${x + sx * 34}" y2="${y}" class="pg-theta" stroke-dasharray="3 2"/>`;
+  const lx = x + 40 * Math.cos(am), ly = y + 40 * Math.sin(am) + 4;
+  return `${base}<path d="M${e0[0].toFixed(1)},${e0[1].toFixed(1)} A${R},${R} 0 0 ${d > 0 ? 1 : 0} ${e1[0].toFixed(1)},${e1[1].toFixed(1)}" class="pg-theta pg-theta-w"/>`
+    + text(Math.min(W - 30, Math.max(30, lx)), ly, `θ=${Math.round(refTheta(r))}°`, 'pg-tl pg-tth');
+}
+function thetaCard() {
+  const r = angRef(); if (!r) return '';
+  const th = refTheta(r), lim = thetaLimit(r);
+  const what = r.h ? `בצומת ${esc(jointName(r.P.id))}, בין המוט ${esc(memName(r.m))} לבין ${esc(memName(r.h))}` : `בין המוט ${esc(memName(r.m))} לבין האופק`;
+  return `<h3 class="pg-h">זווית θ בין המוטות</h3>
+    <label class="pg-range"><span>${what} <b>${ltr(`${num(Math.round(th * 10) / 10)}°`)}</b></span><input type="range" data-f="mtheta" min="${TH_MIN}" max="${Math.floor(lim)}" step="1" value="${Math.round(th)}" aria-label="θ"></label>
+    <p class="small muted">משנים את θ והמסבך נעשה גבוה או נמוך יותר: כל האלכסונים מסתובבים יחד, והרוחב נשאר. במסבך עם חגורות מקבילות, הכוח באלכסון הוא בערך ${ltr('V / sinθ')} והכוח בחגורות ${ltr('M / h')}. לכן זווית קטנה (מסבך נמוך) נותנת כוחות גדולים בכל המוטות. לחץ על מוט משופע אחר כדי למדוד את הזווית שלו.</p>`;
+}
+// angles between neighbouring members at a joint
+function jointAngles(j) {
+  const dirs = st.members.filter((m) => m.a === j.id || m.b === j.id).map((m) => { const o = J(m.a === j.id ? m.b : m.a); return { m, a: Math.atan2(o.y - j.y, o.x - j.x) }; }).sort((p, q) => p.a - q.a);
+  if (dirs.length < 2) return '';
+  const out = [];
+  for (let i = 0; i < dirs.length; i++) {
+    const p = dirs[i], q = dirs[(i + 1) % dirs.length]; let d = ((q.a - p.a) * 180) / Math.PI; if (d <= 0) d += 360;
+    if (dirs.length === 2 && i === 1) break;
+    if (d < 180 + 1e-9 || dirs.length === 2) out.push(`${esc(memName(p.m))} ↔ ${esc(memName(q.m))}: ${ltr(`${num(Math.round(Math.min(d, 360 - d) * 10) / 10)}°`)}`);
+  }
+  return `<h3 class="pg-h">זוויות בין המוטות בצומת</h3><ul class="pg-list">${out.map((t) => `<li>${t}</li>`).join('')}</ul>`;
+}
+
 function editor(res) {
   const sel = st.sel;
   const j = st.joints.find((q) => q.id === sel), m = st.members.find((q) => q.id === sel), l = st.loads.find((q) => q.id === sel);
   const del = '<button class="btn pg-del" data-act="del">🗑 מחק</button>';
   if (j) return `<h3 class="pg-h">צומת ${esc(jointName(j.id))}</h3><div class="pg-form">${field('x', 'x', j.x, 'm', 'step="0.5"')}${field('y', 'y', j.y, 'm', 'step="0.5"')}</div>
     ${chips([['', 'בלי סמך'], ['pin', 'סמך נייח'], ['roller', 'גלגלת']], j.sup || '', 'sup')}
-    ${j.sup === 'roller' ? `<h3 class="pg-h">זווית המשטח של הגלגלת</h3>${thetaSlider(j)}<div class="pg-form">${field('theta', 'θ מהאופק', j.theta || 0, '°', 'step="5" min="-80" max="80"')}</div>
+    ${jointAngles(j)}
+    ${j.sup === 'roller' ? `<h3 class="pg-h">זווית המשטח של הגלגלת β</h3>${betaSlider(j)}<div class="pg-form">${field('theta', 'β מהאופק', j.theta || 0, '°', 'step="5" min="-80" max="80"')}</div>
     ${chips([[0, '0°'], [15, '15°'], [30, '30°'], [45, '45°'], [60, '60°'], [-30, '−30°']], j.theta || 0, 'theta')}
-    <p class="small muted">${ltr('θ = 0')}: משטח אופקי, תגובה אנכית. θ חיובי: המשטח עולה ימינה.</p>` : ''}${del}`;
+    <p class="small muted">${ltr('β = 0')}: משטח אופקי, תגובה אנכית. β חיובי: המשטח עולה ימינה.</p>` : ''}${del}`;
   if (l) return `<h3 class="pg-h">כוח בצומת ${esc(jointName(l.j))}</h3><div class="pg-form">${field('P', 'גודל', l.P, 'kN')}${field('angle', 'זווית מציר x', l.angle, '°', 'step="5"')}</div>
     ${chips([[270, '↓'], [90, '↑'], [315, '↘'], [225, '↙'], [0, '→'], [180, '←']], l.angle, 'angle')}${del}`;
   if (m) {
@@ -213,9 +284,9 @@ function editor(res) {
     const c = f ? roundBarCheck(f.N, f.L, st.d, st.E, st.fy) : null;
     return `<h3 class="pg-h">מוט ${esc(memName(m))}</h3>
       <div class="pg-max"><div><span>אורך</span><b>${ltr(`${num(L)} m`)}</b></div><div><span>כוח</span><b>${f ? `${ltr(`${num(Math.abs(f.N))} kN`)} ${Math.abs(f.N) < 1e-7 ? 'אפס' : f.N > 0 ? 'מתיחה' : 'לחיצה'}` : '—'}</b></div>
-      ${c ? `<div><span>מאמץ</span><b>${ltr(`${num(c.sigma)} MPa`)}</b></div><div><span>עומס קריסה Pcr</span><b>${ltr(`${num(c.Pcr)} kN`)}</b></div>` : ''}</div>${del}`;
+      ${c ? `<div><span>מאמץ</span><b>${ltr(`${num(c.sigma)} MPa`)}</b></div><div><span>עומס קריסה Pcr</span><b>${ltr(`${num(c.Pcr)} kN`)}</b></div>` : ''}</div>${thetaCard()}${del}`;
   }
-  return `${rollerAngles()}<h3 class="pg-h">חומר ומוטות</h3><div class="pg-form">${field('d', 'קוטר מוט עגול d', st.d, 'mm')}${field('E', 'מודול E', st.E, 'GPa')}${field('fy', 'מאמץ כניעה σy', st.fy, 'MPa')}</div>
+  return `${thetaCard()}<h3 class="pg-h">חומר ומוטות</h3><div class="pg-form">${field('d', 'קוטר מוט עגול d', st.d, 'mm')}${field('E', 'מודול E', st.E, 'GPa')}${field('fy', 'מאמץ כניעה σy', st.fy, 'MPa')}</div>
     <p class="small muted">S235: ${ltr('σy = 235 MPa')}. משנים את d ורואים איך הניצול משתנה.</p>
     ${chips([['1', 'הצג כוחות על המוטות'], ['0', 'הסתר']], st.labels ? '1' : '0', 'labels')}`;
 }
@@ -259,6 +330,12 @@ export function renderTruss(root, { toast }) {
   root.addEventListener('input', (ev) => {
     const f = ev.target.dataset.f; if (!f) return;
     const v = parseFloat(ev.target.value); if (!Number.isFinite(v)) return;
+    if (f === 'mtheta') {
+      const r = angRef(); if (!r) return;
+      setTheta(r, v);
+      const b = ev.target.closest('.pg-range').querySelector('b'); if (b) b.innerHTML = ltr(`${num(Math.round(refTheta(r) * 10) / 10)}°`);
+      save(); live(); return;
+    }
     if (f === 'rtheta') {
       const r = J(Number(ev.target.dataset.j)); if (!r) return;
       r.theta = Math.max(-80, Math.min(80, v));

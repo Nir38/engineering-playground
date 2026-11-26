@@ -114,4 +114,11 @@ export function trussChecks(check, near) {
   check('round bar: Euler Pcr = π²EI/L² (K = 1)', near(rb.Pcr, 3.8758, 1e-4));
   const rc = roundBarCheck(-3, 2, 20, 200, 235);
   check('compression member: buckling governs a slender bar', rc.mode === 'buckling' && near(rc.util, 3 / rb.Pcr, 1e-9));
+  // θ between a diagonal and the chord: raising the truss (bigger θ) lowers every member force.
+  // Pratt 2 panels of 2.5 m, end diagonal carries the shear: N = −V/sinθ; middle top chord = −M/h.
+  const pratt = (h) => ({ joints: [J(1, 0, 0, 'pin'), J(2, 2.5, 0), J(3, 5, 0, 'roller'), J(4, 2.5, h)], members: [Mb(1, 1, 2), Mb(2, 2, 3), Mb(3, 1, 4), Mb(4, 4, 3), Mb(5, 2, 4)], loads: [down(2, 20)] });
+  const diag = [30, 45, 60].map((deg) => { const h = 2.5 * Math.tan((deg * Math.PI) / 180), s2 = solveTruss(pratt(h)); return { deg, h, N: force(s2, 1, 4), T: force(s2, 1, 2) }; });
+  check('truss θ: end diagonal = −V/sinθ at 30°, 45°, 60°', diag.every(({ deg, N }) => near(N, -10 / Math.sin((deg * Math.PI) / 180), 1e-9)), JSON.stringify(diag));
+  check('truss θ: bottom chord = M/h = V·a/h', diag.every(({ h, T }) => near(T, (10 * 2.5) / h, 1e-9)));
+  check('truss θ: bigger θ, smaller forces', diag[0].N < diag[1].N && diag[1].N < diag[2].N && diag[0].T > diag[2].T);
 }
