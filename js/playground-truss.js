@@ -111,7 +111,7 @@ function svg(res) {
     if (j.sup === 'roller') {
       const th = j.theta || 0, g = th ? 20 : 13;
       s += `<g transform="rotate(${-th} ${x} ${y})"><polygon points="${x},${y + 4} ${x - 8},${y + 15} ${x + 8},${y + 15}" class="pg-sup"/><circle cx="${x - 4}" cy="${y + 18}" r="2.6" class="pg-sup"/><circle cx="${x + 4}" cy="${y + 18}" r="2.6" class="pg-sup"/><line x1="${x - g}" y1="${y + 21}" x2="${x + g}" y2="${y + 21}" class="pg-ground"/></g>`;
-      if (th) s += thetaArc(j);
+      s += th ? thetaArc(j) : text(x > W - 60 ? x - 16 : x + 16, y + 29, 'θ=0°', 'pg-tl', x > W - 60 ? 'end' : 'start');
     }
   });
   // reactions
@@ -123,7 +123,7 @@ function svg(res) {
       const a = [bx + 30 * dx, by + 30 * dy], b = [bx + 6 * dx, by + 6 * dy];
       s += sgn ? arrow(a[0], a[1], b[0], b[1], 'pg-react', 6) : arrow(b[0], b[1], a[0], a[1], 'pg-react', 6);
       const lx = a[0] + (dx >= 0 ? 6 : -6);
-      s += text(Math.min(W - 26, Math.max(26, lx)), Math.min(H - 4, a[1] + 4), `R ${num(Math.abs(r.R))}`, 'pg-tr', dx >= 0 ? 'start' : 'end');
+      s += text(Math.min(W - 46, Math.max(46, lx)), Math.min(H - 4, a[1] + 4), `R ${num(Math.abs(r.R))}`, 'pg-tr', dx >= 0 ? 'start' : 'end');
       return;
     }
     const x = px(j.x), y = py(j.y) + 24, lines = [];
@@ -190,13 +190,19 @@ function results(res) {
     <p class="small muted">כחול = מתיחה, אדום = לחיצה, אפור מקווקו = מוט אפס. ניצול: מוט עגול מלא בקוטר ${ltr(`${num(st.d)} mm`)}, הגדול מבין ${ltr('σ/σy')} ו-${ltr('|N|/Pcr')} (קריסת Euler, קצוות מפרקיים, ${ltr('K = 1')}). בלי מקדם ביטחון.</p>`;
 }
 
+// θ slider of one roller, always reachable (not only after selecting the joint)
+const thetaSlider = (j) => `<label class="pg-range"><span>θ של הגלגלת ב-${esc(jointName(j.id))} <b>${ltr(`${num(j.theta || 0)}°`)}</b></span><input type="range" data-f="rtheta" data-j="${j.id}" min="-80" max="80" step="5" value="${j.theta || 0}" aria-label="θ"></label>`;
+function rollerAngles() {
+  const rs = st.joints.filter((q) => q.sup === 'roller');
+  return rs.length ? `<h3 class="pg-h">זווית θ של המשטח מתחת לגלגלת</h3>${rs.map(thetaSlider).join('')}<p class="small muted">${ltr('θ = 0')}: משטח אופקי, תגובה אנכית. הזז ורואים איך כוחות התגובה והמוטות משתנים.</p>` : '';
+}
 function editor(res) {
   const sel = st.sel;
   const j = st.joints.find((q) => q.id === sel), m = st.members.find((q) => q.id === sel), l = st.loads.find((q) => q.id === sel);
   const del = '<button class="btn pg-del" data-act="del">🗑 מחק</button>';
   if (j) return `<h3 class="pg-h">צומת ${esc(jointName(j.id))}</h3><div class="pg-form">${field('x', 'x', j.x, 'm', 'step="0.5"')}${field('y', 'y', j.y, 'm', 'step="0.5"')}</div>
     ${chips([['', 'בלי סמך'], ['pin', 'סמך נייח'], ['roller', 'גלגלת']], j.sup || '', 'sup')}
-    ${j.sup === 'roller' ? `<h3 class="pg-h">זווית המשטח של הגלגלת</h3><div class="pg-form">${field('theta', 'θ מהאופק', j.theta || 0, '°', 'step="5" min="-80" max="80"')}</div>
+    ${j.sup === 'roller' ? `<h3 class="pg-h">זווית המשטח של הגלגלת</h3>${thetaSlider(j)}<div class="pg-form">${field('theta', 'θ מהאופק', j.theta || 0, '°', 'step="5" min="-80" max="80"')}</div>
     ${chips([[0, '0°'], [15, '15°'], [30, '30°'], [45, '45°'], [60, '60°'], [-30, '−30°']], j.theta || 0, 'theta')}
     <p class="small muted">${ltr('θ = 0')}: משטח אופקי, תגובה אנכית. θ חיובי: המשטח עולה ימינה.</p>` : ''}${del}`;
   if (l) return `<h3 class="pg-h">כוח בצומת ${esc(jointName(l.j))}</h3><div class="pg-form">${field('P', 'גודל', l.P, 'kN')}${field('angle', 'זווית מציר x', l.angle, '°', 'step="5"')}</div>
@@ -209,7 +215,7 @@ function editor(res) {
       <div class="pg-max"><div><span>אורך</span><b>${ltr(`${num(L)} m`)}</b></div><div><span>כוח</span><b>${f ? `${ltr(`${num(Math.abs(f.N))} kN`)} ${Math.abs(f.N) < 1e-7 ? 'אפס' : f.N > 0 ? 'מתיחה' : 'לחיצה'}` : '—'}</b></div>
       ${c ? `<div><span>מאמץ</span><b>${ltr(`${num(c.sigma)} MPa`)}</b></div><div><span>עומס קריסה Pcr</span><b>${ltr(`${num(c.Pcr)} kN`)}</b></div>` : ''}</div>${del}`;
   }
-  return `<h3 class="pg-h">חומר ומוטות</h3><div class="pg-form">${field('d', 'קוטר מוט עגול d', st.d, 'mm')}${field('E', 'מודול E', st.E, 'GPa')}${field('fy', 'מאמץ כניעה σy', st.fy, 'MPa')}</div>
+  return `${rollerAngles()}<h3 class="pg-h">חומר ומוטות</h3><div class="pg-form">${field('d', 'קוטר מוט עגול d', st.d, 'mm')}${field('E', 'מודול E', st.E, 'GPa')}${field('fy', 'מאמץ כניעה σy', st.fy, 'MPa')}</div>
     <p class="small muted">S235: ${ltr('σy = 235 MPa')}. משנים את d ורואים איך הניצול משתנה.</p>
     ${chips([['1', 'הצג כוחות על המוטות'], ['0', 'הסתר']], st.labels ? '1' : '0', 'labels')}`;
 }
@@ -253,6 +259,13 @@ export function renderTruss(root, { toast }) {
   root.addEventListener('input', (ev) => {
     const f = ev.target.dataset.f; if (!f) return;
     const v = parseFloat(ev.target.value); if (!Number.isFinite(v)) return;
+    if (f === 'rtheta') {
+      const r = J(Number(ev.target.dataset.j)); if (!r) return;
+      r.theta = Math.max(-80, Math.min(80, v));
+      const b = ev.target.closest('.pg-range').querySelector('b'); if (b) b.innerHTML = ltr(`${num(r.theta)}°`);
+      const tf = ed.querySelector('[data-f="theta"]'); if (tf) tf.value = r.theta;
+      save(); live(); return;
+    }
     const j = J(st.sel), l = st.loads.find((q) => q.id === st.sel);
     if (j && (f === 'x' || f === 'y')) { const nv = Math.min(f === 'x' ? WX : WY, Math.max(0, Math.round(v * 2) / 2)); if (!occupied(f === 'x' ? nv : j.x, f === 'y' ? nv : j.y, j.id)) j[f] = nv; }
     else if (l && f === 'P') { if (v <= 0) return; l.P = v; }
