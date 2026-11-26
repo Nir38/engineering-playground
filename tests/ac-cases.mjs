@@ -127,6 +127,25 @@ export function acChecks(check, near) {
   check('meter V~ between two phases: 398.4 V = √3·230', rd([...tri, ...Ld], meter({ dial: 'vac', red: 'A', black: 'B' })).text === '398.4');
   // meterElement in AC: the 10 MΩ does not change the reading
   check('meter V~ includes its own 10 MΩ input and still reads 230.0', meterElement(meter({ red: 'L', black: 'N' })).R === 10e6);
+  // the full meter: µA, SELECT (AC current, mV~), %duty
+  {
+    const dc = [E('bat', 'a', 'g', { V: 10, r: 1e-6 }), E('res', 'x', 'g', { R: 10000 })]; // gap between a and x
+    const rdl = (els0, m) => { const me = meterElement(m), live = step(me ? [...els0, me] : els0, emptyState(), 1e-3); return meterReading(els0, live, m); };
+    const ua = rdl(dc, meter({ dial: 'ua', jack: 'ma', red: 'a', black: 'x' }));
+    check('meter µA in series: 10 V / 10 kΩ ≈ 999.9 µA (the 1 Ω shunt adds a little)', Math.abs(parseFloat(ua.text) - 999.9) < 0.2 && ua.unit === 'µA', ua.text);
+    check('meter µA over 6000 µA shows OL', rdl([E('bat', 'a', 'g', { V: 10, r: 1e-6 }), E('res', 'x', 'g', { R: 1000 })], meter({ dial: 'ua', jack: 'ma', red: 'a', black: 'x' })).text === 'OL');
+    const acs = [vac('L', 'N', 230), E('res', 'x', 'N', { R: 529 })];
+    const aac = rd(acs, meter({ dial: 'a', jack: 'a', ac: true, red: 'L', black: 'x' }));
+    check('meter A with SELECT = AC: true RMS through the meter, 230/529 = 0.435 A', aac.text === '0.435' && aac.unit === 'A', aac.text);
+    check('meter mA AC: 435 mA would be over 400 mA, OL', rd(acs, meter({ dial: 'ma', jack: 'ma', ac: true, red: 'L', black: 'x' })).text === 'OL');
+    check('meter A AC with the probe in the wrong jack still warns', /שקע/.test(rd(acs, meter({ dial: 'a', jack: 'ma', ac: true, red: 'L', black: 'x' })).warn));
+    const small = [vac('p', 'g', 0.25), E('res', 'p', 'g', { R: 100 })];
+    check('meter mV with SELECT = AC: 250.0 mV RMS', rd(small, meter({ dial: 'mv', ac: true, red: 'p', black: 'g' })).text === '250.0');
+    check('meter Hz with SELECT = %: a sine is 50% duty', rd([vac('L', 'N', 230), E('res', 'L', 'N', { R: 529 })], meter({ dial: 'hz', duty: true, red: 'L', black: 'N' })).text === '50.00');
+    const hw = [vac('a1', 'N', 12), E('diode', 'a1', 'P'), E('res', 'P', 'N', { R: 100 })];
+    const du = parseFloat(rd(hw, meter({ dial: 'hz', duty: true, red: 'P', black: 'N' })).text);
+    check('meter %duty after one diode (no capacitor): the output is high less than half the time', du > 25 && du < 50, String(du));
+  }
   // all elements at once: matches the single measurement, and the average powers balance
   let all = acMeasureAll(els);
   check('acMeasureAll: linear, the lamp current RMS = 230/529 and P = V²/R', near(all.get(Lamp.id).I.rms, 230 / 529, 1e-6) && near(all.get(Lamp.id).P, 230 * 230 / 529, 1e-6));

@@ -113,8 +113,8 @@ export function step(elements, state, dt) {
 export const METER = { rV: 10e6, rA: 0.01, rmA: 1, fuseA: 10, fusemA: 0.4, beep: 30, ohmI: 1e-3, diodeOL: 2, ohmOL: 60e6, hzMin: 0.5 };
 export const DIAL = [
   { id: 'off', label: 'OFF' }, { id: 'vac', label: 'V~' }, { id: 'vdc', label: 'V⎓' }, { id: 'mv', label: 'mV' },
-  { id: 'ohm', label: 'Ω 🔊' }, { id: 'diode', label: '▶|' }, { id: 'cap', label: '⊣⊢' }, { id: 'hz', label: 'Hz' },
-  { id: 'a', label: 'A' }, { id: 'ma', label: 'mA' },
+  { id: 'ohm', label: 'Ω 🔊' }, { id: 'diode', label: '▶|' }, { id: 'cap', label: '⊣⊢' }, { id: 'hz', label: 'Hz %' },
+  { id: 'ua', label: 'µA' }, { id: 'ma', label: 'mA' }, { id: 'a', label: 'A' },
 ];
 // the meter as a part of the live circuit (or null): the A jacks are a shunt whatever the dial says
 export function meterElement(m) {
@@ -128,7 +128,35 @@ const fmt = (x, unit) => {
   return { text: (Object.is(x, -0) ? 0 : x).toFixed(d), unit };
 };
 // what the display shows. live: the last step result with the meter in it (or null)
+// the full meter: SELECT gives AC on mV and on the current ranges, and %duty on Hz; µA shares the mA jack
 export function meterReading(elements, live, m, state = emptyState()) {
+  const out = (o) => ({ warn: '', beep: false, ...o });
+  const cur = ['a', 'ma', 'ua'].includes(m.dial), scale = { a: [1, 'A', 10], ma: [1e3, 'mA', 400], ua: [1e6, 'µA', 6000] }[m.dial];
+  if (m.dial === 'ua' && !m.ac) {
+    const r = meterBase(elements, live, { ...m, dial: 'ma' }, state);
+    if (!/^-?\d/.test(r.text)) return { ...r, unit: r.unit === 'mA' ? 'µA' : r.unit };
+    const v = parseFloat(r.text) * 1000; return out({ ...(Math.abs(v) > 6000 ? { text: 'OL', unit: 'µA' } : fmt(v, 'µA')), warn: r.warn });
+  }
+  if (cur && m.ac) { // true-RMS AC current through the meter's shunt
+    const jackOk = m.jack === (m.dial === 'a' ? 'a' : 'ma');
+    if (!jackOk || m.fuseOK === false || !(m.red && m.black)) return meterBase(elements, live, { ...m, dial: m.dial === 'ua' ? 'ma' : m.dial }, state);
+    const me = meterElement(m), q = acMeasure([...elements, me], { el: 'meter' }), v = q.rms * scale[0];
+    if (!acFreqs(elements).length) return out({ ...fmt(0, scale[1]), warn: 'במעגל הזה רק זרם ישר. לחץ SELECT כדי לחזור ל-DC.' });
+    return out(v > scale[2] ? { text: 'OL', unit: scale[1] } : fmt(v, scale[1]));
+  }
+  if (m.dial === 'mv' && m.ac && m.jack === 'v' && m.red && m.black) {
+    if (!acFreqs(elements).length) return out({ ...fmt(0, 'mV'), warn: 'במעגל הזה רק מתח ישר. לחץ SELECT כדי לחזור ל-mV⎓.' });
+    const me = meterElement(m), q = acMeasure(me ? [...elements, me] : elements, { a: m.red, b: m.black }), v = q.rms * 1000;
+    return out(v > 600 ? { text: 'OL', unit: 'mV' } : fmt(v, 'mV'));
+  }
+  if (m.dial === 'hz' && m.duty && m.jack === 'v' && m.red && m.black) {
+    const r = meterBase(elements, live, m, state); if (r.unit !== 'Hz' || !(parseFloat(r.text) > 0)) return { ...r, unit: '%' };
+    const me = meterElement(m), q = acMeasure(me ? [...elements, me] : elements, { a: m.red, b: m.black });
+    return out(fmt(q.duty ?? 50, '%'));
+  }
+  return meterBase(elements, live, m, state);
+}
+function meterBase(elements, live, m, state = emptyState()) {
   if (m.dial === 'off') return { text: '', unit: '' };
   const probes = m.red && m.black;
   const inA = m.jack === 'a' || m.jack === 'ma';
@@ -141,7 +169,7 @@ export function meterReading(elements, live, m, state = emptyState()) {
     let i = probes && live && live.I.has('meter') ? live.I.get('meter') : 0;
     if (hasAC && probes && me && (m.dial === 'a' || m.dial === 'ma')) {
       const q = acMeasure(withMeter, { el: 'meter' }); i = q.mean;
-      if (q.rms > 1e-4) { const r = out(m.dial === m.jack ? (m.dial === 'a' ? fmt(i, 'A') : fmt(i * 1000, 'mA')) : fmt(0, m.dial === 'a' ? 'A' : 'mA')); r.warn = `יש כאן זרם חילופין, בערך ${q.rms.toPrecision(3)} A RMS. במצב A או mA המד הזה מראה רק את הממוצע (DC), ולכן כמעט 0. לזרם חילופין משתמשים בצבת.`; return r; }
+      if (q.rms > 1e-4 && m.dial === m.jack) { const r = out(m.dial === m.jack ? (m.dial === 'a' ? fmt(i, 'A') : fmt(i * 1000, 'mA')) : fmt(0, m.dial === 'a' ? 'A' : 'mA')); r.warn = `יש כאן זרם חילופין, בערך ${q.rms.toPrecision(3)} A RMS. במצב DC המד מראה רק את הממוצע, ולכן כמעט 0. לחץ SELECT כדי למדוד זרם חילופין (RMS), או השתמש בצבת בלי לפתוח את המעגל.`; return r; }
     }
     if (m.dial === 'a') return out(m.jack === 'a' ? (Math.abs(i) > 10 ? { text: 'OL', unit: 'A' } : fmt(i, 'A')) : { ...fmt(0, 'A'), warn: 'הבורר על A, אבל הפרוב האדום בשקע mA. העבר אותו לשקע A.' });
     if (m.dial === 'ma') return out(m.jack === 'ma' ? (Math.abs(i) > 0.4 ? { text: 'OL', unit: 'mA' } : fmt(i * 1000, 'mA')) : { ...fmt(0, 'mA'), warn: 'הבורר על mA, אבל הפרוב האדום בשקע A. העבר אותו לשקע mA.' });
@@ -268,7 +296,7 @@ export function acMeasure(elements, what) {
     let s2 = 0, best = 0, f = 0, ph = null;
     for (const fr of fs) { const p = pick(solveAC(elements, fr), true), m = cabs(p); s2 += m * m; if (m > best) { best = m; f = fr; ph = p; } }
     const rms = Math.sqrt(s2);
-    return { mean, rms, f: rms > 1e-9 ? f : 0, phasor: fs.length === 1 ? ph : null };
+    return { mean, rms, f: rms > 1e-9 ? f : 0, phasor: fs.length === 1 ? ph : null, duty: rms > 1e-9 ? 50 : 0 }; // a sum of sines spends half the time above its mean (a single sine exactly)
   }
   const key = JSON.stringify([elements, what]);
   if (measCache.has(key)) return measCache.get(key);
@@ -285,7 +313,7 @@ function timeMeasure(elements, what, f0, pick, cycles = 30, per = 200) {
   // frequency: rising crossings of the mean, with a little hysteresis
   let n = 0, armed = false; const hy = 0.2 * rms;
   for (const x of xs) { if (x < mean - hy) armed = true; else if (armed && x > mean + hy) { n++; armed = false; } }
-  return { mean, rms, f: rms > 1e-6 ? n / (2 * T) : 0, phasor: null };
+  return { mean, rms, f: rms > 1e-6 ? n / (2 * T) : 0, phasor: null, duty: rms > 1e-6 ? (100 * xs.filter((x) => x > mean).length) / xs.length : 0 };
 }
 
 // the same for every element at once (voltage across it and current through it): one time run for circuits with diodes

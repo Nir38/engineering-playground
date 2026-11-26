@@ -519,3 +519,11 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-dialbtn { align-items: center; gap: 8px; margin-bottom: 4px; }
 .pg-dialbtn .chip { min-width: 44px; font-size: 1rem; }
 .pg-dialbtn b { min-width: 48px; text-align: center; direction: ltr; }
+.pg-dmmwrap { display: flex; justify-content: center; }
+.pg-dmm { width: 100%; max-width: 330px; height: auto; display: block; direction: ltr; user-select: none; -webkit-user-select: none; touch-action: manipulation; filter: drop-shadow(0 4px 10px rgba(0,0,0,.25)); }
+.pg-dmmann { font: 700 9px system-ui, sans-serif; }
+.pg-dmmunit { font: 700 17px system-ui, sans-serif; }
+.pg-dmmbt { font: 700 10px system-ui, sans-serif; }
+.pg-dmmdial { font: 800 12px system-ui, sans-serif; }
+.pg-dmmbtn { cursor: pointer; }
+.pg-dmmbtn:active rect { fill: #5b6472; }

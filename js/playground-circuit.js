@@ -5,6 +5,7 @@
 import { step, emptyState, meterElement, meterReading, METER, DIAL, cableR, lampR, MAT_NAME, GRID, acFreqs, acMeasureAll, clampReading, testerReading, TESTER, phaseShift } from './circuit.js';
 import { esc } from './text.js';
 import { plot, COL, morph, num } from './elec-ui.js';
+import { dmmSvg, display, RANGES, toBase } from './dmm.js';
 
 const KEY = 'mh-pg-circ-v1';
 const W = 360, H = 286, X0 = 20, Y0 = 18, SP = 40, GX = 9, GY = 6; // grid 9 × 6 points
@@ -39,12 +40,13 @@ const TEMPLATES = [
   { id: 'acrc', name: 'AC: נגד וקבל', els: () => L([['vac', '1,1', '1,4', { Vrms: 12 }], ['res', '1,1', '7,1', { R: 100 }], ['cap', '7,1', '7,4', { C: 22e-6 }], ['wire', '7,4', '1,4']]) },
   { id: 'ac230', name: 'נורה על 230 V', els: () => L([['vac', '1,1', '1,4', { Vrms: GRID.V, f: GRID.f }], ['sw', '1,1', '4,1'], ['lamp', '4,1', '7,1', { V: 230, P: 60 }], ['wire', '7,1', '7,4'], ['wire', '7,4', '1,4']]) },
   { id: 'bridge', name: 'גשר דיודות', els: () => L([['vac', '3,1', '3,3', { Vrms: 12 }], ['diode', '3,1', '5,2'], ['diode', '3,3', '5,2'], ['diode', '1,2', '3,1'], ['diode', '1,2', '3,3'], ['wire', '5,2', '6,2'], ['cap', '6,2', '6,5', { C: 470e-6 }], ['wire', '6,2', '8,2'], ['res', '8,2', '8,5', { R: 100 }], ['wire', '1,2', '1,5'], ['wire', '1,5', '6,5'], ['wire', '6,5', '8,5']]) },
+  { id: 'imeas', name: 'מדידת זרם (פתח)', els: () => L([['bat', '1,1', '1,4', { V: 12 }], ['res', '3,1', '7,1', { R: 470 }], ['wire', '7,1', '7,4'], ['wire', '7,4', '1,4']]) },
   { id: 'empty', name: 'ריק', els: () => [] },
 ];
-const defMeter = () => ({ dial: 'vdc', jack: 'v', red: null, black: null, fuseOK: true, hold: false, mm: null });
+const defMeter = () => ({ dial: 'vdc', jack: 'v', red: null, black: null, fuseOK: true, hold: false, mm: null, ac: false, duty: false, range: null, rel: null, light: false });
 const INST = [['dmm', '🔧 מולטימטר'], ['clamp', '🗜 צבת'], ['tester', '🔦 בודק מתח'], ['scope', '📈 סקופ']];
 const SLOW = [[1, '×1'], [0.1, '×1/10'], [0.02, '×1/50']];
-const defaults = () => ({ els: TEMPLATES[0].els(), tool: 'select', sel: null, pend: null, meter: defMeter(), inst: 'dmm', clampEl: null, whole: false, slow: 0.02, scopeN: 2, place: null, log: [] });
+const defaults = () => ({ els: TEMPLATES[0].els(), tool: 'select', sel: null, pend: null, meter: defMeter(), inst: 'dmm', clampEl: null, whole: false, slow: 0.02, scopeN: 2, place: null, log: [], tasks: { key: '', done: {} } });
 let st = null;
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && Array.isArray(s.els)) st = { ...defaults(), ...s, meter: { ...defMeter(), ...(s.meter || {}) }, pend: null }; } catch (e) { /* ignore */ }
@@ -52,8 +54,9 @@ function load() {
   if (!INST.some(([v]) => v === st.inst)) st.inst = 'dmm';
   if (!SLOW.some(([v]) => v === st.slow)) st.slow = 0.02;
   if (!Array.isArray(st.log)) st.log = [];
+  if (!st.tasks || typeof st.tasks !== 'object' || !st.tasks.done) st.tasks = { key: '', done: {} };
   if (![2, 5].includes(st.scopeN)) st.scopeN = 2;
-  st.place = null; st.meter.hold = false; st.meter.mm = null;
+  st.place = null; Object.assign(st.meter, { hold: false, mm: null, range: null, rel: null });
   if (st.clampEl != null && !st.els.some((e) => e.id === st.clampEl)) st.clampEl = null;
   uid = 1 + Math.max(0, ...st.els.map((e) => e.id));
 }
@@ -162,41 +165,16 @@ export function renderCircuit(root, { toast }) {
   const DIAL_HELP = {
     off: 'המד כבוי. גם כבוי, שקע ה-A הוא מוליך כמעט מושלם: לכן מחזירים תמיד את הפרוב האדום לשקע VΩ בסוף העבודה.',
     vdc: 'מתח ישר. מחברים במקביל לרכיב: אדום לנקודה אחת, שחור לשנייה. הסימן אומר מי גבוה יותר. ההתנגדות הפנימית של המד גבוהה מאוד (בערך 10 MΩ), ולכן הוא כמעט לא משפיע על המעגל.',
-    vac: 'מתח חילופין (RMS), כמו בשקע בבית. במעגל עם סוללות בלבד יראה 0.',
-    mv: 'מתחים קטנים מאוד, למשל של צמד תרמי או מפל מתח על חוט. מעל 600 mV מראה OL.',
+    vac: 'מתח חילופין (True RMS), כמו בשקע בבית. במעגל עם סוללות בלבד יראה 0.',
+    mv: 'מתחים קטנים מאוד, למשל של צמד תרמי או מפל מתח על חוט. מעל 600 mV מראה OL. SELECT מחליף בין DC ל-AC.',
     ohm: 'התנגדות ורציפות (ביפ). רק על מעגל כבוי! המד מזרים זרם קטן משלו ומודד את המתח. ביפ = חיבור רציף (פחות מ-30 Ω לדוגמה). OL = מעגל פתוח.',
     diode: 'בדיקת דיודה: בכיוון ההולכה מראה את מפל המתח (בערך 0.5 עד 0.7 V בסיליקון), בכיוון ההפוך OL.',
     cap: 'קיבול: רק על קבל פרוק ומעגל כבוי. המד טוען את הקבל בזרם קבוע ומודד כמה מהר המתח עולה.',
-    hz: 'תדר של מתח מתחלף. ברשת בבית בערך 50 Hz. בסוללה 0.',
-    a: 'זרם עד 10 A (לדוגמה). מעבירים את הפרוב האדום לשקע A, ופותחים את המעגל: המד נכנס בטור, כך שכל הזרם עובר דרכו. לעולם לא במקביל לספק!',
-    ma: 'זרמים קטנים, עד 400 mA (לדוגמה). הפרוב האדום בשקע mA. גם כאן בטור בלבד.',
+    hz: 'תדר של מתח מתחלף. ברשת בבית בערך 50 Hz. בסוללה 0. SELECT מחליף ל-% (duty cycle): כמה מהזמן האות מעל הממוצע שלו.',
+    ua: 'זרמים זעירים, עד 6000 µA (לדוגמה), למשל זרם של LED או חיישן. הפרוב האדום בשקע µA mA, ובטור בלבד. SELECT מחליף בין DC ל-AC.',
+    a: 'זרם עד 10 A (לדוגמה). מעבירים את הפרוב האדום לשקע 10A, ופותחים את המעגל: המד נכנס בטור, כך שכל הזרם עובר דרכו. לעולם לא במקביל לספק! SELECT מחליף בין DC ל-AC.',
+    ma: 'זרמים קטנים, עד 400 mA (לדוגמה). הפרוב האדום בשקע µA mA. גם כאן בטור בלבד. SELECT מחליף בין DC ל-AC.',
   };
-  function meterSvg(rd) {
-    const m = M(), cx = 100, cy = 176, R = 40;
-    const ang = (i) => (-210 + (i * 240) / (DIAL.length - 1)) * (Math.PI / 180);
-    const di = DIAL.findIndex((d) => d.id === m.dial), a = ang(di);
-    let s = `<svg viewBox="0 0 200 330" class="pg-meter" role="img" aria-label="מולטימטר דיגיטלי">`;
-    s += `<rect x="6" y="4" width="188" height="322" rx="22" class="pg-mbody"/><rect x="16" y="14" width="168" height="300" rx="16" class="pg-mface"/>`;
-    // display
-    s += `<rect x="26" y="24" width="148" height="62" rx="6" class="pg-lcd ${m.dial === 'off' ? 'pg-lcd-off' : ''}"/>`;
-    if (m.dial !== 'off') {
-      s += `<text x="160" y="70" text-anchor="end" class="pg-lcdt" id="lcdT">${esc(rd.text)}</text><text x="166" y="80" text-anchor="end" class="pg-lcdu" id="lcdU">${esc(rd.unit)}</text>`;
-      s += `<text x="34" y="40" class="pg-lcdu">${m.dial === 'vac' ? 'AC' : ['vdc', 'mv', 'a', 'ma'].includes(m.dial) ? 'DC' : ''} AUTO</text>`;
-      s += `<text x="34" y="78" class="pg-lcdu" id="lcdB">${rd.beep ? '🔊' : ''}</text><text x="166" y="40" text-anchor="end" class="pg-lcdu">${m.hold ? 'HOLD' : ''} ${m.mm === 'max' ? 'MAX' : m.mm === 'min' ? 'MIN' : ''}</text><text x="100" y="40" class="pg-lcdu" text-anchor="middle" id="lcdW">${rd.warn && rd.warn.startsWith('⚠') ? '⚠' : ''}</text>`;
-    }
-    // dial
-    DIAL.forEach((d, i) => { const t = ang(i), x = cx + (R + 24) * Math.cos(t), y = cy + (R + 24) * Math.sin(t); s += `<g data-dial="${d.id}" class="pg-dpos"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="17" fill="transparent"/><text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" class="pg-dtext ${i === di ? 'pg-don' : ''}">${esc(d.label)}</text></g>`; });
-    s += `<circle cx="${cx}" cy="${cy}" r="${R}" class="pg-knob"/><circle cx="${cx}" cy="${cy}" r="${R - 9}" class="pg-knob2"/>`;
-    s += `<line x1="${cx}" y1="${cy}" x2="${(cx + (R - 4) * Math.cos(a)).toFixed(1)}" y2="${(cy + (R - 4) * Math.sin(a)).toFixed(1)}" class="pg-kptr"/>`;
-    // jacks: A, mA µA, COM, VΩ
-    const J = [['a', 'A', 34], ['ma', 'mA µA', 78], ['com', 'COM', 122], ['v', 'VΩ', 166]];
-    for (const [id, lab, x] of J) {
-      const red = m.jack === id, blk = id === 'com';
-      s += `<g data-jack="${id}" class="pg-jack"><circle cx="${x}" cy="290" r="15" fill="transparent"/><circle cx="${x}" cy="290" r="9" class="pg-jk ${red ? 'pg-jk-red' : blk ? 'pg-jk-blk' : ''} ${id === 'a' || id === 'ma' ? 'pg-jk-fused' : ''}"/><text x="${x}" y="272" text-anchor="middle" class="pg-dtext">${lab}</text></g>`;
-    }
-    s += `<text x="56" y="314" text-anchor="middle" class="pg-dtext pg-small">${m.fuseOK ? 'FUSED' : '⚠ נתיך נשרף'}</text>`;
-    return s + '</svg>';
-  }
   // ---------- instruments: one card, refreshed in place (morph), so taps on its buttons are never lost ----------
   const instChips = () => `<h3 class="pg-h">מכשיר מדידה</h3><div class="chips pg-inst">${INST.map(([v, t]) => `<button class="chip" data-inst="${v}" aria-pressed="${st.inst === v}">${t}</button>`).join('')}</div>`
     + (hasAC() ? `<div class="chips pg-slow"><span class="small muted">הילוך איטי לזרם חילופין:</span>${SLOW.map(([v, t]) => `<button class="chip" data-slow="${v}" aria-pressed="${st.slow === v}">${t}</button>`).join('')}</div>` : '');
@@ -250,22 +228,25 @@ export function renderCircuit(root, { toast }) {
   }
   // the multimeter with HOLD and MIN/MAX
   const mm = { hold: null, max: null, min: null };
+  let lastShown = null;
   const resetMM = () => { mm.hold = null; mm.max = null; mm.min = null; };
   function dmmBody() {
     const m = M(); let rd = meterReading(st.els, live, m, sim);
-    const v = parseFloat(rd.text);
-    if (Number.isFinite(v) && m.dial !== 'off') { if (mm.max === null || v > mm.max.v) mm.max = { v, rd }; if (mm.min === null || v < mm.min.v) mm.min = { v, rd }; }
+    const v = toBase(rd);
+    if (v !== null && m.dial !== 'off') { if (mm.max === null || v > mm.max.v) mm.max = { v, rd }; if (mm.min === null || v < mm.min.v) mm.min = { v, rd }; }
     if (m.hold) { if (!mm.hold) mm.hold = rd; rd = mm.hold; } else mm.hold = null;
     if (m.mm === 'max' && mm.max) rd = { ...mm.max.rd, warn: rd.warn }; else if (m.mm === 'min' && mm.min) rd = { ...mm.min.rd, warn: rd.warn };
-    if (rd.beep && !lastBeep) beep();
-    lastBeep = !!rd.beep;
-    const di = DIAL.findIndex((d) => d.id === m.dial);
-    return { reading: `${rd.text} ${rd.unit}`, what: `מולטימטר ${DIAL[di].label}`, at: where(), html: `<h3 class="pg-h">🔧 מולטימטר דיגיטלי</h3>
-      <div class="pg-mwrap">${meterSvg(rd)}<div class="pg-minfo"><div class="chips pg-dialbtn"><button class="chip" data-act="dial" data-v="-1" aria-label="סובב את הבורר אחורה">◀</button><b>${esc(DIAL[di].label)}</b><button class="chip" data-act="dial" data-v="1" aria-label="סובב את הבורר קדימה">▶</button></div>
+    const d = display(m.dial, rd, m.range, m.rel);
+    lastShown = d;
+    if (d.beep && !lastBeep) beep();
+    lastBeep = !!d.beep;
+    const di = DIAL.findIndex((q) => q.id === m.dial), mode = m.dial === 'hz' && m.duty ? 'Hz %' : ['mv', 'ua', 'ma', 'a'].includes(m.dial) ? `${DIAL[di].label} ${m.ac ? 'AC' : 'DC'}` : DIAL[di].label;
+    return { reading: `${d.text} ${d.unit}`, what: `מולטימטר ${mode}`, at: where(), html: `<h3 class="pg-h">🔧 מולטימטר דיגיטלי</h3>
+      <div class="pg-dmmwrap">${dmmSvg(m, d)}</div>
+      <div class="chips pg-dialbtn"><button class="chip" data-act="dial" data-v="-1" aria-label="סובב את הבורר אחורה">◀</button><b>${esc(mode)}</b><button class="chip" data-act="dial" data-v="1" aria-label="סובב את הבורר קדימה">▶</button>${m.fuseOK ? '' : '<button class="chip" data-act="mfuse">🔁 החלף נתיך במד</button>'}</div>
       <p class="small">${esc(DIAL_HELP[m.dial])}</p>
-      <p class="small" style="color:${rd.warn.startsWith('⚠') ? 'var(--bad)' : 'inherit'}">${esc(rd.warn)}</p>
-      <div class="chips"><button class="chip" data-act="hold" aria-pressed="${!!m.hold}">HOLD</button><button class="chip" data-act="minmax" aria-pressed="${!!m.mm}">${m.mm === 'max' ? 'MAX' : m.mm === 'min' ? 'MIN' : 'MIN/MAX'}</button>${m.fuseOK ? '' : '<button class="chip" data-act="mfuse">🔁 החלף נתיך במד</button>'}</div></div></div>
-      <p class="small muted">לוחצים על מצב בבורר (או על ◀ ▶) כדי לסובב אותו, ועל שקע כדי להעביר אליו את הפרוב האדום. השחור תמיד ב-COM. HOLD מקפיא את התצוגה, MIN/MAX מראה את הקריאה הגבוהה או הנמוכה מאז שהתחלת. ההתנגדות הפנימית, הנתיכים וסף הביפ הם ערכים לדוגמה.</p>` };
+      <p class="small" style="color:${(d.warn || '').startsWith('⚠') ? 'var(--bad)' : 'inherit'}">${esc(d.warn || '')}</p>
+      <details class="small muted"><summary>הכפתורים על המד</summary><p><b>HOLD</b> מקפיא את התצוגה. <b>RANGE</b> עובר מטווח אוטומטי (AUTO) לטווח ידני (MANU), וכל לחיצה עוברת לטווח הבא: בטווח קטן מדי רואים OL. <b>REL Δ</b> מאפס: מעכשיו המד מראה את ההפרש מהקריאה של הרגע הזה (למשל כדי להוריד את ההתנגדות של הפרובים). <b>MIN MAX</b> מראה את הקריאה הגבוהה, אחר כך הנמוכה, מאז הלחיצה. <b>SELECT</b> (הכחול) מחליף פונקציה באותו מצב של הבורר: AC או DC, או Hz ו-%. <b>☀</b> מדליק תאורה. הפס מתחת למספרים הוא גרף עמודות שמגיב מהר, כמו מחוג. ההתנגדות הפנימית, הנתיכים, הטווחים וסף הביפ הם ערכים לדוגמה.</p></details>` };
   }
   const instBody = () => (st.inst === 'clamp' ? clampBody() : st.inst === 'tester' ? testerBody() : st.inst === 'scope' ? scopeBody() : dmmBody());
   let lastInst = null;
@@ -273,9 +254,40 @@ export function renderCircuit(root, { toast }) {
     if (!st.log.length) return '';
     return `<h3 class="pg-h">📋 יומן מדידות</h3><table class="pg-table"><thead><tr><th>מכשיר</th><th>איפה</th><th>קריאה</th></tr></thead><tbody>${st.log.map((r) => `<tr><td>${esc(r.what)}</td><td>${ltr(r.at)}</td><td>${ltr(r.reading)}</td></tr>`).join('')}</tbody></table><button class="chip" data-act="logclear">🗑 נקה יומן</button>`;
   }
+  // ---------- measuring practice: tasks built from the circuit on the grid, checked automatically ----------
+  const same = (p, q, ordered) => (ordered ? p[0] === q[0] && p[1] === q[1] : (p[0] === q[0] && p[1] === q[1]) || (p[0] === q[1] && p[1] === q[0]));
+  function practiceTasks() {
+    const els = st.els, T = [], ac = acFreqs(els).length > 0, deg = new Map();
+    for (const e of els) for (const k of [e.a, e.b]) deg.set(k, (deg.get(k) || 0) + 1);
+    const ends = [...deg].filter(([, n]) => n === 1).map(([k]) => k);
+    const nm = (e) => `${NAME[e.type]} ${label(e)}`;
+    if (ends.length === 2 && !ac) T.push({ id: 'i', text: `מדוד את הזרם במעגל. יש פתח בין ${ends[0]} ל-${ends[1]}: הכנס את המד בטור לתוך הפתח.`, hint: 'בורר על mA (או A), הפרוב האדום בשקע µA mA, ואז אדום ושחור על שני צדי הפתח (🔴 מקם אדום ו-⚫ מקם שחור).', ok: (m) => ['ua', 'ma', 'a'].includes(m.dial) && m.jack === (m.dial === 'a' ? 'a' : 'ma'), nodes: ends });
+    const src = els.find((e) => e.type === 'bat' || e.type === 'vac');
+    if (src) T.push({ id: `s${src.id}`, text: `מדוד את המתח של ה${nm(src)}.`, hint: `בורר על ${ac ? 'V~' : 'V⎓'}, אדום בשקע VΩHz, והפרובים על שני הקטבים.`, ok: (m) => m.dial === (ac ? 'vac' : 'vdc') && m.jack === 'v', nodes: [src.a, src.b] });
+    for (const e of els) if (!['wire', 'bat', 'vac'].includes(e.type) && T.length < 6) T.push({ id: `v${e.id}`, text: `מדוד את המתח על ה${nm(e)}.`, hint: `בורר על ${ac ? 'V~' : 'V⎓'}, ובחר את הרכיב ואז "🔌 על ה${NAME[e.type]}", או מקם את הפרובים בעצמך.`, ok: (m) => m.dial === (ac ? 'vac' : 'vdc') && m.jack === 'v', nodes: [e.a, e.b] });
+    if (src && src.type === 'vac') T.push({ id: `f${src.id}`, text: 'מדוד את התדר של המקור.', hint: 'בורר על Hz, הפרובים על המקור.', ok: (m) => m.dial === 'hz' && !m.duty && m.jack === 'v', nodes: [src.a, src.b] });
+    const r = els.find((e) => e.type === 'res');
+    if (r && !ac) T.push({ id: `r${r.id}`, text: `מדוד את ההתנגדות של ה${nm(r)}.`, hint: 'קודם כבה את המעגל (פתח מתג או מחק את הסוללה), אחרת המד מראה ----. בורר על Ω. שים לב: בתוך מעגל המד רואה גם מסלולים מקבילים.', ok: (m) => m.dial === 'ohm' && m.jack === 'v', nodes: [r.a, r.b] });
+    const dd = els.find((e) => e.type === 'diode');
+    if (dd && !ac) T.push({ id: `d${dd.id}`, text: 'בדוק את הדיודה בכיוון ההולכה.', hint: 'מעגל כבוי, בורר על ▶|, אדום על האנודה (הנקודה הראשונה של הדיודה) ושחור על הקתודה. אמור להראות בערך 0.7 V.', ok: (m) => m.dial === 'diode' && m.jack === 'v', nodes: [dd.a, dd.b], ordered: true });
+    return T;
+  }
+  function checkTasks(T) {
+    const key = JSON.stringify(st.els.map((e) => [e.type, e.a, e.b]));
+    if (st.tasks.key !== key) st.tasks = { key, done: {} };
+    const m = M(), d = lastShown;
+    if (st.inst !== 'dmm' || !d || !m.red || !m.black || !/^-?\d/.test(d.text) || (d.warn || '').startsWith('⚠') || m.hold || m.mm) return;
+    for (const t of T) if (!st.tasks.done[t.id] && t.ok(m) && same([m.red, m.black], t.nodes, t.ordered)) { st.tasks.done[t.id] = `${d.text} ${d.unit}`; save(); toast(`🎯 נכון! ${d.text} ${d.unit}`); }
+  }
+  function practiceHtml(T) {
+    if (!T.length) return '';
+    const n = T.filter((t) => st.tasks.done[t.id]).length;
+    return `<h3 class="pg-h">🎯 תרגול מדידה (${n}/${T.length})</h3><ul class="pg-checklist">${T.map((t) => { const v = st.tasks.done[t.id]; return `<li class="${v ? 'ok' : ''}"><b>${v ? '✓' : '○'} ${esc(t.text)}</b>${v ? `<span>מדדת: ${ltr(v)}</span>` : `<span>${esc(t.hint)}</span>`}</li>`; }).join('')}</ul>${n === T.length ? '<div class="pg-status good">כל המדידות במעגל הזה הושלמו. נסה תבנית אחרת, למשל "מדידת זרם (פתח)" או "AC: נגד וקבל".</div>' : ''}`;
+  }
   function meterPanel() {
     const b = instBody(); lastInst = b;
-    morph(meterBox, instChips() + b.html + `<div class="chips" style="margin-top:8px"><button class="btn" data-act="log">📋 רשום את המדידה</button></div>` + logHtml());
+    const T = practiceTasks(); checkTasks(T);
+    morph(meterBox, instChips() + b.html + `<div class="chips" style="margin-top:8px"><button class="btn" data-act="log">📋 רשום את המדידה</button></div>` + logHtml() + (st.inst === 'dmm' ? practiceHtml(T) : ''));
   }
   const meterValues = meterPanel;
   let actx = null;
@@ -422,10 +434,21 @@ export function renderCircuit(root, { toast }) {
     if (a === 'logclear') { st.log = []; save(); meterPanel(); return; }
     if (a === 'scopeN') { st.scopeN = Number(b.dataset.v); save(); meterPanel(); return; }
     if (a === 'run') { frozen = frozen ? null : buf.slice(); meterPanel(); return; }
-    if (a === 'hold') { m.hold = !m.hold; mm.hold = null; meterPanel(); return; }
-    if (a === 'minmax') { m.mm = m.mm === null ? 'max' : m.mm === 'max' ? 'min' : null; if (m.mm === 'max') { mm.max = null; mm.min = null; } meterPanel(); return; }
-    if (a === 'dial') { const i = DIAL.findIndex((q) => q.id === m.dial), n = DIAL.length; m.dial = DIAL[(i + Number(b.dataset.v) + n) % n].id; resetMM(); }
-    else if (d) { m.dial = d.dataset.dial; resetMM(); }
+    const btn = ev.target.closest('[data-btn]');
+    if (btn) {
+      const k = btn.dataset.btn;
+      if (m.dial === 'off' && k !== 'light') { toast('המד כבוי: סובב את הבורר'); return; }
+      if (k === 'hold') { m.hold = !m.hold; mm.hold = null; }
+      else if (k === 'minmax') { m.mm = m.mm === null ? 'max' : m.mm === 'max' ? 'min' : null; if (m.mm === 'max') { mm.max = null; mm.min = null; } }
+      else if (k === 'range') { const R = RANGES[m.dial]; if (!R) { toast('במצב הזה יש רק טווח אוטומטי'); return; } const cur = m.range ?? (lastShown && lastShown.rangeIdx !== null ? lastShown.rangeIdx : 0); m.range = m.range === null ? cur : m.range + 1 < R.length ? m.range + 1 : null; toast(m.range === null ? 'AUTO: טווח אוטומטי' : `טווח ידני: עד ${R[m.range][0] / ({ V: 1, mV: 1e-3, 'Ω': 1, 'kΩ': 1e3, 'MΩ': 1e6, A: 1, mA: 1e-3, 'µA': 1e-6 }[R[m.range][1]])} ${R[m.range][1]}`); }
+      else if (k === 'rel') { if (m.rel !== null) m.rel = null; else { const v0 = lastShown ? toBase(lastShown) : null; if (v0 === null) { toast('REL צריך קריאה מספרית'); return; } m.rel = v0 + (m.rel || 0); } }
+      else if (k === 'select') { if (['mv', 'ua', 'ma', 'a'].includes(m.dial)) m.ac = !m.ac; else if (m.dial === 'hz') m.duty = !m.duty; else { toast('אין פונקציה נוספת במצב הזה'); return; } resetMM(); m.rel = null; }
+      else if (k === 'light') m.light = !m.light;
+      save(); meterPanel(); return;
+    }
+    const turn = (id) => { m.dial = id; m.ac = false; m.duty = false; m.range = null; m.rel = null; m.hold = false; m.mm = null; resetMM(); };
+    if (a === 'dial') { const i = DIAL.findIndex((q) => q.id === m.dial), n = DIAL.length; turn(DIAL[(i + Number(b.dataset.v) + n) % n].id); }
+    else if (d) turn(d.dataset.dial);
     else if (j) { if (j.dataset.jack === 'com') { toast('הפרוב השחור תמיד ב-COM'); return; } m.jack = j.dataset.jack; resetMM(); restart(); }
     else if (a === 'mfuse') { m.fuseOK = true; restart(); }
     else return;
