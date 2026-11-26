@@ -527,3 +527,10 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-dmmdial { font: 800 12px system-ui, sans-serif; }
 .pg-dmmbtn { cursor: pointer; }
 .pg-dmmbtn:active rect { fill: #5b6472; }
+/* tolerance stack-up editor */
+.pg-tol { overflow-x: auto; }
+.pg-tol .pg-table td, .pg-tol .pg-table th { padding: 4px 3px; }
+.pg-tol input { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px 4px; font: inherit; font-size: .85rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: inherit; }
+.pg-tol input[type="number"] { direction: ltr; text-align: center; }
+.pg-tol .chip { padding: 4px 9px; min-width: 0; }
+.pg-tol td:nth-child(2) { width: 30%; }
