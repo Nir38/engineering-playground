@@ -458,3 +458,41 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-mc { fill: var(--text); }
 .pg-mohr { touch-action: none; cursor: grab; }
 .pg-t.pg-b { font-weight: 700; }
+
+/* circuits and the multimeter */
+.pg-circ { touch-action: none; }
+.pg-cw { stroke: var(--text); stroke-width: 2; fill: none; stroke-linecap: round; }
+.pg-cable { stroke: #b45309; stroke-width: 4; stroke-linecap: round; }
+.pg-csym { fill: var(--surface); stroke: var(--text); stroke-width: 2; }
+.pg-cdot { fill: var(--text); }
+.pg-cnode { fill: var(--text); }
+.pg-csel .pg-cw, .pg-csel .pg-csym { stroke: var(--accent); }
+.pg-glow { fill: #facc15; }
+.pg-blown { stroke: var(--bad) !important; }
+.pg-blowntxt { fill: var(--bad); font-weight: 700; }
+.pg-clab { font-size: 10px; fill: var(--muted); }
+.pg-plus { font-size: 12px; font-weight: 800; fill: var(--bad); }
+.pg-cdots { fill: #f59e0b; }
+.pg-lead { fill: none; stroke-width: 2.4; stroke-linecap: round; }
+.pg-lead-red { stroke: #dc2626; } .pg-lead-black { stroke: #334155; }
+.pg-pbody-red { fill: #dc2626; } .pg-pbody-black { fill: #1f2937; stroke: #94a3b8; stroke-width: .8; }
+.pg-ptip { stroke: #cbd5e1; stroke-width: 2.4; }
+.pg-probe { cursor: grab; }
+.pg-mwrap { display: flex; gap: 10px; align-items: flex-start; }
+.pg-meter { direction: ltr; width: 46%; min-width: 150px; max-width: 220px; flex: none; touch-action: manipulation; }
+.pg-minfo { flex: 1; min-width: 0; }
+.pg-mbody { fill: #374151; } .pg-mface { fill: #1f2937; }
+.pg-lcd { fill: #c7d2b5; } .pg-lcd-off { fill: #6b7563; }
+.pg-lcdt { font: 700 26px ui-monospace, Menlo, Consolas, monospace; fill: #111; }
+.pg-lcdu { font: 700 10px system-ui, sans-serif; fill: #111; }
+.pg-dpos { cursor: pointer; }
+.pg-dtext { font: 700 10px system-ui, sans-serif; fill: #e5e7eb; }
+.pg-dtext.pg-don { fill: #facc15; font-size: 12px; }
+.pg-dtext.pg-small { font-size: 8px; }
+.pg-knob { fill: #111827; stroke: #6b7280; stroke-width: 2; } .pg-knob2 { fill: #374151; }
+.pg-kptr { stroke: #facc15; stroke-width: 5; stroke-linecap: round; }
+.pg-jack { cursor: pointer; }
+.pg-jk { fill: #111; stroke: #9ca3af; stroke-width: 2; }
+.pg-jk-red { fill: #dc2626; } .pg-jk-blk { fill: #000; stroke: #e5e7eb; }
+.pg-jk-fused { stroke: #f59e0b; }
+@media (max-width: 420px) { .pg-mwrap { flex-direction: column; align-items: center; } .pg-meter { width: 62%; } }
