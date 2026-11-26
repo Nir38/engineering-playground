@@ -10,6 +10,7 @@ import { renderFluid, fluidScene } from './playground-fluid.js';
 import { renderVib, vibScene } from './playground-vib.js';
 import { renderAir } from './playground-air.js';
 import { renderTunnel } from './playground-tunnel.js';
+import { renderMohr } from './playground-mohr.js';
 import { renderFbd } from './playground-fbd.js';
 import { renderSaved } from './playground-saved.js';
 
@@ -278,29 +279,39 @@ function editorHtml() {
 
 // ---------- view ----------
 const MODE_KEY = 'mh-pg-mode';
+// two categories; each mode belongs to one. A category with no modes yet is not shown.
+const CATS = [
+  { id: 'mech', name: '⚙ מכניקה', modes: [['beam', '🏗️ קורות'], ['pulley', '🪢 גלגלות'], ['truss', '△ מסבכים'], ['fluid', '💧 נוזלים'], ['vib', '〰 רטט'], ['fbd', '✎ גוף חופשי'], ['air', '✈ כנף'], ['tunnel', '🌬 מנהרת רוח'], ['mohr', '◯ מעגל Mohr']] },
+  { id: 'elec', name: '⚡ חשמל', modes: [] },
+];
+const ALL_MODES = CATS.flatMap((c) => c.modes.map(([id]) => id));
+const catOf = (m) => CATS.find((c) => c.modes.some(([id]) => id === m)) || CATS[0];
+const catBar = (mode) => { const live = CATS.filter((c) => c.modes.length); return live.length < 2 ? '' : `<div class="pg-cats">${live.map((c) => `<button class="pg-cat" data-cat="${c.id}" aria-pressed="${catOf(mode).id === c.id}">${c.name}</button>`).join('')}</div>`; };
+const modeButtons = (mode) => catOf(mode).modes.map(([id, label]) => `<button class="pg-mode" data-mode="${id}" aria-pressed="${id === mode}">${label}</button>`).join('');
 let QUIZ = false; // question mode: draw the scene without the answers
 const HIST = {}; // undo history per mode, kept while the app is open
 export function renderPlayground(page, ctx) {
   ctx.setTitle('מגרש משחקים');
   let mode = 'beam';
-  try { const m = localStorage.getItem(MODE_KEY); mode = ['pulley', 'truss', 'fluid', 'vib', 'fbd', 'air', 'tunnel'].includes(m) ? m : 'beam'; } catch (e) { /* ignore */ }
-  page.innerHTML = `<div id="pgRoot"><div class="pg-head"><div class="pg-modes"><button class="pg-mode" data-mode="beam">🏗️ קורות</button><button class="pg-mode" data-mode="pulley">🪢 גלגלות</button><button class="pg-mode" data-mode="truss">△ מסבכים</button><button class="pg-mode" data-mode="fluid">💧 נוזלים</button><button class="pg-mode" data-mode="vib">〰 רטט</button><button class="pg-mode" data-mode="fbd">✎ גוף חופשי</button><button class="pg-mode" data-mode="air">✈ כנף</button><button class="pg-mode" data-mode="tunnel">🌬 מנהרת רוח</button></div><div class="pg-undo"><button class="btn" id="pgRedo" disabled aria-label="חזור על הפעולה" title="חזור">↷</button><button class="btn" id="pgUndo" disabled aria-label="בטל את הפעולה האחרונה" title="בטל">↶</button></div></div><div id="pgBody"></div><div id="pgSaved"></div></div>`;
+  try { const m = localStorage.getItem(MODE_KEY); mode = ALL_MODES.includes(m) ? m : 'beam'; } catch (e) { /* ignore */ }
+  page.innerHTML = `<div id="pgRoot"><div class="pg-head">${catBar(mode)}<div class="pg-modes"></div><div class="pg-undo"><button class="btn" id="pgRedo" disabled aria-label="חזור על הפעולה" title="חזור">↷</button><button class="btn" id="pgUndo" disabled aria-label="בטל את הפעולה האחרונה" title="בטל">↶</button></div></div><div id="pgBody"></div><div id="pgSaved"></div></div>`;
   const root = page.querySelector('#pgRoot'); // listeners live on this node, which is replaced when the route changes
   const undoBox = root.querySelector('.pg-undo'); // kept by reference: each mode's drawing card gets it in its corner
   let body = page.querySelector('#pgBody');
   const show = () => {
-    page.querySelectorAll('.pg-mode').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    const mb = page.querySelector('.pg-modes'); mb.innerHTML = modeButtons(mode); mb.dataset.n = String(catOf(mode).modes.length);
+    page.querySelectorAll('.pg-cat').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === catOf(mode).id)));
     const fresh = body.cloneNode(false); body.replaceWith(fresh); body = fresh; // drop old listeners
-    if (mode === 'pulley') renderPulleys(fresh, ctx); else if (mode === 'truss') renderTruss(fresh, ctx); else if (mode === 'fluid') renderFluid(fresh, ctx); else if (mode === 'vib') renderVib(fresh, ctx); else if (mode === 'fbd') renderFbd(fresh, ctx); else if (mode === 'air') renderAir(fresh, ctx); else if (mode === 'tunnel') renderTunnel(fresh, ctx); else renderBeams(fresh, ctx);
+    if (mode === 'pulley') renderPulleys(fresh, ctx); else if (mode === 'truss') renderTruss(fresh, ctx); else if (mode === 'fluid') renderFluid(fresh, ctx); else if (mode === 'vib') renderVib(fresh, ctx); else if (mode === 'fbd') renderFbd(fresh, ctx); else if (mode === 'air') renderAir(fresh, ctx); else if (mode === 'tunnel') renderTunnel(fresh, ctx); else if (mode === 'mohr') renderMohr(fresh, ctx); else renderBeams(fresh, ctx);
     const getScene = { beam: () => sc && { ...sc, sel: null }, pulley: pulleyScene, truss: trussScene, fluid: fluidScene, vib: vibScene }[mode];
     renderSaved(page.querySelector('#pgSaved'), { mode, getScene, toast: ctx.toast, practice: ctx.practice });
     // undo/redo live in the corner of the drawing card, next to what they change
     const stage = body.querySelector('.pg-stage'); if (undoBox && stage) stage.prepend(undoBox);
-    if (undoBox) setTimeout(() => { const h = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined }); if (h.cur === undefined) { try { h.cur = localStorage.getItem({ beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1', tunnel: 'mh-pg-tunnel-v1' }[mode]); } catch (e) { h.cur = null; } } undoBox.querySelector('#pgUndo').disabled = !h.past.length; undoBox.querySelector('#pgRedo').disabled = !h.future.length; }, 0);
+    if (undoBox) setTimeout(() => { const h = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined }); if (h.cur === undefined) { try { h.cur = localStorage.getItem({ beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1', tunnel: 'mh-pg-tunnel-v1', mohr: 'mh-pg-mohr-v1' }[mode]); } catch (e) { h.cur = null; } } undoBox.querySelector('#pgUndo').disabled = !h.past.length; undoBox.querySelector('#pgRedo').disabled = !h.future.length; }, 0);
   };
   // ---- undo / redo: every mode keeps its whole scene in localStorage, so history is a list of
   // snapshots of that key, taken after each interaction (selection changes are ignored)
-  const STORE = { beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1', tunnel: 'mh-pg-tunnel-v1' };
+  const STORE = { beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1', tunnel: 'mh-pg-tunnel-v1', mohr: 'mh-pg-mohr-v1' };
   const read = () => { try { return localStorage.getItem(STORE[mode]); } catch (e) { return null; } };
   const norm = (raw) => { try { const o = JSON.parse(raw); delete o.sel; delete o.pend; return JSON.stringify(o); } catch (e) { return raw; } };
   const hist = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined });
@@ -325,9 +336,16 @@ export function renderPlayground(page, ctx) {
   };
   undoBox.querySelector('#pgUndo').onclick = (ev) => { ev.stopPropagation(); jump('past', 'future'); };
   undoBox.querySelector('#pgRedo').onclick = (ev) => { ev.stopPropagation(); jump('future', 'past'); };
+  const cats = page.querySelector('.pg-cats');
+  if (cats) cats.onclick = (ev) => {
+    const b = ev.target.closest('[data-cat]'); if (!b || b.dataset.cat === catOf(mode).id) return;
+    const c = CATS.find((q) => q.id === b.dataset.cat); let last = null; try { last = localStorage.getItem(`${MODE_KEY}-${c.id}`); } catch (e) { /* ignore */ }
+    mode = c.modes.some(([id]) => id === last) ? last : c.modes[0][0]; try { localStorage.setItem(MODE_KEY, mode); } catch (e) { /* ignore */ }
+    show(); window.scrollTo(0, 0);
+  };
   page.querySelector('.pg-modes').onclick = (ev) => {
     const b = ev.target.closest('[data-mode]'); if (!b || b.dataset.mode === mode) return;
-    mode = b.dataset.mode; try { localStorage.setItem(MODE_KEY, mode); } catch (e) { /* ignore */ }
+    mode = b.dataset.mode; try { localStorage.setItem(`${MODE_KEY}-${catOf(mode).id}`, mode); } catch (e) { /* ignore */ } try { localStorage.setItem(MODE_KEY, mode); } catch (e) { /* ignore */ }
     show(); window.scrollTo(0, 0);
   };
   show();

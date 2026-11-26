@@ -432,7 +432,11 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .qctx-eq { background: var(--surface); border-radius: 10px; padding: 6px 10px; margin-bottom: 6px; overflow-x: auto; }
 /* playground header v2: modes as a 3×2 grid (nothing hidden, nothing sticky); undo/redo float above the tab bar */
 .pg-head { position: static; padding: 0; margin: 0 0 10px; }
-.pg-head .pg-modes { display: grid; grid-template-columns: repeat(4, 1fr); overflow: visible; margin-bottom: 0; }
+.pg-head .pg-modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; margin-bottom: 0; }
+.pg-head .pg-modes[data-n="9"], .pg-head .pg-modes[data-n="6"], .pg-head .pg-modes[data-n="5"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pg-cats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+.pg-cat { min-height: 40px; border: 1.5px solid var(--surface-2); border-radius: 12px; background: var(--surface); font-weight: 800; color: var(--muted); cursor: pointer; }
+.pg-cat[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
 .pg-head .pg-mode { min-height: 40px; padding: 2px 4px; font-size: .82rem; }
 .pg-undo { position: fixed; z-index: 20; inset-inline-end: 12px; bottom: calc(var(--tabbar-h) + 14px + env(safe-area-inset-bottom)); display: flex; gap: 8px; }
 .pg-undo .btn { flex: none; width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 50%; font-size: 1.3rem; box-shadow: 0 2px 10px rgba(0,0,0,.18); background: var(--surface); }
@@ -447,3 +451,10 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-range { display: block; margin: 10px 0; }
 .pg-range span { display: flex; justify-content: space-between; gap: 8px; font-size: .9rem; }
 .pg-range input { direction: ltr; width: 100%; height: 32px; accent-color: var(--accent); }
+
+/* Mohr's circle */
+.pg-elem { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--text); stroke-width: 1.6; }
+.pg-mcirc { fill: color-mix(in srgb, var(--accent) 8%, transparent); stroke: var(--accent); stroke-width: 2; }
+.pg-mc { fill: var(--text); }
+.pg-mohr { touch-action: none; cursor: grab; }
+.pg-t.pg-b { font-weight: 700; }
