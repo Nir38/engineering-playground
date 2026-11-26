@@ -93,3 +93,25 @@ export function wire(d, kind, w = 3, extra = '') {
 
 // a link to another playground mode (handled in playground.js)
 export const go = (mode, label) => `<button class="pg-go" data-goto="${mode}">${label}</button>`;
+
+// update a container to new HTML without replacing elements that stay the same (same tag in the same
+// place): text and attributes change in place. Periodic refreshes then never destroy a button under a
+// finger, so taps are not lost (a tap is lost when its element is replaced between touchstart and click).
+export function morph(el, html) {
+  const tpl = document.createElement('template'); tpl.innerHTML = html;
+  syncChildren(el, tpl.content);
+}
+function syncChildren(a, b) {
+  const an = [...a.childNodes], bn = [...b.childNodes];
+  for (let i = 0; i < bn.length; i++) {
+    const x = an[i], y = bn[i];
+    if (!x) { a.appendChild(y.cloneNode(true)); continue; }
+    if (x.nodeType !== y.nodeType || x.nodeName !== y.nodeName) { a.replaceChild(y.cloneNode(true), x); continue; }
+    if (x.nodeType === 3 || x.nodeType === 8) { if (x.nodeValue !== y.nodeValue) x.nodeValue = y.nodeValue; continue; }
+    for (const at of [...x.attributes]) if (!y.hasAttribute(at.name)) x.removeAttribute(at.name);
+    for (const at of [...y.attributes]) if (x.getAttribute(at.name) !== at.value) x.setAttribute(at.name, at.value);
+    if (x.tagName === 'INPUT') { if (x.value !== y.getAttribute('value') && document.activeElement !== x && y.hasAttribute('value')) x.value = y.getAttribute('value'); continue; }
+    syncChildren(x, y);
+  }
+  for (let i = an.length - 1; i >= bn.length; i--) a.removeChild(an[i]);
+}

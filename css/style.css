@@ -514,3 +514,8 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-wterm { fill: var(--surface); stroke: var(--text); stroke-width: 1.6; }
 .pg-wbox { fill: color-mix(in srgb, var(--surface-2) 70%, transparent); stroke: var(--muted); stroke-width: 1.4; stroke-dasharray: 5 3; }
 .pg-go { border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.pg-probebar { margin-top: 8px; align-items: center; }
+.pg-probebar .chip { min-height: 36px; padding: 4px 10px; font-size: .85rem; }
+.pg-dialbtn { align-items: center; gap: 8px; margin-bottom: 4px; }
+.pg-dialbtn .chip { min-width: 44px; font-size: 1rem; }
+.pg-dialbtn b { min-width: 48px; text-align: center; direction: ltr; }

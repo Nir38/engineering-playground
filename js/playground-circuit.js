@@ -4,7 +4,7 @@
 // Simulator and instruments: js/circuit.js (checked in tests/circuit-cases.mjs and tests/ac-cases.mjs).
 import { step, emptyState, meterElement, meterReading, METER, DIAL, cableR, lampR, MAT_NAME, GRID, acFreqs, acMeasureAll, clampReading, testerReading, TESTER, phaseShift } from './circuit.js';
 import { esc } from './text.js';
-import { plot, COL } from './elec-ui.js';
+import { plot, COL, morph, num } from './elec-ui.js';
 
 const KEY = 'mh-pg-circ-v1';
 const W = 360, H = 286, X0 = 20, Y0 = 18, SP = 40, GX = 9, GY = 6; // grid 9 × 6 points
@@ -41,16 +41,20 @@ const TEMPLATES = [
   { id: 'bridge', name: 'גשר דיודות', els: () => L([['vac', '3,1', '3,3', { Vrms: 12 }], ['diode', '3,1', '5,2'], ['diode', '3,3', '5,2'], ['diode', '1,2', '3,1'], ['diode', '1,2', '3,3'], ['wire', '5,2', '6,2'], ['cap', '6,2', '6,5', { C: 470e-6 }], ['wire', '6,2', '8,2'], ['res', '8,2', '8,5', { R: 100 }], ['wire', '1,2', '1,5'], ['wire', '1,5', '6,5'], ['wire', '6,5', '8,5']]) },
   { id: 'empty', name: 'ריק', els: () => [] },
 ];
-const defMeter = () => ({ dial: 'vdc', jack: 'v', red: null, black: null, fuseOK: true });
+const defMeter = () => ({ dial: 'vdc', jack: 'v', red: null, black: null, fuseOK: true, hold: false, mm: null });
 const INST = [['dmm', '🔧 מולטימטר'], ['clamp', '🗜 צבת'], ['tester', '🔦 בודק מתח'], ['scope', '📈 סקופ']];
 const SLOW = [[1, '×1'], [0.1, '×1/10'], [0.02, '×1/50']];
-const defaults = () => ({ els: TEMPLATES[0].els(), tool: 'select', sel: null, pend: null, meter: defMeter(), inst: 'dmm', clampEl: null, whole: false, slow: 0.02 });
+const defaults = () => ({ els: TEMPLATES[0].els(), tool: 'select', sel: null, pend: null, meter: defMeter(), inst: 'dmm', clampEl: null, whole: false, slow: 0.02, scopeN: 2, place: null, log: [] });
 let st = null;
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && Array.isArray(s.els)) st = { ...defaults(), ...s, meter: { ...defMeter(), ...(s.meter || {}) }, pend: null }; } catch (e) { /* ignore */ }
   if (!st) st = defaults();
   if (!INST.some(([v]) => v === st.inst)) st.inst = 'dmm';
   if (!SLOW.some(([v]) => v === st.slow)) st.slow = 0.02;
+  if (!Array.isArray(st.log)) st.log = [];
+  if (![2, 5].includes(st.scopeN)) st.scopeN = 2;
+  st.place = null; st.meter.hold = false; st.meter.mm = null;
+  if (st.clampEl != null && !st.els.some((e) => e.id === st.clampEl)) st.clampEl = null;
   uid = 1 + Math.max(0, ...st.els.map((e) => e.id));
 }
 const save = () => { try { const { pend, ...rest } = st; localStorage.setItem(KEY, JSON.stringify(rest)); } catch (e) { /* ignore */ } };
@@ -93,16 +97,17 @@ function symbol(e, len, glow) {
 export function renderCircuit(root, { toast }) {
   load();
   root.innerHTML = `
-    <div class="card pg-intro"><h2>⚡ מעגלים</h2><p class="small muted">בונים מעגל על רשת, רואים את הזרם זורם, ומודדים עם מולטימטר בדיוק כמו בעבודה אמיתית.</p>
+    <div class="card pg-intro"><h2>⚡ מעגלים ומולטימטר</h2><p class="small muted">בונים מעגל על רשת, רואים את הזרם זורם, ומודדים בדיוק כמו בעבודה אמיתית: מולטימטר, צבת, בודק מתח ואוסצילוסקופ (בכרטיס "מכשיר מדידה" מתחת לכלים).</p>
       <div class="pg-templates">${TEMPLATES.map((t) => `<button class="chip" data-tpl="${t.id}">${esc(t.name)}</button>`).join('')}</div></div>
     <div class="card pg-stage"><svg viewBox="0 0 ${W} ${H}" class="pg-svg pg-circ" id="pgCirc" role="img" aria-label="מעגל חשמלי עם מולטימטר"><g id="cGrid"></g><g id="cEls"></g><g id="cDots"></g><g id="cProbes"></g></svg>
+      <div class="chips pg-probebar" id="cProbeBar"></div>
       <div class="pg-tools pg-tools4">${TOOLS.map(([id, ic, name]) => `<button class="pg-tool" data-tool="${id}" aria-pressed="${st.tool === id}"><b>${ic}</b>${name}</button>`).join('')}</div>
       <p class="small muted pg-hint" id="cHint"></p></div>
     <div class="card" id="cMeter"></div>
     <div class="card" id="cEdit"></div>
     <div class="card" id="cRes"></div>`;
   const svg = root.querySelector('#pgCirc'), gGrid = svg.querySelector('#cGrid'), gEls = svg.querySelector('#cEls'), gDots = svg.querySelector('#cDots'), gPr = svg.querySelector('#cProbes');
-  const meterBox = root.querySelector('#cMeter'), ed = root.querySelector('#cEdit'), out = root.querySelector('#cRes'), hint = root.querySelector('#cHint');
+  const probeBar = root.querySelector('#cProbeBar'), meterBox = root.querySelector('#cMeter'), ed = root.querySelector('#cEdit'), out = root.querySelector('#cRes'), hint = root.querySelector('#cHint');
   let lastRes = '', sim = emptyState(), live = null, phase = new Map(), raf = 0, last = 0, lastPanel = 0, lastBeep = false, drag = null;
   const M = () => st.meter;
   const nodeSet = () => new Set(st.els.flatMap((e) => [e.a, e.b]));
@@ -177,10 +182,10 @@ export function renderCircuit(root, { toast }) {
     if (m.dial !== 'off') {
       s += `<text x="160" y="70" text-anchor="end" class="pg-lcdt" id="lcdT">${esc(rd.text)}</text><text x="166" y="80" text-anchor="end" class="pg-lcdu" id="lcdU">${esc(rd.unit)}</text>`;
       s += `<text x="34" y="40" class="pg-lcdu">${m.dial === 'vac' ? 'AC' : ['vdc', 'mv', 'a', 'ma'].includes(m.dial) ? 'DC' : ''} AUTO</text>`;
-      s += `<text x="34" y="78" class="pg-lcdu" id="lcdB">${rd.beep ? '🔊' : ''}</text><text x="100" y="40" class="pg-lcdu" text-anchor="middle" id="lcdW">${rd.warn && rd.warn.startsWith('⚠') ? '⚠' : ''}</text>`;
+      s += `<text x="34" y="78" class="pg-lcdu" id="lcdB">${rd.beep ? '🔊' : ''}</text><text x="166" y="40" text-anchor="end" class="pg-lcdu">${m.hold ? 'HOLD' : ''} ${m.mm === 'max' ? 'MAX' : m.mm === 'min' ? 'MIN' : ''}</text><text x="100" y="40" class="pg-lcdu" text-anchor="middle" id="lcdW">${rd.warn && rd.warn.startsWith('⚠') ? '⚠' : ''}</text>`;
     }
     // dial
-    DIAL.forEach((d, i) => { const t = ang(i), x = cx + (R + 24) * Math.cos(t), y = cy + (R + 24) * Math.sin(t); s += `<g data-dial="${d.id}" class="pg-dpos"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="13" fill="transparent"/><text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" class="pg-dtext ${i === di ? 'pg-don' : ''}">${esc(d.label)}</text></g>`; });
+    DIAL.forEach((d, i) => { const t = ang(i), x = cx + (R + 24) * Math.cos(t), y = cy + (R + 24) * Math.sin(t); s += `<g data-dial="${d.id}" class="pg-dpos"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="17" fill="transparent"/><text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="middle" class="pg-dtext ${i === di ? 'pg-don' : ''}">${esc(d.label)}</text></g>`; });
     s += `<circle cx="${cx}" cy="${cy}" r="${R}" class="pg-knob"/><circle cx="${cx}" cy="${cy}" r="${R - 9}" class="pg-knob2"/>`;
     s += `<line x1="${cx}" y1="${cy}" x2="${(cx + (R - 4) * Math.cos(a)).toFixed(1)}" y2="${(cy + (R - 4) * Math.sin(a)).toFixed(1)}" class="pg-kptr"/>`;
     // jacks: A, mA µA, COM, VΩ
@@ -192,65 +197,87 @@ export function renderCircuit(root, { toast }) {
     s += `<text x="56" y="314" text-anchor="middle" class="pg-dtext pg-small">${m.fuseOK ? 'FUSED' : '⚠ נתיך נשרף'}</text>`;
     return s + '</svg>';
   }
-  const instChips = () => `<div class="chips pg-inst">${INST.map(([v, t]) => `<button class="chip" data-inst="${v}" aria-pressed="${st.inst === v}">${t}</button>`).join('')}</div>`
+  // ---------- instruments: one card, refreshed in place (morph), so taps on its buttons are never lost ----------
+  const instChips = () => `<h3 class="pg-h">מכשיר מדידה</h3><div class="chips pg-inst">${INST.map(([v, t]) => `<button class="chip" data-inst="${v}" aria-pressed="${st.inst === v}">${t}</button>`).join('')}</div>`
     + (hasAC() ? `<div class="chips pg-slow"><span class="small muted">הילוך איטי לזרם חילופין:</span>${SLOW.map(([v, t]) => `<button class="chip" data-slow="${v}" aria-pressed="${st.slow === v}">${t}</button>`).join('')}</div>` : '');
+  const where = () => { const m = M(); return m.red && m.black ? `${m.red} ← ${m.black}` : 'לא מחובר'; };
   // ---------- clamp meter, voltage tester, oscilloscope ----------
   function clampBody() {
-    const rd = clampReading(st.els, st.clampEl, st.whole);
+    const rd = clampReading(st.els, st.clampEl, st.whole), ce = st.els.find((q) => q.id === st.clampEl);
     const svg = `<svg viewBox="0 0 200 200" class="pg-meter" role="img" aria-label="מד צבת"><path d="M60,92 L60,44 A40,40 0 0 1 140,44 L140,92" fill="none" stroke="#f59e0b" stroke-width="14" stroke-linecap="round"/><circle cx="100" cy="46" r="${st.whole ? 18 : 7}" fill="#b45309"/>${st.whole ? '<circle cx="93" cy="46" r="5" fill="#334155"/><circle cx="107" cy="46" r="5" fill="#334155"/>' : ''}<rect x="40" y="88" width="120" height="106" rx="14" class="pg-mbody"/><rect x="52" y="100" width="96" height="44" rx="5" class="pg-lcd"/><text x="140" y="132" text-anchor="end" class="pg-lcdt" style="font-size:20px">${esc(rd.text)}</text><text x="144" y="141" text-anchor="end" class="pg-lcdu">${esc(rd.unit)}</text><text x="58" y="111" class="pg-lcdu">AC</text><text x="100" y="172" text-anchor="middle" class="pg-dtext">A~</text></svg>`;
-    return `<h3 class="pg-h">🗜 מד צבת</h3><div class="pg-mwrap">${svg}<div class="pg-minfo"><p class="small">${st.clampEl ? `מחבק את: <b>${esc(NAME[(st.els.find((q) => q.id === st.clampEl) || {}).type] || '')}</b>` : 'לחץ על חוט או רכיב במעגל (בכלי ✋) כדי לחבק אותו.'}</p>
+    return { reading: `${rd.text} ${rd.unit}`, what: 'צבת A~', at: ce ? NAME[ce.type] : '—', html: `<h3 class="pg-h">🗜 מד צבת</h3><div class="pg-mwrap">${svg}<div class="pg-minfo"><p class="small">${ce ? `מחבק את: <b>${esc(NAME[ce.type])}</b> ${ltr(`${ce.a} → ${ce.b}`)}` : 'לחץ על חוט או רכיב במעגל (בכלי ✋) כדי לחבק אותו.'}</p>
       <p class="small" style="color:${rd.warn ? 'var(--bad)' : 'inherit'}">${esc(rd.warn)}</p>
       <div class="chips"><button class="chip" data-act="whole" data-v="0" aria-pressed="${!st.whole}">מוליך אחד</button><button class="chip" data-act="whole" data-v="1" aria-pressed="${st.whole}">הכבל כולו</button></div></div></div>
-      <p class="small muted">הצבת מודדת את השדה המגנטי שזרם מתחלף יוצר סביב המוליך, בלי לפתוח את המעגל ובלי לגעת בנחושת. בכבל שלם הזרם הולך בגיד אחד וחוזר בשני: השדות מבטלים זה את זה. זה בדיוק העיקרון של ממסר פחת, שבודק שההפרש בין שני הגידים הוא 0. צבת פשוטה כזו לא מודדת זרם ישר (יש דגמים שכן, עם חיישן Hall).</p>`;
+      <p class="small muted">הצבת מודדת את השדה המגנטי שזרם מתחלף יוצר סביב המוליך, בלי לפתוח את המעגל ובלי לגעת בנחושת. בכבל שלם הזרם הולך בגיד אחד וחוזר בשני: השדות מבטלים זה את זה. זה בדיוק העיקרון של ממסר פחת, שבודק שההפרש בין שני הגידים הוא 0. צבת פשוטה כזו לא מודדת זרם ישר (יש דגמים שכן, עם חיישן Hall).</p>` };
   }
   function testerBody() {
     const m = M(), q = testerReading(st.els, m.red, m.black);
     let leds = ''; TESTER.forEach((v, k) => { const y = 168 - k * 24, on = k < q.leds; leds += `<circle cx="70" cy="${y}" r="7" fill="${on ? (v >= 120 ? '#ef4444' : '#f59e0b') : '#4b5563'}"/><text x="86" y="${y + 4}" class="pg-dtext">${v} V</text>`; });
     const svg = `<svg viewBox="0 0 200 200" class="pg-meter" role="img" aria-label="בודק מתח דו-קוטבי"><rect x="44" y="12" width="112" height="182" rx="18" class="pg-mbody"/>${leds}<text x="70" y="30" text-anchor="middle" class="pg-dtext ${q.ac ? 'pg-don' : ''}">~</text><text x="104" y="30" text-anchor="middle" class="pg-dtext ${q.sign > 0 ? 'pg-don' : ''}">+</text><text x="132" y="30" text-anchor="middle" class="pg-dtext ${q.sign < 0 ? 'pg-don' : ''}">−</text></svg>`;
-    return `<h3 class="pg-h">🔦 בודק מתח דו-קוטבי</h3><div class="pg-mwrap">${svg}<div class="pg-minfo"><p class="small">${m.red && m.black ? `בין הפרובים בערך ${ltr(`${q.V.toFixed(1)} V`)} ${q.ac ? 'חילופין' : q.sign ? 'ישר' : ''}` : 'גרור את שני הפרובים לשתי נקודות במעגל.'}</p>
-      <p class="small">בודק כזה לא נותן מספר מדויק, אלא עונה מהר על השאלה "יש פה מתח?". הנוריות נדלקות בדרגות, ${'~'} אומר מתח חילופין, ו-+ או − את הקוטביות של מתח ישר.</p></div></div>
-      <p class="small muted">כלל עבודה: לפני שמכריזים "אין מתח", בודקים את הבודק על מקור ידוע, מודדים, ואז בודקים אותו שוב על המקור הידוע. כך יודעים שהבודק עצמו לא תקול. הדרגות כאן הן ערכים לדוגמה.</p>`;
+    return { reading: q.leds ? `${TESTER[q.leds - 1]} V${q.ac ? '~' : ''}` : 'אין מתח', what: 'בודק מתח', at: where(), html: `<h3 class="pg-h">🔦 בודק מתח דו-קוטבי</h3><div class="pg-mwrap">${svg}<div class="pg-minfo"><p class="small">${m.red && m.black ? `בין הפרובים בערך ${ltr(`${q.V.toFixed(1)} V`)} ${q.ac ? 'חילופין' : q.sign ? 'ישר' : ''}` : 'חבר את שני הפרובים לשתי נקודות במעגל.'}</p>
+      <p class="small">בודק כזה לא נותן מספר מדויק, אלא עונה מהר על השאלה "יש פה מתח?". הנוריות נדלקות בדרגות, ~ אומר מתח חילופין, ו-+ או − את הקוטביות של מתח ישר.</p></div></div>
+      <p class="small muted">כלל עבודה: לפני שמכריזים "אין מתח", בודקים את הבודק על מקור ידוע, מודדים, ואז בודקים אותו שוב על המקור הידוע. כך יודעים שהבודק עצמו לא תקול. הדרגות כאן הן ערכים לדוגמה.</p>` };
   }
+  // the scope: trigger on a rising crossing of channel 1 (or 2), so the picture stands still, and measure it
+  let frozen = null;
   function scopeBody() {
-    const m = M(), ch2 = st.els.find((q) => q.id === st.sel), fs = acFreqs(st.els), win = fs.length ? 2 / fs[0] : 4;
-    const t1 = sim.t, pts = buf.filter((p) => p[0] >= t1 - win), step2 = Math.max(1, Math.floor(pts.length / 300)), sm = pts.filter((_, k) => k % step2 === 0);
-    let g = '<p class="small muted">אין עדיין נתונים.</p>';
-    if (sm.length > 2) {
-      const series = []; if (m.red && m.black) series.push({ ys: sm.map((p) => p[1]), col: COL.v, label: 'CH1 v' }); if (ch2) series.push({ ys: sm.map((p) => p[2]), col: COL.i, label: 'CH2 i', axis: 'r' });
-      if (series.length) g = plot({ xs: sm.map((p) => (p[0] - sm[0][0]) * 1000), series, units: { x: 'ms', l: 'V', r: 'A' }, sym: fs.length > 0, rzoom: 1.4, id: 'cScope' });
+    const m = M(), ch2 = st.els.find((q) => q.id === st.sel), fs = acFreqs(st.els), per = fs.length ? 1 / fs[0] : 0, win = fs.length ? st.scopeN * per : 4;
+    const data = frozen || buf, t1 = data.length ? data[data.length - 1][0] : 0, use1 = !!(m.red && m.black);
+    let start = t1 - win, trig = false;
+    if (fs.length && data.length) { // the last rising crossing that still leaves a full window after it
+      const k = use1 ? 1 : 2, rec = data.filter((p) => p[0] >= t1 - win - 2 * per), mean = rec.reduce((q, p) => q + p[k], 0) / (rec.length || 1);
+      for (let i = rec.length - 1; i > 0; i--) if (rec[i][0] <= t1 - win && rec[i - 1][k] < mean && rec[i][k] >= mean) { start = rec[i][0]; trig = true; break; }
+    }
+    const pts = data.filter((p) => p[0] >= start && p[0] <= start + win), stp = Math.max(1, Math.floor(pts.length / 300)), sm = pts.filter((_, k) => k % stp === 0);
+    let g = `<p class="small muted">${use1 || ch2 ? 'אוסף נתונים...' : 'חבר את הפרובים (ערוץ 1) או בחר רכיב במעגל (ערוץ 2).'}</p>`, meas = '';
+    if (sm.length > 2 && (use1 || ch2)) {
+      const series = []; if (use1) series.push({ ys: sm.map((p) => p[1]), col: COL.v, label: 'CH1 v' }); if (ch2) series.push({ ys: sm.map((p) => p[2]), col: COL.i, label: 'CH2 i', axis: 'r' });
+      g = plot({ xs: sm.map((p) => (p[0] - start) * 1000), series, units: { x: 'ms', l: 'V', r: 'A' }, sym: fs.length > 0, rzoom: 1.4, id: 'cScope' });
+      const stat = (k) => { const xs = pts.map((p) => p[k]), mx = Math.max(...xs), mn = Math.min(...xs), mean = xs.reduce((a, b) => a + b, 0) / xs.length, rms = Math.sqrt(xs.reduce((a, b) => a + b * b, 0) / xs.length); return { pp: mx - mn, mean, rms }; };
+      const cells = [];
+      if (use1) { const a = stat(1); cells.push(`<div><span>CH1 מתח</span><b>${ltr(`Vpp ${si(a.pp, 'V')}`)}</b><small class="muted">${ltr(`RMS ${si(a.rms, 'V')}`)} · ממוצע ${ltr(si(a.mean, 'V'))}</small></div>`); }
+      if (ch2) { const b = stat(2); cells.push(`<div><span>CH2 זרם (${esc(NAME[ch2.type])})</span><b>${ltr(`Ipp ${si(b.pp, 'A')}`)}</b><small class="muted">${ltr(`RMS ${si(b.rms, 'A')}`)}</small></div>`); }
+      if (fs.length) cells.push(`<div><span>תדר ומחזור</span><b>${ltr(`${num(fs[0], 2)} Hz`)}</b><small class="muted">${ltr(`T = ${si(per, 's')}`)}</small></div>`);
+      meas = `<div class="pg-max">${cells.join('')}</div>`;
     }
     let dphi = '';
-    if (fs.length === 1 && ch2 && m.red && m.black && !st.els.some((e) => e.type === 'diode')) { const d = phaseShift(st.els, fs[0], m.red, m.black, ch2.id); if (d !== null) dphi = `<p class="small"><b>הפרש פאזה:</b> ${Math.abs(d) < 0.5 ? 'המתח והזרם באותה פאזה (כמו בנגד).' : d > 0 ? `המתח מקדים את הזרם ב-${d.toFixed(1)}° (השראי, הזרם מפגר).` : `הזרם מקדים את המתח ב-${(-d).toFixed(1)}° (קיבולי).`}</p>`; }
-    return `<h3 class="pg-h">📈 אוסצילוסקופ פשוט</h3><div class="pg-scope">${g}</div>${dphi}
-      <p class="small">ערוץ 1 (כחול): המתח בין הפרוב האדום לשחור. ערוץ 2 (כתום): הזרם ברכיב שבחרת במעגל (לחיצה עליו בכלי ✋)${ch2 ? `, עכשיו ${esc(NAME[ch2.type])}` : ''}. ${fs.length ? `החלון מראה שני מחזורים (${(win * 1000).toFixed(0)} ms).` : 'החלון מראה את 4 השניות האחרונות.'}</p>
-      <p class="small muted">באוסצילוסקופ אמיתי הערוץ השני מודד מתח, ולכן זרם מודדים דרך נגד קטן (shunt) או פרוב זרם. וזהירות: ה-COM של רוב הסקופים מחובר להארקה.</p>`;
+    if (fs.length === 1 && ch2 && use1 && !st.els.some((e) => e.type === 'diode')) { const d = phaseShift(st.els, fs[0], m.red, m.black, ch2.id); if (d !== null) dphi = `<p class="small"><b>הפרש פאזה:</b> ${Math.abs(d) < 0.5 ? 'המתח והזרם באותה פאזה (כמו בנגד).' : d > 0 ? `המתח מקדים את הזרם ב-${ltr(`${d.toFixed(1)}°`)} (השראי, הזרם מפגר).` : `הזרם מקדים את המתח ב-${ltr(`${(-d).toFixed(1)}°`)} (קיבולי).`}</p>`; }
+    return { reading: use1 && pts.length ? `Vpp ${si(Math.max(...pts.map((p) => p[1])) - Math.min(...pts.map((p) => p[1])), 'V')}` : '—', what: 'סקופ', at: where(), html: `<h3 class="pg-h">📈 אוסצילוסקופ</h3>
+      <div class="chips">${fs.length ? [2, 5].map((n) => `<button class="chip" data-act="scopeN" data-v="${n}" aria-pressed="${st.scopeN === n}">${n} מחזורים</button>`).join('') : ''}<button class="chip" data-act="run" aria-pressed="${!!frozen}">${frozen ? '▶ RUN' : '⏸ STOP'}</button></div>
+      <div class="pg-scope">${g}</div>${fs.length ? `<p class="small muted">${trig ? '● טריגר: התמונה מתחילה בעלייה של ' + (use1 ? 'ערוץ 1' : 'ערוץ 2') + ' דרך הממוצע, ולכן היא עומדת במקום.' : '○ מחכה לטריגר...'}</p>` : ''}${meas}${dphi}
+      <p class="small">ערוץ 1 (כחול): המתח בין הפרוב האדום לשחור. ערוץ 2 (כתום): הזרם ברכיב שבחרת במעגל (לחיצה עליו בכלי ✋)${ch2 ? `, עכשיו ${esc(NAME[ch2.type])}` : ''}. ${fs.length ? '' : 'בלי מקור AC החלון מראה את 4 השניות האחרונות, למשל טעינה של קבל.'}</p>
+      <p class="small muted">באוסצילוסקופ אמיתי הערוץ השני מודד מתח, ולכן זרם מודדים דרך נגד קטן (shunt) או פרוב זרם. וזהירות: ה-COM של רוב הסקופים מחובר להארקה.</p>` };
   }
-  function otherPanel() {
-    meterBox.innerHTML = instChips() + `<div id="instBody">${st.inst === 'clamp' ? clampBody() : st.inst === 'tester' ? testerBody() : scopeBody()}</div>`;
+  // the multimeter with HOLD and MIN/MAX
+  const mm = { hold: null, max: null, min: null };
+  const resetMM = () => { mm.hold = null; mm.max = null; mm.min = null; };
+  function dmmBody() {
+    const m = M(); let rd = meterReading(st.els, live, m, sim);
+    const v = parseFloat(rd.text);
+    if (Number.isFinite(v) && m.dial !== 'off') { if (mm.max === null || v > mm.max.v) mm.max = { v, rd }; if (mm.min === null || v < mm.min.v) mm.min = { v, rd }; }
+    if (m.hold) { if (!mm.hold) mm.hold = rd; rd = mm.hold; } else mm.hold = null;
+    if (m.mm === 'max' && mm.max) rd = { ...mm.max.rd, warn: rd.warn }; else if (m.mm === 'min' && mm.min) rd = { ...mm.min.rd, warn: rd.warn };
+    if (rd.beep && !lastBeep) beep();
+    lastBeep = !!rd.beep;
+    const di = DIAL.findIndex((d) => d.id === m.dial);
+    return { reading: `${rd.text} ${rd.unit}`, what: `מולטימטר ${DIAL[di].label}`, at: where(), html: `<h3 class="pg-h">🔧 מולטימטר דיגיטלי</h3>
+      <div class="pg-mwrap">${meterSvg(rd)}<div class="pg-minfo"><div class="chips pg-dialbtn"><button class="chip" data-act="dial" data-v="-1" aria-label="סובב את הבורר אחורה">◀</button><b>${esc(DIAL[di].label)}</b><button class="chip" data-act="dial" data-v="1" aria-label="סובב את הבורר קדימה">▶</button></div>
+      <p class="small">${esc(DIAL_HELP[m.dial])}</p>
+      <p class="small" style="color:${rd.warn.startsWith('⚠') ? 'var(--bad)' : 'inherit'}">${esc(rd.warn)}</p>
+      <div class="chips"><button class="chip" data-act="hold" aria-pressed="${!!m.hold}">HOLD</button><button class="chip" data-act="minmax" aria-pressed="${!!m.mm}">${m.mm === 'max' ? 'MAX' : m.mm === 'min' ? 'MIN' : 'MIN/MAX'}</button>${m.fuseOK ? '' : '<button class="chip" data-act="mfuse">🔁 החלף נתיך במד</button>'}</div></div></div>
+      <p class="small muted">לוחצים על מצב בבורר (או על ◀ ▶) כדי לסובב אותו, ועל שקע כדי להעביר אליו את הפרוב האדום. השחור תמיד ב-COM. HOLD מקפיא את התצוגה, MIN/MAX מראה את הקריאה הגבוהה או הנמוכה מאז שהתחלת. ההתנגדות הפנימית, הנתיכים וסף הביפ הם ערכים לדוגמה.</p>` };
+  }
+  const instBody = () => (st.inst === 'clamp' ? clampBody() : st.inst === 'tester' ? testerBody() : st.inst === 'scope' ? scopeBody() : dmmBody());
+  let lastInst = null;
+  function logHtml() {
+    if (!st.log.length) return '';
+    return `<h3 class="pg-h">📋 יומן מדידות</h3><table class="pg-table"><thead><tr><th>מכשיר</th><th>איפה</th><th>קריאה</th></tr></thead><tbody>${st.log.map((r) => `<tr><td>${esc(r.what)}</td><td>${ltr(r.at)}</td><td>${ltr(r.reading)}</td></tr>`).join('')}</tbody></table><button class="chip" data-act="logclear">🗑 נקה יומן</button>`;
   }
   function meterPanel() {
-    if (st.inst !== 'dmm') { otherPanel(); return; }
-    const m = M(), rd = meterReading(st.els, live, m, sim);
-    meterBox.innerHTML = instChips() + `<h3 class="pg-h">🔧 מולטימטר דיגיטלי</h3>
-      <div class="pg-mwrap">${meterSvg(rd)}<div class="pg-minfo"><p class="small"><b>${esc(DIAL.find((d) => d.id === m.dial).label)}</b>: ${esc(DIAL_HELP[m.dial])}</p>
-      <p class="small" id="mWarn" style="color:${rd.warn.startsWith('⚠') ? 'var(--bad)' : 'inherit'}">${esc(rd.warn)}</p>
-      <p class="small muted">אדום: ${m.red ? ltr(m.red) : 'לא מחובר'} · שחור: ${m.black ? ltr(m.black) : 'לא מחובר'}</p>
-      ${m.fuseOK ? '' : '<button class="btn" data-act="mfuse">🔁 החלף את הנתיך במד</button>'}
-      <button class="btn" data-act="park">↩ החזר פרובים</button></div></div>
-      <p class="small muted">לוחצים על מצב בבורר כדי לסובב אותו, ועל שקע כדי להעביר אליו את הפרוב האדום. השחור תמיד ב-COM. ההתנגדות הפנימית, הנתיכים וסף הביפ הם ערכים לדוגמה, ומשתנים בין דגמים.</p>`;
-    if (rd.beep && !lastBeep) beep();
-    lastBeep = !!rd.beep;
+    const b = instBody(); lastInst = b;
+    morph(meterBox, instChips() + b.html + `<div class="chips" style="margin-top:8px"><button class="btn" data-act="log">📋 רשום את המדידה</button></div>` + logHtml());
   }
-  // light update: only the numbers on the display and the warning
-  function meterValues() {
-    if (st.inst !== 'dmm') { const b = meterBox.querySelector('#instBody'); if (b) b.innerHTML = st.inst === 'clamp' ? clampBody() : st.inst === 'tester' ? testerBody() : scopeBody(); return; }
-    const m = M(), rd = meterReading(st.els, live, m, sim), q = (id) => meterBox.querySelector(id);
-    if (m.dial === 'off' || !q('#lcdT')) return;
-    q('#lcdT').textContent = rd.text; q('#lcdU').textContent = rd.unit; q('#lcdB').textContent = rd.beep ? '🔊' : ''; q('#lcdW').textContent = rd.warn && rd.warn.startsWith('⚠') ? '⚠' : '';
-    const w = q('#mWarn'); if (w && w.textContent !== rd.warn) { w.textContent = rd.warn; w.style.color = rd.warn.startsWith('⚠') ? 'var(--bad)' : 'inherit'; }
-    if (rd.beep && !lastBeep) beep();
-    lastBeep = !!rd.beep;
-  }
+  const meterValues = meterPanel;
   let actx = null;
   function beep() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = 2600; g.gain.value = 0.04; o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.12); } catch (e) { /* ignore */ } }
 
@@ -307,7 +334,13 @@ export function renderCircuit(root, { toast }) {
       <table class="pg-table"><thead><tr><th>רכיב</th><th>מתח</th><th>זרם</th><th>הספק</th></tr></thead><tbody>${rows}</tbody></table>
       <p class="small muted">${ltr('V = I·R')} (חוק אוהם), ${ltr('P = V·I')}. בכל צומת סכום הזרמים 0, ובכל לולאה סכום המתחים 0 (חוקי Kirchhoff). רוצה לבדוק? מדוד עם המולטימטר.</p>`;
   }
-  const all = () => { drawEls(); drawProbes(); ed.innerHTML = editor(); out.innerHTML = results(); meterPanel(); hint.textContent = hintFor(st.tool); root.querySelectorAll('[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === st.tool))); };
+  const probeBarHtml = () => {
+    const e = st.els.find((q) => q.id === st.sel), m = M();
+    return `<button class="chip" data-act="place" data-v="red" aria-pressed="${st.place === 'red'}">🔴 מקם אדום</button><button class="chip" data-act="place" data-v="black" aria-pressed="${st.place === 'black'}">⚫ מקם שחור</button>`
+      + (e ? `<button class="chip" data-act="onel">🔌 על ה${esc(NAME[e.type])}</button>` : '') + (m.red || m.black ? '<button class="chip" data-act="swapp">⇄ החלף</button><button class="chip" data-act="park">↩ נתק</button>' : '')
+      + (st.place ? `<span class="small" style="color:var(--accent)">לחץ על נקודה במעגל לפרוב ה${st.place === 'red' ? 'אדום' : 'שחור'}</span>` : '');
+  };
+  const all = () => { drawEls(); drawProbes(); morph(ed, editor()); morph(out, results()); morph(probeBar, probeBarHtml()); meterPanel(); hint.textContent = hintFor(st.tool); root.querySelectorAll('[data-tool]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tool === st.tool))); };
   // the meter's own fuse: too much current through the A or mA jack
   const meterBlows = (r) => { const m = M(); if (!r || !r.I.has('meter') || !(m.jack === 'a' || m.jack === 'ma')) return false; if (Math.abs(r.I.get('meter')) <= (m.jack === 'a' ? METER.fuseA : METER.fusemA)) return false; m.fuseOK = false; save(); toast('🔥 הנתיך של המד נשרף'); return true; };
   const restart = () => { buf = []; sim = emptyState(); live = step(simEls(), sim, 1e-4); if (meterBlows(live)) { sim = emptyState(); live = step(simEls(), sim, 1e-4); } }; // a first solve right away, before any animation frame
@@ -321,13 +354,18 @@ export function renderCircuit(root, { toast }) {
     let changed = false;
     for (let k = 0; k < n; k++) {
       live = step(els, sim, simDt / n);
-      if (st.inst === 'scope') { buf.push([sim.t, m.red && m.black ? live.v(m.red) - live.v(m.black) : 0, ch2 != null && live.I.has(ch2) ? live.I.get(ch2) : 0]); if (buf.length > 8000) buf.splice(0, buf.length - 6000); }
+      if (st.inst === 'scope' && !frozen) { buf.push([sim.t, m.red && m.black ? live.v(m.red) - live.v(m.black) : 0, ch2 != null && live.I.has(ch2) ? live.I.get(ch2) : 0]); if (buf.length > 8000) buf.splice(0, buf.length - 6000); }
       if (live.blown.length) { live.blown.forEach((f) => { f.blown = true; }); changed = true; toast('🔥 הנתיך נשרף'); break; }
       if (meterBlows(live)) { changed = true; break; }
     }
+    // the scope fills its window quickly: until it has 1.5 windows of data, run extra steps (fast forward)
+    if (!changed && st.inst === 'scope' && !frozen && fs.length) {
+      const per = 1 / fs[0], need = (st.scopeN + 1) * per, have = buf.length ? buf[buf.length - 1][0] - buf[0][0] : 0;
+      if (have < need) for (let k = 0; k < 400; k++) { live = step(els, sim, per / 200); buf.push([sim.t, m.red && m.black ? live.v(m.red) - live.v(m.black) : 0, ch2 != null && live.I.has(ch2) ? live.I.get(ch2) : 0]); if (live.blown.length || meterBlows(live)) break; }
+    }
     if (changed) { save(); restart(); all(); }
     drawDots(dtSec); drawEls();
-    if (now - lastPanel > 200) { lastPanel = now; meterValues(); if (!drag) { const r = results(); if (r !== lastRes) { out.innerHTML = r; lastRes = r; } } }
+    if (now - lastPanel > 200) { lastPanel = now; meterValues(); if (!drag) { const r = results(); if (r !== lastRes) { morph(out, r); lastRes = r; } } }
     raf = requestAnimationFrame(tick);
   }
 
@@ -337,7 +375,13 @@ export function renderCircuit(root, { toast }) {
   const hitEl = ([x, y]) => { let best = null, bd = 11; for (const e of st.els) { const [ax, ay] = px(e.a), [bx, by] = px(e.b), dx = bx - ax, dy = by - ay, t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy))), d = Math.hypot(ax + t * dx - x, ay + t * dy - y); if (d < bd) { bd = d; best = e; } } return best; };
   svg.addEventListener('pointerdown', (ev) => {
     const p = toSvg(ev);
-    for (const c of ['red', 'black']) { const [x, y] = probePos(c); if (Math.hypot(x - p[0], y + 10 - p[1]) < 20) { ev.preventDefault(); drag = { c, p: [x, y], id: ev.pointerId }; try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ } return; } }
+    // placing a probe with a tap (from the probe bar)
+    if (st.place) { const k = nearPoint(p); if (k && nodeSet().has(k)) { M()[st.place] = k; st.place = null; resetMM(); save(); restart(); all(); } else toast('לחץ על נקודת חיבור במעגל (עיגול שחור)'); return; }
+    // grab a probe by its body (below the tip); a short tap without moving falls through as an ordinary tap
+    for (const c of ['red', 'black']) { const [x, y] = probePos(c); if (Math.abs(x - p[0]) < 12 && p[1] > y + 2 && p[1] < y + 30) { ev.preventDefault(); drag = { c, p: [x, y], id: ev.pointerId, p0: p, t0: performance.now(), moved: false }; try { svg.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ } return; } }
+    tapAt(p);
+  });
+  function tapAt(p) {
     const t = st.tool;
     if (t === 'select' || t === 'del') {
       const e = hitEl(p);
@@ -353,36 +397,53 @@ export function renderCircuit(root, { toast }) {
     const a = st.pend, b = k;
     if (!st.els.some((e) => (e.a === a && e.b === b) || (e.a === b && e.b === a))) { const ne = E(t, a, b); st.els.push(ne); st.sel = t === 'wire' ? st.sel : ne.id; }
     st.pend = t === 'wire' ? b : null; save(); restart(); all();
+  }
+  svg.addEventListener('pointermove', (ev) => {
+    if (!drag || ev.pointerId !== drag.id) return; const [x, y] = toSvg(ev);
+    if (!drag.moved && Math.hypot(x - drag.p0[0], y - drag.p0[1]) < 6) return;
+    drag.moved = true; drag.p = [Math.max(6, Math.min(W - 6, x)), Math.max(6, Math.min(H - 20, y - 10))]; drawProbes();
   });
-  svg.addEventListener('pointermove', (ev) => { if (!drag || ev.pointerId !== drag.id) return; const [x, y] = toSvg(ev); drag.p = [Math.max(6, Math.min(W - 6, x)), Math.max(6, Math.min(H - 20, y - 10))]; drawProbes(); });
   const endDrag = (ev) => {
     if (!drag || ev.pointerId !== drag.id) return;
-    const k = nearPoint(drag.p), m = M(), ns = nodeSet();
-    m[drag.c] = k && (ns.has(k)) ? k : null; drag = null; save(); restart(); drawProbes(); meterPanel();
+    const d = drag; drag = null;
+    if (!d.moved) { drawProbes(); if (ev.type === 'pointerup') tapAt(d.p0); return; } // a tap, not a drag
+    const k = nearPoint(d.p), m = M(), ns = nodeSet();
+    m[d.c] = k && ns.has(k) ? k : null; if (!m[d.c]) toast('הפרוב חזר למקום: שחרר אותו על נקודת חיבור במעגל'); resetMM(); save(); restart(); drawProbes(); all();
   };
   svg.addEventListener('pointerup', endDrag); svg.addEventListener('pointercancel', endDrag);
   meterBox.addEventListener('click', (ev) => {
     const d = ev.target.closest('[data-dial]'), j = ev.target.closest('[data-jack]'), b = ev.target.closest('[data-act]');
     const ins = ev.target.closest('[data-inst]'), sl = ev.target.closest('[data-slow]');
-    if (ins) { st.inst = ins.dataset.inst; restart(); save(); all(); return; }
+    if (ins) { st.inst = ins.dataset.inst; frozen = null; resetMM(); restart(); save(); all(); return; }
     if (sl) { st.slow = Number(sl.dataset.slow); save(); meterPanel(); return; }
-    if (b && b.dataset.act === 'whole') { st.whole = b.dataset.v === '1'; save(); meterPanel(); drawEls(); return; }
-    if (d) { M().dial = d.dataset.dial; }
-    else if (j) { if (j.dataset.jack === 'com') { toast('הפרוב השחור תמיד ב-COM'); return; } M().jack = j.dataset.jack; restart(); }
-    else if (b && b.dataset.act === 'mfuse') { M().fuseOK = true; restart(); }
-    else if (b && b.dataset.act === 'park') { M().red = null; M().black = null; restart(); drawProbes(); }
+    const a = b && b.dataset.act, m = M();
+    if (a === 'whole') { st.whole = b.dataset.v === '1'; save(); meterPanel(); drawEls(); return; }
+    if (a === 'log') { const r = lastInst || instBody(); st.log.unshift({ what: r.what, at: r.at, reading: r.reading }); st.log = st.log.slice(0, 12); save(); meterPanel(); toast('📋 נרשם'); return; }
+    if (a === 'logclear') { st.log = []; save(); meterPanel(); return; }
+    if (a === 'scopeN') { st.scopeN = Number(b.dataset.v); save(); meterPanel(); return; }
+    if (a === 'run') { frozen = frozen ? null : buf.slice(); meterPanel(); return; }
+    if (a === 'hold') { m.hold = !m.hold; mm.hold = null; meterPanel(); return; }
+    if (a === 'minmax') { m.mm = m.mm === null ? 'max' : m.mm === 'max' ? 'min' : null; if (m.mm === 'max') { mm.max = null; mm.min = null; } meterPanel(); return; }
+    if (a === 'dial') { const i = DIAL.findIndex((q) => q.id === m.dial), n = DIAL.length; m.dial = DIAL[(i + Number(b.dataset.v) + n) % n].id; resetMM(); }
+    else if (d) { m.dial = d.dataset.dial; resetMM(); }
+    else if (j) { if (j.dataset.jack === 'com') { toast('הפרוב השחור תמיד ב-COM'); return; } m.jack = j.dataset.jack; resetMM(); restart(); }
+    else if (a === 'mfuse') { m.fuseOK = true; restart(); }
     else return;
     save(); meterPanel();
   });
   root.addEventListener('click', (ev) => {
     if (ev.target.closest('#cMeter')) return;
     const tp = ev.target.closest('[data-tpl]');
-    if (tp) { st.els = TEMPLATES.find((q) => q.id === tp.dataset.tpl).els(); st.sel = null; st.pend = null; st.meter.red = null; st.meter.black = null; save(); restart(); all(); return; }
+    if (tp) { st.els = TEMPLATES.find((q) => q.id === tp.dataset.tpl).els(); st.sel = null; st.pend = null; st.place = null; st.clampEl = null; st.meter.red = null; st.meter.black = null; frozen = null; resetMM(); save(); restart(); all(); return; }
     const tl = ev.target.closest('[data-tool]');
     if (tl) { st.tool = tl.dataset.tool; st.pend = null; save(); all(); return; }
-    const row = ev.target.closest('[data-row]'); if (row) { st.sel = Number(row.dataset.row); all(); return; }
+    const row = ev.target.closest('[data-row]'); if (row) { const id = Number(row.dataset.row); if (id !== st.sel) buf = []; st.sel = id; if (st.inst === 'clamp') st.clampEl = id; save(); all(); return; }
     const b = ev.target.closest('[data-act]'); if (!b) return;
-    const e = st.els.find((q) => q.id === st.sel), a = b.dataset.act, v = b.dataset.v;
+    const e = st.els.find((q) => q.id === st.sel), a = b.dataset.act, v = b.dataset.v, m = M();
+    if (a === 'place') { st.place = st.place === v ? null : v; morph(probeBar, probeBarHtml()); return; }
+    if (a === 'swapp') { [m.red, m.black] = [m.black, m.red]; resetMM(); save(); restart(); all(); return; }
+    if (a === 'park') { m.red = null; m.black = null; st.place = null; resetMM(); save(); restart(); all(); return; }
+    if (a === 'onel' && e) { m.red = e.a; m.black = e.b; st.place = null; resetMM(); save(); restart(); all(); toast(`🔴 על ${e.a}, ⚫ על ${e.b}`); return; }
     if (a === 'reset') { st.els.forEach((q) => { if (q.type === 'fuse') q.blown = false; }); st.meter.fuseOK = true; }
     else if (!e) return;
     else if (a === 'del') { st.els = st.els.filter((q) => q !== e); st.sel = null; }
@@ -402,7 +463,7 @@ export function renderCircuit(root, { toast }) {
     if (f === 'Cu') { if (v <= 0) return; e.C = v * 1e-6; } else if (f === 'r') e.r = Math.max(1e-3, v); else if (f === 'rL') e.rL = v; else { if (v <= 0) return; e[f] = v; }
     save(); restart(); drawEls();
   });
-  ed.addEventListener('change', () => { ed.innerHTML = editor(); });
+  ed.addEventListener('change', () => { morph(ed, editor()); drawEls(); morph(out, results()); });
 
   restart(); all(); raf = requestAnimationFrame(tick);
   return () => cancelAnimationFrame(raf);

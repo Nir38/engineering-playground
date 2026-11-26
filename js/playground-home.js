@@ -4,7 +4,7 @@
 // Engine: js/home.js (checked in tests/home-cases.mjs).
 import { CIRCUITS, MAIN, RCD_IDN, SRC, appCurrent, circuitCurrent, tripTime, breakerStep, rcdTripTime, shortCurrent, touch, R_BODY, R_FLOOR } from './home.js';
 import { esc } from './text.js';
-import { ltr, si, num, chips, text, wire, HOME_SAFETY, go } from './elec-ui.js';
+import { ltr, si, num, chips, text, wire, HOME_SAFETY, go, morph } from './elec-ui.js';
 
 const KEY = 'mh-pg-home-v1';
 const ICON = { lamp: '💡', tv: '📺', pc: '💻', heater: '🔥', kettle: '☕', micro: '📟', dish: '🍽', fridge: '🧊', ac: '❄', boiler: '🛢', oven: '♨' };
@@ -110,7 +110,7 @@ export function renderHome(root, { toast }) {
   const dr = root.querySelector('#hDraw'), hint = root.querySelector('#hHint'), fb = root.querySelector('#hFault'), info = root.querySelector('#hInfo'), res = root.querySelector('#hRes');
   const heat = {}; CIRCUITS.forEach((c) => { heat[c.id] = { heat: 0, tripped: false }; }); const mainHeat = { heat: 0, tripped: false };
   let raf = 0, last = 0, lastPanel = 0;
-  const draw = () => { dr.innerHTML = st.tab === 'panel' ? panelSvg() : planSvg(); hint.textContent = st.tab === 'panel' ? 'לחץ על רכיב כדי לקרוא עליו, ועל הידית כדי לכבות או להרים. הפס מעל כל מאמ"ת הוא הזרם ביחס לנקוב (הקו המקווקו = הנקוב).' : 'לחץ על מכשיר כדי להדליק או לכבות אותו. לחץ על מעגל בטבלה כדי להדגיש את המסלול שלו מהלוח.'; };
+  const draw = () => { morph(dr, st.tab === 'panel' ? panelSvg() : planSvg()); hint.textContent = st.tab === 'panel' ? 'לחץ על רכיב כדי לקרוא עליו, ועל הידית כדי לכבות או להרים. הפס מעל כל מאמ"ת הוא הזרם ביחס לנקוב (הקו המקווקו = הנקוב).' : 'לחץ על מכשיר כדי להדליק או לכבות אותו. לחץ על מעגל בטבלה כדי להדגיש את המסלול שלו מהלוח.'; };
   const faultCard = () => {
     let note = '';
     if (st.fault === 'short') { const c = CIRCUITS.find((q) => q.id === 'kitchen'); note = `קצר בין פאזה לאפס בשקע במטבח, ${ltr('15 m')} מהלוח (ערך לדוגמה). הזרם מוגבל רק בהתנגדות הכבלים והרשת: ${ltr(`I = 230 / R_loop ≈ ${si(Ishort(c), 'A')}`)}, הרבה מעל ${ltr(`5·In = ${5 * c.In} A`)}. לכן החלק המגנטי מנתק מיד. כל עוד הקצר קיים, הרמה של המאמ"ת תקפיץ אותו שוב. ממסר הפחת לא מגיב: הזרם יוצא וחוזר שווה.`; }
@@ -134,7 +134,7 @@ export function renderHome(root, { toast }) {
       <div class="pg-max"><div><span>זרם כולל במפסק הראשי</span><b>${ltr(`${num(tot, 1)} A מתוך ${MAIN.In} A`)}</b></div><div><span>הספק</span><b>${ltr(si(Math.min(tot, 999) * 230, 'W'))}</b></div></div>
       <p class="small muted">${ltr('I = P/(V·cosφ)')}. ערכי ההספק של המכשירים, גדלי המאמ"תים והכבלים הם ערכים לדוגמה. הזרמים מחוברים כאן כגדלים (קצת שמרני: מכשירים עם cosφ שונה לא בדיוק באותה פאזה).</p>`;
   };
-  const all = () => { draw(); fb.innerHTML = faultCard(); info.innerHTML = infoCard(); res.innerHTML = results(); };
+  const all = () => { draw(); morph(fb, faultCard()); morph(info, infoCard()); morph(res, results()); };
   // what happens now (faults that act at once), then the breakers' heat over time
   const act = () => {
     if (!st.mainOn || !st.rcdOn) return;
@@ -152,7 +152,7 @@ export function renderHome(root, { toast }) {
       if (mainHeat.tripped) { mainHeat.tripped = false; st.mainOn = false; changed = true; toast('🔥 המפסק הראשי קפץ: יותר מדי בבת אחת'); }
     }
     if (changed) { save(); all(); }
-    else if (now - lastPanel > 400) { lastPanel = now; res.innerHTML = results(); if (st.tab === 'panel') draw(); }
+    else if (now - lastPanel > 400) { lastPanel = now; morph(res, results()); if (st.tab === 'panel') draw(); }
     raf = requestAnimationFrame(tick);
   };
   act(); all(); raf = requestAnimationFrame(tick);

@@ -3,7 +3,7 @@
 // the drum). Generic, educational diagrams: not of any maker. Formulas: heatTime, carnotCOP in js/machines.js.
 import { heatTime, carnotCOP, SRC } from './machines.js';
 import { esc } from './text.js';
-import { ltr, num, slider, chips, text, wire, HOME_SAFETY, go } from './elec-ui.js';
+import { ltr, num, slider, chips, text, wire, HOME_SAFETY, go, morph } from './elec-ui.js';
 
 const KEY = 'mh-pg-appl-v1';
 const APPS = [['fridge', '🧊 מקרר'], ['ac', '❄ מזגן'], ['boiler', '🛢 דוד חשמל'], ['washer', '🌀 מכונת כביסה']];
@@ -140,7 +140,7 @@ export function renderAppliances(root) {
     if (st.app === 'boiler') return slider('vol', 'נפח', ltr(`${st.vol} L`), [50, 200], 10, st.vol) + slider('P', 'הספק', ltr(`${st.P} W`), [1000, 4000], 100, st.P) + slider('T', 'טמפרטורת מים קרים', ltr(`${st.T} °C`), [10, 30], 1, st.T);
     return chips(WSTAGES, st.stage, 'stage');
   };
-  const draw = () => { const p = parts(); pe.innerHTML = p.e; pc.innerHTML = p.c; ct.textContent = st.app === 'boiler' ? 'המכל' : st.app === 'washer' ? 'התוף' : 'מחזור הקירור'; return p; };
+  const draw = () => { const p = parts(); morph(pe, p.e); pc.innerHTML = p.c; ct.textContent = st.app === 'boiler' ? 'המכל' : st.app === 'washer' ? 'התוף' : 'מחזור הקירור'; return p; };
   const refresh = () => { const p = draw(); ed.innerHTML = editor(); tx.innerHTML = explain(p); root.querySelectorAll('[data-app]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.app === st.app))); };
   refresh();
   const tick = (now) => {

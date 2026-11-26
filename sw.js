@@ -1,7 +1,7 @@
 // Service worker: makes the app work offline and update itself.
 // Strategy: network first (so new content arrives when online), cache fallback (offline).
 // Bump VERSION on every release so old caches are cleaned.
-const VERSION = 'mh-3.7.0';
+const VERSION = 'mh-3.7.1';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
   'js/app.js', 'js/text.js', 'js/srs.js', 'js/beam.js', 'js/playground.js', 'js/pulleys.js', 'js/playground-pulleys.js', 'js/truss.js', 'js/playground-truss.js', 'js/hydro.js', 'js/playground-fluid.js', 'js/vibration.js', 'js/playground-vib.js', 'js/fbd.js', 'js/playground-fbd.js', 'js/airfoil.js', 'js/playground-air.js', 'js/lbm.js', 'js/playground-tunnel.js', 'js/mohr.js', 'js/playground-mohr.js', 'js/circuit.js', 'js/playground-circuit.js', 'js/elec-ui.js', 'js/playground-ac.js', 'js/playground-trans.js', 'js/playground-xfmr.js', 'js/playground-3ph.js', 'js/home.js', 'js/playground-home.js', 'js/playground-wiring.js', 'js/playground-faults.js', 'js/machines.js', 'js/playground-motors.js', 'js/playground-pump.js', 'js/playground-appliances.js', 'js/scenes.js', 'js/playground-saved.js', 'js/formulas.js', 'js/generators.js', 'js/diagrams.js',
@@ -23,7 +23,9 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(req)
+    // no-cache: ask the server every time (a cheap 304 when nothing changed), so the browser's HTTP cache
+    // never serves an old module next to new ones right after a release
+    fetch(req, { cache: 'no-cache' })
       .then((res) => {
         if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
         return res;

@@ -293,7 +293,7 @@ const MODE_KEY = 'mh-pg-mode';
 // two categories; each mode belongs to one. A category with no modes yet is not shown.
 const CATS = [
   { id: 'mech', name: '⚙ מכניקה', modes: [['beam', '🏗️ קורות'], ['pulley', '🪢 גלגלות'], ['truss', '△ מסבכים'], ['fluid', '💧 נוזלים'], ['vib', '〰 רטט'], ['fbd', '✎ גוף חופשי'], ['air', '✈ כנף'], ['tunnel', '🌬 מנהרת רוח'], ['mohr', '◯ מעגל Mohr']] },
-  { id: 'elec', name: '⚡ חשמל', modes: [['circ', '⚡ מעגלים ומדידות'], ['ac', '〜 AC'], ['trans', '⏱ מעברים'], ['xfmr', '🔁 שנאי'], ['three', '⚡⚡⚡ תלת-פאזי'], ['home', '🏠 לוח ודירה'], ['wiring', '🔌 חיבורים'], ['faults', '🔍 איתור תקלות'], ['motors', '⚙ מנועים'], ['pump', '💧 משאבה'], ['appl', '🧊 מכשירים']] },
+  { id: 'elec', name: '⚡ חשמל', modes: [['circ', '⚡ מעגלים ומולטימטר'], ['ac', '〜 AC'], ['trans', '⏱ מעברים'], ['xfmr', '🔁 שנאי'], ['three', '⚡⚡⚡ תלת-פאזי'], ['home', '🏠 לוח ודירה'], ['wiring', '🔌 חיבורים'], ['faults', '🔍 איתור תקלות'], ['motors', '⚙ מנועים'], ['pump', '💧 משאבה'], ['appl', '🧊 מכשירים']] },
 ];
 const ALL_MODES = CATS.flatMap((c) => c.modes.map(([id]) => id));
 const catOf = (m) => CATS.find((c) => c.modes.some(([id]) => id === m)) || CATS[0];
