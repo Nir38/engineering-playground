@@ -3,7 +3,7 @@
 // happens to an unbalanced star when the neutral is lost.
 // Math: threePhase(), phaseV() in js/circuit.js (tests/ac-cases.mjs).
 import { GRID, threePhase, phaseV, zR, cabs, carg, csub, polar } from './circuit.js';
-import { ltr, si, num, slider, chips, plot, phasors, text, COL, SAFETY } from './elec-ui.js';
+import { ltr, si, num, slider, chips, plot, phasors, text, COL, SAFETY, go } from './elec-ui.js';
 
 const KEY = 'mh-pg-3ph-v1';
 const LIM = { Ra: [5, 500], Rb: [5, 500], Rc: [5, 500] };
@@ -88,7 +88,7 @@ export function render3ph(root) {
       ${st.conn === 'star' ? `<p class="small">בכוכב כל נגד מקבל מתח פאזה (${ltr('230 V')}), וזרם הקו הוא זרם הנגד. האפס מחזיר את סכום הזרמים: ${bal ? 'בעומס מאוזן שלושת הזרמים מבטלים זה את זה (סכום הפאזורים 0), ובאפס לא עובר כלום.' : st.neutral ? `בעומס לא מאוזן הסכום לא מתאפס, ובאפס עובר ${ltr(si(cabs(r.In), 'A'))}.` : 'בעומס לא מאוזן הסכום לא מתאפס, אבל האפס מנותק ואין לזרם דרך חזרה. לכן נקודת הכוכב זזה עד שסכום הזרמים נעשה 0.'}</p>`
         : `<p class="small">במשולש כל נגד מחובר בין שתי פאזות ומקבל ${ltr('400 V')}. זרם הקו הוא הפרש של שני זרמי נגדים, ולכן בעומס מאוזן ${ltr('IL = √3·Iph')}. אותם נגדים במשולש לוקחים פי 3 הספק מאשר בכוכב: על כל נגד פי ${ltr('√3')} מתח, ולכן פי 3 הספק. על זה בנויה התנעת כוכב-משולש של מנועים.</p>`}
       ${st.conn === 'star' && !st.neutral ? `<div class="pg-status ${bal ? 'good' : 'bad'}">${bal ? 'בעומס מאוזן הניתוק לא משנה כלום: נקודת הכוכב נשארת באפס.' : `⚠ נקודת הכוכב זזה ב-${ltr(si(cabs(r.Vn), 'V'))}. המתחים על העומסים: ${r.Vload.map((z, j) => ltr(`${PH[j]}: ${num(cabs(z), 0)} V`)).join(', ')}.`}</div>
-        ${bal ? '' : `<p class="small">העומס הקטן (התנגדות גבוהה) מקבל יותר מ-${ltr('230 V')}${Math.max(...over) > 253 ? `, עד ${ltr(`${num(Math.max(...over), 0)} V`)}` : ''}, והגדול פחות. בבית זה אומר: מכשירים בפאזה אחת נשרפים, ובפאזה אחרת נורות עמומות. לכן אפס שנותק בלוח הוא תקלה מסוכנת, ובמצב 🏠 של שלב ד נחזור אליה.</p>`}` : ''}
+        ${bal ? '' : `<p class="small">העומס הקטן (התנגדות גבוהה) מקבל יותר מ-${ltr('230 V')}${Math.max(...over) > 253 ? `, עד ${ltr(`${num(Math.max(...over), 0)} V`)}` : ''}, והגדול פחות. בבית זה אומר: מכשירים בפאזה אחת נשרפים, ובפאזה אחרת נורות עמומות. לכן אפס שנותק בלוח הוא תקלה מסוכנת, ובמצב ${go('home', '🏠 לוח ודירה')} אפשר לנסות את זה.</p>`}` : ''}
       ${SAFETY}`;
   }
   const draw = () => { const r = calc(); wv.innerHTML = waves(th); ph.innerHTML = phasorSvg(r, th); ci.innerHTML = currentSvg(r, th); };

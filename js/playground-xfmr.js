@@ -3,7 +3,7 @@
 // smoothing capacitor and the ripple.
 // Math: transformer(), bridgePeak(), rippleFull/Half() and the time solver step() in js/circuit.js (tests/ac-cases.mjs).
 import { GRID, transformer, bridgePeak, rippleFull, rippleHalf, step, emptyState, VF } from './circuit.js';
-import { ltr, si, num, slider, chips, plot, text, COL, SAFETY } from './elec-ui.js';
+import { ltr, si, num, slider, chips, plot, text, COL, SAFETY, go } from './elec-ui.js';
 
 const KEY = 'mh-pg-xfmr-v1';
 const LIM = { V1: [100, 250], N1: [100, 2000], N2: [10, 2000], RL: [1, 200], C: [100, 4700], Rs: [20, 1000] };
@@ -67,7 +67,7 @@ function supplySvg(pos) {
   }
   s += `<line x1="260" y1="90" x2="260" y2="122" class="pg-cw"/><line x1="248" y1="122" x2="272" y2="122" class="pg-cw"/><line x1="248" y1="130" x2="272" y2="130" class="pg-cw"/><line x1="260" y1="130" x2="260" y2="165" class="pg-cw"/>`;
   s += `<line x1="320" y1="90" x2="320" y2="104" class="pg-cw"/><rect x="312" y="104" width="16" height="44" rx="2" class="pg-csym"/><line x1="320" y1="148" x2="320" y2="165" class="pg-cw"/>`;
-  s += text(244, 118, `${st.C} µF`, '', 'end', 'pg-tn') + text(334, 130, `${st.Rs} Ω`, '', 'start', 'pg-tn') + text(290, 84, '+', 'var(--bad)', 'middle', 'pg-b');
+  s += text(244, 118, `${st.C} µF`, '', 'end', 'pg-tn') + text(308, 160, `${st.Rs} Ω`, '', 'end', 'pg-tn') + text(290, 84, '+', 'var(--bad)', 'middle', 'pg-b');
   return s + '</svg>';
 }
 
@@ -96,7 +96,7 @@ export function renderXfmr(root) {
       <div class="pg-max"><div><span>שיא אחרי המיישר</span><b>${ltr(`√2·V2 − ${n}·VF = ${num(bridgePeak(q.V2, n), 2)} V`)}</b><small class="muted">בסימולציה: ${ltr(`${num(q.vmax, 2)} V`)} (קצת פחות: התנגדות הליפופים והדיודות)</small></div><div><span>מתח ממוצע ביציאה</span><b>${ltr(`${num(q.mean, 2)} V`)}</b></div><div><span>גלים (ripple) מהנוסחה</span><b>${ltr(`ΔV ≈ I/(${n === 2 ? '2' : ''}fC) = ${num(rf, 2)} V`)}</b></div><div><span>גלים בסימולציה</span><b>${ltr(`${num(q.vmax - q.vmin, 2)} V`)}</b></div><div><span>זרם עומס</span><b>${ltr(si(I, 'A'))}</b></div><div><span>תדר הגלים</span><b>${ltr(`${n === 2 ? 2 * GRID.f : GRID.f} Hz`)}</b></div></div>
       <p class="small">${st.rect === 'bridge' ? 'בגשר, בכל חצי מחזור זוג דיודות אחר מוליך (הן נצבעות בכתום), כך ששני חצאי הגל יוצאים חיוביים: יישור גל מלא. הזרם עובר תמיד דרך שתי דיודות, ולכן מאבדים בערך 1.4 V.' : 'דיודה אחת מעבירה רק את חצי הגל החיובי: יישור חצי גל. הקבל צריך להחזיק את העומס מחזור שלם, ולכן הגלים כפולים.'}</p>
       <p class="small">הקבל נטען כמעט עד השיא, ובין השיאים מזין את העומס ונפרק. קבל גדול יותר או עומס קטן יותר: פחות גלים. הנוסחה ${ltr('ΔV ≈ I/(2fC)')} מניחה שהקבל נפרק בזרם קבוע כמעט כל חצי מחזור, ולכן היא קצת שמרנית.</p>
-      <p class="small muted">נסה למדוד את זה במצב ⚡ מעגלים, בתבנית "גשר דיודות": במולטימטר ${ltr('V⎓')} רואים את הממוצע, ${ltr('V~')} את הגלים, ו-Hz מראה ${ltr('100 Hz')}.</p>${SAFETY}`;
+      <p class="small muted">נסה למדוד את זה במצב ${go('circ', '⚡ מעגלים')}, בתבנית "גשר דיודות": במולטימטר ${ltr('V⎓')} רואים את הממוצע, ${ltr('V~')} את הגלים, ו-Hz מראה ${ltr('100 Hz')}.</p>${SAFETY}`;
   }
   const draw = (frac = 0) => {
     if (st.view === 'ideal') {

@@ -4,7 +4,7 @@
 //   resistor, wire, lamp, closed switch, fuse, cable: e = 0
 //   battery (a = +): e = V, g = 1/r (internal resistance)
 //   capacitor (backward Euler): g = C/dt, e = v of the last step
-//   inductor (backward Euler):  g = dt/L, e = −i_last/g
+//   inductor (backward Euler):  g = 1/(rL + L/dt), e = −i_last·L/dt (rL: its winding resistance, default 0)
 //   diode (a = anode): on → g = 1/R_ON, e = VF ; off → g ≈ 0
 //   AC source vac (a = the terminal that is + when sin > 0): e = √2·Vrms·sin(2πft + φ), g = 1/r
 // AC in steady state: solveAC() does the same nodal analysis with phasors (complex numbers, RMS).
@@ -32,7 +32,8 @@ function stamp(el, ctx) {
     case 'fuse': return el.blown ? [0, 0] : [1 / R_WIRE, 0];
     case 'bat': return [1 / Math.max(el.r ?? 0.05, 1e-6), zero ? 0 : el.V];
     case 'cap': { if (dc) return [0, 0]; const g = el.C / dt; return [g, zero ? 0 : (prev.vc.get(el.id) || 0)]; }
-    case 'ind': { if (dc) return [1 / R_WIRE, 0]; const g = dt / el.L, il = zero ? 0 : (prev.il.get(el.id) || 0); return [g, -il / g]; }
+    // inductor with its own winding resistance rL (backward Euler): v = rL·i + L·(i − i_prev)/dt
+    case 'ind': { const rL = el.rL || 0; if (dc) return [1 / Math.max(rL, R_WIRE), 0]; const g = 1 / (rL + el.L / dt), il = zero ? 0 : (prev.il.get(el.id) || 0); return [g, (-il * el.L) / dt]; }
     case 'meter': return [1 / el.R, 0];
     default: return [0, 0];
   }

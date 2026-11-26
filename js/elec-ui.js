@@ -46,13 +46,13 @@ export function plot({ xs, series, units = {}, W = 360, H = 170, cursor = null, 
   s += `<line x1="${pl}" y1="${pt}" x2="${pl}" y2="${H - pb}" class="pg-axis"/><line x1="${pl}" y1="${axY.toFixed(1)}" x2="${W - pr}" y2="${axY.toFixed(1)}" class="pg-axis"/>`;
   for (const ax of ['l', 'r']) {
     if (!rg[ax]) continue;
-    const [, , lo, hi] = rg[ax], xx = ax === 'l' ? pl - 3 : W - pr + 3, an = ax === 'l' ? 'end' : 'start', col = (series.find((q) => (q.axis || 'l') === ax) || {}).col;
+    const [, , lo, hi] = rg[ax], xx = ax === 'l' ? pl - 3 : W - 2, an = 'end', col = (series.find((q) => (q.axis || 'l') === ax) || {}).col;
     const lab = (v) => { const a = Math.abs(v); return a >= 100 ? num(v, 0) : a >= 1 ? num(v, 1) : String(Number(v.toPrecision(2))); };
     s += text(xx, Y(ax, hi) + 4, lab(hi), col, an, 'pg-tn') + (Math.abs(lo) > 1e-12 ? text(xx, Y(ax, lo) + 4, lab(lo), col, an, 'pg-tn') : '');
     if (units[ax]) s += text(ax === 'l' ? 4 : W - 4, 9, units[ax], col, ax === 'l' ? 'start' : 'end', 'pg-tn');
   }
   if (units.x) s += text(W - pr, H - 6, units.x, '', 'end', 'pg-tn') + text(pl, H - 6, num(x0, 3), '', 'middle', 'pg-tn') + text((pl + W - pr) / 2, H - 6, num((x0 + x1) / 2, 3), '', 'middle', 'pg-tn');
-  for (const m of marks) { const x = X(m.x); if (x < pl || x > W - pr) continue; s += `<line x1="${x.toFixed(1)}" y1="${pt}" x2="${x.toFixed(1)}" y2="${H - pb}" class="pg-guide"/>` + (m.label ? text(x + 3, H - pb - 4, m.label, m.col || '', 'start', 'pg-tn') : ''); }
+  for (const m of marks) { const x = X(m.x); if (x < pl || x > W - pr) continue; s += `<line x1="${x.toFixed(1)}" y1="${pt}" x2="${x.toFixed(1)}" y2="${H - pb}" class="pg-guide"/>` + (m.label ? (x > W - pr - 60 ? text(x - 3, H - pb - 4, m.label, m.col || '', 'end', 'pg-tn') : text(x + 3, H - pb - 4, m.label, m.col || '', 'start', 'pg-tn')) : ''); }
   for (const q of series) {
     const ax = q.axis || 'l'; let d = '';
     q.ys.forEach((y, k) => { if (!Number.isFinite(y)) return; d += `${d ? 'L' : 'M'}${X(xs[k]).toFixed(1)},${Y(ax, y).toFixed(1)}`; });
@@ -90,3 +90,6 @@ export function wire(d, kind, w = 3, extra = '') {
   if (kind === 'PE') return `<path d="${d}" fill="none" stroke="#16a34a" stroke-width="${w}" stroke-linecap="round" ${extra}/><path d="${d}" fill="none" stroke="#facc15" stroke-width="${w}" stroke-dasharray="5 5" ${extra}/>`;
   return `<path d="${d}" fill="none" stroke="${col || kind}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" ${extra}/>`;
 }
+
+// a link to another playground mode (handled in playground.js)
+export const go = (mode, label) => `<button class="pg-go" data-goto="${mode}">${label}</button>`;

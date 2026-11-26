@@ -4,13 +4,13 @@
 // Time solver: step() in js/circuit.js (checked in tests/circuit-cases.mjs); resonance: solveAC, resonanceF, seriesQ (tests/ac-cases.mjs).
 import { step, emptyState, solveAC, resonanceF, seriesQ, cabs, carg, VF } from './circuit.js';
 import { esc } from './text.js';
-import { ltr, si, num, slider, chips, plot, COL } from './elec-ui.js';
+import { ltr, si, num, slider, chips, plot, COL, go } from './elec-ui.js';
 
 const KEY = 'mh-pg-trans-v1';
 const SCEN = [['rc', 'טעינת קבל'], ['rl', 'סליל'], ['kick', 'ניתוק סליל'], ['rlc', 'תהודה RLC']];
 const R_GAP = 10e3; // Ω, the open contact as a large resistor (example value: in reality the voltage rises until the air breaks down)
-const LIM = { V: [1, 24], R: [1, 10000], C: [10, 4700], L: [10, 5000], Rl: [1, 100], f: [1, 3.3], Rr: [1, 100], Lr: [10, 500], Cr: [1, 100] };
-const defaults = () => ({ sc: 'rc', V: 12, R: 1000, C: 1000, L: 1000, Rl: 12, fw: false, f: Math.log10(159), Rr: 10, Lr: 100, Cr: 10 });
+const LIM = { V: [1, 24], R: [1, 10000], Rrl: [1, 200], C: [10, 4700], L: [10, 5000], Rl: [1, 100], f: [1, 3.3], Rr: [1, 100], Lr: [10, 500], Cr: [1, 100] };
+const defaults = () => ({ sc: 'rc', V: 12, R: 1000, Rrl: 10, C: 1000, L: 1000, Rl: 12, fw: false, f: Math.log10(159), Rr: 10, Lr: 100, Cr: 10 });
 let st = null;
 function load() {
   st = defaults();
@@ -41,7 +41,7 @@ function simulate() {
     return { ...out, tau, unit: 's', marks: [{ x: tau, label: 'τ' }, { x: 5 * tau, label: 'פריקה' }, { x: 6 * tau, label: 'τ' }], series: [{ ys: out.ch.v, col: COL.v, label: 'vC' }, { ys: out.ch.i, col: COL.i, label: 'i', axis: 'r' }], units: { l: 'V', r: 'A' } };
   }
   if (st.sc === 'rl') {
-    const L = st.L / 1000, tau = L / st.R, sw1 = E('sw', 'p', 'x', { on: true }), sw2 = E('sw', 'x', 'g', { on: false }), R = E('res', 'x', 'm', { R: st.R }), Li = E('ind', 'm', 'g', { L });
+    const L = st.L / 1000, tau = L / st.Rrl, sw1 = E('sw', 'p', 'x', { on: true }), sw2 = E('sw', 'x', 'g', { on: false }), R = E('res', 'x', 'm', { R: st.Rrl }), Li = E('ind', 'm', 'g', { L });
     const els = [E('bat', 'p', 'g', { V: st.V, r: 1e-3 }), sw1, sw2, R, Li];
     const out = run(els, 10 * tau, [{ until: 5 * tau, set: () => { sw1.on = true; sw2.on = false; } }, { until: Infinity, set: () => { sw1.on = false; sw2.on = true; } }], { v: (r) => r.Vd.get(Li.id), i: (r) => r.I.get(Li.id) });
     return { ...out, tau, marks: [{ x: tau, label: 'τ' }, { x: 5 * tau, label: 'עקיפה' }], series: [{ ys: out.ch.i, col: COL.i, label: 'iL' }, { ys: out.ch.v, col: COL.v, label: 'vL', axis: 'r' }], units: { l: 'A', r: 'V' } };
@@ -89,7 +89,7 @@ export function renderTrans(root) {
   const editor = () => {
     const head = `<h3 class="pg-h">ערכים</h3>`;
     if (st.sc === 'rc') return head + slider('V', 'מתח הסוללה', ltr(`${st.V} V`), LIM.V, 1, st.V) + slider('R', 'R', ltr(si(st.R, 'Ω')), LIM.R, 10, st.R) + slider('C', 'C', ltr(`${st.C} µF`), LIM.C, 10, st.C);
-    if (st.sc === 'rl') return head + slider('V', 'מתח הסוללה', ltr(`${st.V} V`), LIM.V, 1, st.V) + slider('R', 'R', ltr(si(st.R, 'Ω')), [1, 200], 1, Math.min(200, st.R)) + slider('L', 'L', ltr(si(st.L / 1000, 'H')), LIM.L, 10, st.L);
+    if (st.sc === 'rl') return head + slider('V', 'מתח הסוללה', ltr(`${st.V} V`), LIM.V, 1, st.V) + slider('Rrl', 'R', ltr(si(st.Rrl, 'Ω')), LIM.Rrl, 1, st.Rrl) + slider('L', 'L', ltr(si(st.L / 1000, 'H')), LIM.L, 10, st.L);
     if (st.sc === 'kick') return head + slider('V', 'מתח הסוללה', ltr(`${st.V} V`), LIM.V, 1, st.V) + slider('L', 'L של הסליל (ממסר, מגען)', ltr(si(st.L / 1000, 'H')), LIM.L, 10, st.L) + slider('Rl', 'התנגדות הסליל', ltr(`${st.Rl} Ω`), LIM.Rl, 1, st.Rl) + chips([['0', 'בלי דיודה'], ['1', 'עם דיודת freewheel']], st.fw ? '1' : '0', 'fw');
     return head + slider('V', 'מתח המקור (RMS)', ltr(`${st.V} V`), LIM.V, 1, st.V) + slider('f', 'תדר', ltr(`${fNow()} Hz`), LIM.f, 0.005, st.f) + slider('Rr', 'R', ltr(`${st.Rr} Ω`), LIM.Rr, 1, st.Rr) + slider('Lr', 'L', ltr(`${st.Lr} mH`), LIM.Lr, 1, st.Lr) + slider('Cr', 'C', ltr(`${st.Cr} µF`), LIM.Cr, 1, st.Cr) + '<div class="chips"><button class="chip" data-act="tof0">קפוץ ל-f0</button></div>';
   };
@@ -101,8 +101,8 @@ export function renderTrans(root) {
         <p class="small muted">איפה רואים את זה: ספק כוח שנשאר טעון אחרי ניתוק (לכן פורקים לפני מדידה), השהיה בטיימר, החלקת מתח אחרי מיישר.</p>`;
     }
     if (st.sc === 'rl') {
-      const L = st.L / 1000, tau = L / st.R;
-      return `<h3 class="pg-h">סליל מתנגד לשינוי</h3><div class="pg-max"><div><span>קבוע זמן</span><b>${ltr(`τ = L/R = ${si(tau, 's')}`)}</b></div><div><span>זרם סופי</span><b>${ltr(`V/R = ${si(st.V / st.R, 'A')}`)}</b></div><div><span>אנרגיה בשדה</span><b>${ltr(`½LI² = ${si(0.5 * L * (st.V / st.R) ** 2, 'J')}`)}</b></div></div>
+      const L = st.L / 1000, tau = L / st.Rrl;
+      return `<h3 class="pg-h">סליל מתנגד לשינוי</h3><div class="pg-max"><div><span>קבוע זמן</span><b>${ltr(`τ = L/R = ${si(tau, 's')}`)}</b></div><div><span>זרם סופי</span><b>${ltr(`V/R = ${si(st.V / st.Rrl, 'A')}`)}</b></div><div><span>אנרגיה בשדה</span><b>${ltr(`½LI² = ${si(0.5 * L * (st.V / st.Rrl) ** 2, 'J')}`)}</b></div></div>
         <p class="small">${ltr('vL = L·di/dt')}: כדי לשנות זרם בסליל צריך מתח. ברגע החיבור הזרם 0 וכל המתח על הסליל, ואז הזרם עולה: ${ltr('i = (V/R)(1 − e^(−t/τ))')}. כשעוקפים את הסוללה, הסליל ממשיך לדחוף את אותו זרם ודועך באותו τ. המתח על הסליל מתהפך.</p>
         <p class="small muted">זו "האינרציה" של הזרם, בדיוק כמו מסה שמתנגדת לשינוי במהירות: L מקביל ל-m, ו-${ltr('½LI²')} מקביל ל-${ltr('½mv²')}.</p>`;
     }
@@ -117,7 +117,7 @@ export function renderTrans(root) {
     const f = fNow(), f0 = resonanceF(st.Lr / 1000, st.Cr * 1e-6), Q = seriesQ(st.Rr, st.Lr / 1000, st.Cr * 1e-6), p = rlcParts(f);
     return `<h3 class="pg-h">תהודה ב-RLC טורי</h3><div class="pg-max"><div><span>תדר תהודה</span><b>${ltr(`f0 = 1/(2π√(LC)) = ${num(f0, 1)} Hz`)}</b></div><div><span>מקדם איכות</span><b>${ltr(`Q = (1/R)√(L/C) = ${num(Q, 2)}`)}</b></div><div><span>רוחב פס</span><b>${ltr(`f0/Q = ${num(f0 / Q, 1)} Hz`)}</b></div><div><span>בתדר ${ltr(`${f} Hz`)}</span><b>${ltr(`I = ${si(cabs(p.I), 'A')}, φ = ${num(-carg(p.I), 1)}°`)}</b></div><div><span>מתח על הסליל</span><b>${ltr(si(cabs(p.VL), 'V'))}</b></div><div><span>מתח על הקבל</span><b>${ltr(si(cabs(p.VC), 'V'))}</b></div></div>
       <p class="small">ב-${ltr('f0')}: ${ltr('XL = XC')}, הם מבטלים זה את זה, נשאר רק R, והזרם הכי גדול (${ltr(`V/R = ${si(st.V / st.Rr, 'A')}`)}). המתח על הסליל ועל הקבל בתהודה גדול פי Q ממתח המקור, למרות שהם בטור. מתחת ל-${ltr('f0')} המעגל קיבולי (הזרם מקדים), מעליו השראי.</p>
-      <p class="small muted">זה בדיוק כמו תהודה במערכת קפיץ ומסה (במצב 〰 רטט): L כמו מסה, 1/C כמו קשיחות, R כמו ריסון. ${ltr('ω0 = 1/√(LC)')} מקביל ל-${ltr('ω0 = √(k/m)')}.</p>`;
+      <p class="small muted">זה בדיוק כמו תהודה במערכת קפיץ ומסה (במצב ${go('vib', '〰 רטט')}): L כמו מסה, 1/C כמו קשיחות, R כמו ריסון. ${ltr('ω0 = 1/√(LC)')} מקביל ל-${ltr('ω0 = √(k/m)')}.</p>`;
   }
   const draw = (cursor = null) => {
     if (st.sc === 'rlc') { pv.innerHTML = rlcSvg(fNow()); hint.textContent = 'הזרם לפי התדר (ציר לוגריתמי). הקו האנכי הוא התדר שבחרת.'; return; }

@@ -3,7 +3,7 @@
 // Math: js/circuit.js (acLoad, zR/zL/zC, pfCapacitor), checked in tests/ac-cases.mjs.
 import { GRID, acLoad, zR, zL, zC, zSeries, zParallel, pfCapacitor, cabs, carg, cdiv, cx, polar } from './circuit.js';
 import { esc } from './text.js';
-import { ltr, si, num, slider, chips, plot, phasors, text, arrow, COL, SAFETY } from './elec-ui.js';
+import { ltr, si, num, slider, chips, plot, phasors, text, arrow, COL, SAFETY, go } from './elec-ui.js';
 
 const KEY = 'mh-pg-ac-v1';
 const LOADS = [['r', 'R'], ['l', 'L'], ['c', 'C'], ['rl', 'R+L'], ['rc', 'R+C'], ['rlc', 'R+L+C']];
@@ -55,7 +55,7 @@ function triangleSvg(c) {
   s += `<line x1="${x0}" y1="${y0}" x2="${W - 10}" y2="${y0}" class="pg-ruler"/>`;
   s += arrow(x0, y0, X, y0, COL.p, 3) + text((x0 + X) / 2, y0 + 16, `P = ${si(P, 'W')}`, COL.p, 'middle', 'pg-b');
   s += arrow(X, y0, X, y0 - Q * k, COL.q, 3) + text(X + 6, y0 - Q * k + (Q >= 0 ? 10 : -2), `Q = ${si(Q, 'var')}`, COL.q, 'start', 'pg-b');
-  s += arrow(x0, y0, X, y0 - Q * k, COL.s, 3) + text((x0 + X) / 2 - 8, y0 - (Q * k) / 2 - 8, `S = ${si(c.ld.S, 'VA')}`, COL.s, 'end', 'pg-b');
+  s += arrow(x0, y0, X, y0 - Q * k, COL.s, 3) + text(Math.max(78, (x0 + X) / 2 - 8), y0 - (Q * k) / 2 - 8, `S = ${si(c.ld.S, 'VA')}`, COL.s, 'end', 'pg-b');
   if (Math.abs(Q) > 1e-9) s += text(x0 + 26, y0 + (Q > 0 ? -5 : 13), `φ=${num(c.ld.phi, 1)}°`, '', 'start', 'pg-tn');
   if (st.Cpf > 0) s += `<line x1="${x0}" y1="${y0}" x2="${X}" y2="${y0 - Q2 * k}" stroke="${COL.s}" stroke-width="2" stroke-dasharray="5 3"/><line x1="${X}" y1="${y0 - Q * k}" x2="${X}" y2="${y0 - Q2 * k}" stroke="${COL.q}" stroke-width="5" opacity=".35"/>` + text(X + 6, y0 - Q2 * k + 4, `S' = ${si(c.tot.S, 'VA')}`, COL.s, 'start', 'pg-tn');
   return s + '</svg>';
@@ -87,7 +87,7 @@ export function renderAC(root) {
       <p class="small">RMS הוא הערך ש"מחמם" כמו מתח ישר באותו גודל: נורה על ${ltr(`${num(st.V, 0)} V`)} חילופין מאירה כמו על ${ltr(`${num(st.V, 0)} V`)} ישר. המולטימטר במצב V~ מראה RMS.</p>
       <h3 class="pg-h">עכבה</h3>
       <div class="pg-max">${st.load.includes('l') ? `<div><span>סליל</span><b>${ltr(`XL = 2πfL = ${si(c.XL, 'Ω')}`)}</b></div>` : ''}${st.load.includes('c') ? `<div><span>קבל</span><b>${ltr(`XC = 1/(2πfC) = ${si(c.XC, 'Ω')}`)}</b></div>` : ''}<div><span>עכבה כוללת</span><b>${ltr(`|Z| = ${si(cabs(c.Z), 'Ω')}`)}</b></div><div><span>זווית</span><b>${ltr(`φ = ${num(c.ld.phi, 1)}°`)}</b><small class="muted">${ind ? 'הזרם מפגר אחרי המתח' : cap ? 'הזרם מקדים את המתח' : 'זרם ומתח באותה פאזה'}</small></div></div>
-      <p class="small">${ltr('Z = R + j(XL − XC)')}. סליל מתנגד יותר בתדר גבוה, קבל פחות. העלה את התדר ותראה.${st.load === 'rlc' ? ` כאן ${ltr(`f0 = 1/(2π√(LC)) = ${num(1 / (2 * Math.PI * Math.sqrt((st.L / 1000) * st.C * 1e-6)), 1)} Hz`)}: בתדר הזה ${ltr('XL = XC')} והם מבטלים זה את זה. עוד במצב ⏱ מעברים.` : ''}</p>
+      <p class="small">${ltr('Z = R + j(XL − XC)')}. סליל מתנגד יותר בתדר גבוה, קבל פחות. העלה את התדר ותראה.${st.load === 'rlc' ? ` כאן ${ltr(`f0 = 1/(2π√(LC)) = ${num(1 / (2 * Math.PI * Math.sqrt((st.L / 1000) * st.C * 1e-6)), 1)} Hz`)}: בתדר הזה ${ltr('XL = XC')} והם מבטלים זה את זה. עוד במצב ${go('trans', '⏱ מעברים')}.` : ''}</p>
       <h3 class="pg-h">הספקים</h3><div id="acTri">${triangleSvg(c)}</div><p class="small muted">${ltr('Q')} למעלה: עומס השראי, הזרם מפגר. למטה: קיבולי, הזרם מקדים.${st.Cpf > 0 ? ` הקו המקווקו ${ltr("S'")} הוא אחרי התיקון.` : ''}</p>
       <div class="pg-max"><div><span>זרם</span><b>${ltr(`I = ${si(c.ld.I, 'A')}`)}</b></div><div><span>הספק פעיל</span><b>${ltr(`P = VI·cosφ = ${si(c.ld.P, 'W')}`)}</b></div><div><span>הספק היגבי</span><b>${ltr(`Q = VI·sinφ = ${si(c.ld.Q, 'var')}`)}</b></div><div><span>הספק מדומה</span><b>${ltr(`S = VI = ${si(c.ld.S, 'VA')}`)}</b></div><div><span>מקדם הספק</span><b>${ltr(`cosφ = ${num(c.ld.pf, 3)}`)}</b></div>${st.Cpf > 0 ? `<div><span>אחרי הקבל</span><b>${ltr(`cosφ = ${num(c.tot.pf, 3)}, I = ${si(c.tot.I, 'A')}`)}</b></div>` : ''}</div>
       <p class="small">רק P עושה עבודה (חום, מומנט). Q הולך וחוזר בין המקור לשדה של הסליל או הקבל, אבל עדיין זורם בכבלים ומחמם אותם. לכן מקדם הספק נמוך פירושו זרם גדול יותר לאותו הספק פעיל.</p>

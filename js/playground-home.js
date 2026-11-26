@@ -4,7 +4,7 @@
 // Engine: js/home.js (checked in tests/home-cases.mjs).
 import { CIRCUITS, MAIN, RCD_IDN, SRC, appCurrent, circuitCurrent, tripTime, breakerStep, rcdTripTime, shortCurrent, touch, R_BODY, R_FLOOR } from './home.js';
 import { esc } from './text.js';
-import { ltr, si, num, chips, text, wire, HOME_SAFETY } from './elec-ui.js';
+import { ltr, si, num, chips, text, wire, HOME_SAFETY, go } from './elec-ui.js';
 
 const KEY = 'mh-pg-home-v1';
 const ICON = { lamp: '💡', tv: '📺', pc: '💻', heater: '🔥', kettle: '☕', micro: '📟', dish: '🍽', fridge: '🧊', ac: '❄', boiler: '🛢', oven: '♨' };
@@ -116,7 +116,7 @@ export function renderHome(root, { toast }) {
     if (st.fault === 'short') { const c = CIRCUITS.find((q) => q.id === 'kitchen'); note = `קצר בין פאזה לאפס בשקע במטבח, ${ltr('15 m')} מהלוח (ערך לדוגמה). הזרם מוגבל רק בהתנגדות הכבלים והרשת: ${ltr(`I = 230 / R_loop ≈ ${si(Ishort(c), 'A')}`)}, הרבה מעל ${ltr(`5·In = ${5 * c.In} A`)}. לכן החלק המגנטי מנתק מיד. כל עוד הקצר קיים, הרמה של המאמ"ת תקפיץ אותו שוב. ממסר הפחת לא מגיב: הזרם יוצא וחוזר שווה.`; }
     if (st.fault === 'leak') note = `גוף החימום של הדוד סדוק, וזרם של ${ltr('50 mA')} (ערך לדוגמה) דולף ממנו לגוף המתכתי, ומשם בגיד ההארקה. הזרם בפאזה גדול מזה שבאפס ב-${ltr('50 mA')}, ולכן ממסר הפחת מנתק את כל הדירה. המאמ"ת לא מרגיש כלום: ${ltr('50 mA')} זה כלום ביחס ל-${ltr('16 A')}. אם הפחת חוזר לקפוץ ברגע שהדוד נדלק, זה הסימן.`;
     if (st.fault === 'touch') { const t = touch({ earthed: false, rcd: st.rcdPresent }); note = `לקומקום יש גוף מתכתי, גיד ההארקה שלו קרוע, ופאזה נגעה בגוף. אדם נוגע בו ועומד על הרצפה: הזרם עובר דרכו לאדמה. עם התנגדות גוף ונעליים של בערך ${ltr(`${R_BODY + R_FLOOR} Ω`)} (ערך לדוגמה, משתנה מאוד), ${ltr(`I ≈ 230/${R_BODY + R_FLOOR} ≈ ${si(t.Ibody, 'A')}`)}. זה מעט מאוד בשביל המאמ"ת (${ltr('16 A')}), אבל מסוכן לחיים. ${st.rcdPresent ? 'ממסר הפחת רואה שחסרים בגיד האפס יותר מ-30 mA, ומנתק תוך שבריר שנייה.' : '<b style="color:var(--bad)">בלי ממסר פחת אין שום דבר שינתק.</b>'}`; }
-    if (st.fault === 'brokenN') note = 'גיד האפס של מעגל השקעים התנתק בקופסת חיבורים. המכשירים במעגל מפסיקים לעבוד, אבל הם עדיין מחוברים לפאזה: האפס שאחרי הנתק מקבל 230 V דרכם, ובודק מתח על חור האפס בשקע יידלק. המאמ"ת לא קופץ, כי אין זרם בכלל. ממסר הפחת לא קופץ. מתקנים רק כשהמאמ"ת למטה. במצב 🔍 איתור תקלות אפשר למדוד את זה.';
+    if (st.fault === 'brokenN') note = 'גיד האפס של מעגל השקעים התנתק בקופסת חיבורים. המכשירים במעגל מפסיקים לעבוד, אבל הם עדיין מחוברים לפאזה: האפס שאחרי הנתק מקבל 230 V דרכם, ובודק מתח על חור האפס בשקע יידלק. המאמ"ת לא קופץ, כי אין זרם בכלל. ממסר הפחת לא קופץ. מתקנים רק כשהמאמ"ת למטה. במצב ' + go('faults', '🔍 איתור תקלות') + ' אפשר למדוד את זה.';
     return `<h3 class="pg-h">תקלות</h3><div class="chips">${FAULTS.map(([v, t]) => `<button class="chip" data-act="fault" data-v="${v}" aria-pressed="${st.fault === v}">${esc(t)}</button>`).join('')}<button class="chip" data-act="fault" data-v="">✓ בלי תקלה</button></div>
       <div class="chips"><button class="chip" data-act="rcdp" aria-pressed="${!st.rcdPresent}">${st.rcdPresent ? 'הסר את ממסר הפחת (לניסוי)' : 'החזר את ממסר הפחת'}</button></div>
       ${note ? `<p class="small">${note}</p>` : `<p class="small muted">עומס יתר אין צורך לדמות: הדלק בדירה קומקום, מדיח כלים ומיקרוגל יחד (מעגל המטבח, בערך ${ltr('24 A')} על ${ltr('B16')}), ובהילוך ${ltr('×300')} רואים את המאמ"ת קופץ אחרי כמה שניות (באמת: בערך רבע שעה). רק קומקום ומדיח (${ltr('18 A')}) זה עומס קטן: הוא יקפוץ רק אחרי שעות, וזה בכוונה, כדי לא לנתק בכל התחממות קצרה.</p>`}

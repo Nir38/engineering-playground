@@ -19,6 +19,9 @@ import { render3ph } from './playground-3ph.js';
 import { renderHome } from './playground-home.js';
 import { renderWiring } from './playground-wiring.js';
 import { renderFaults } from './playground-faults.js';
+import { renderMotors } from './playground-motors.js';
+import { renderPump } from './playground-pump.js';
+import { renderAppliances } from './playground-appliances.js';
 import { renderFbd } from './playground-fbd.js';
 import { renderSaved } from './playground-saved.js';
 
@@ -290,7 +293,7 @@ const MODE_KEY = 'mh-pg-mode';
 // two categories; each mode belongs to one. A category with no modes yet is not shown.
 const CATS = [
   { id: 'mech', name: '⚙ מכניקה', modes: [['beam', '🏗️ קורות'], ['pulley', '🪢 גלגלות'], ['truss', '△ מסבכים'], ['fluid', '💧 נוזלים'], ['vib', '〰 רטט'], ['fbd', '✎ גוף חופשי'], ['air', '✈ כנף'], ['tunnel', '🌬 מנהרת רוח'], ['mohr', '◯ מעגל Mohr']] },
-  { id: 'elec', name: '⚡ חשמל', modes: [['circ', '⚡ מעגלים ומדידות'], ['ac', '〜 AC'], ['trans', '⏱ מעברים'], ['xfmr', '🔁 שנאי'], ['three', '⚡⚡⚡ תלת-פאזי'], ['home', '🏠 לוח ודירה'], ['wiring', '🔌 חיבורים'], ['faults', '🔍 איתור תקלות']] },
+  { id: 'elec', name: '⚡ חשמל', modes: [['circ', '⚡ מעגלים ומדידות'], ['ac', '〜 AC'], ['trans', '⏱ מעברים'], ['xfmr', '🔁 שנאי'], ['three', '⚡⚡⚡ תלת-פאזי'], ['home', '🏠 לוח ודירה'], ['wiring', '🔌 חיבורים'], ['faults', '🔍 איתור תקלות'], ['motors', '⚙ מנועים'], ['pump', '💧 משאבה'], ['appl', '🧊 מכשירים']] },
 ];
 const ALL_MODES = CATS.flatMap((c) => c.modes.map(([id]) => id));
 const catOf = (m) => CATS.find((c) => c.modes.some(([id]) => id === m)) || CATS[0];
@@ -310,16 +313,16 @@ export function renderPlayground(page, ctx) {
     const mb = page.querySelector('.pg-modes'); mb.innerHTML = modeButtons(mode); mb.dataset.n = String(catOf(mode).modes.length);
     page.querySelectorAll('.pg-cat').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cat === catOf(mode).id)));
     const fresh = body.cloneNode(false); body.replaceWith(fresh); body = fresh; // drop old listeners
-    if (mode === 'pulley') renderPulleys(fresh, ctx); else if (mode === 'truss') renderTruss(fresh, ctx); else if (mode === 'fluid') renderFluid(fresh, ctx); else if (mode === 'vib') renderVib(fresh, ctx); else if (mode === 'fbd') renderFbd(fresh, ctx); else if (mode === 'air') renderAir(fresh, ctx); else if (mode === 'tunnel') renderTunnel(fresh, ctx); else if (mode === 'mohr') renderMohr(fresh, ctx); else if (mode === 'circ') renderCircuit(fresh, ctx); else if (mode === 'ac') renderAC(fresh, ctx); else if (mode === 'trans') renderTrans(fresh, ctx); else if (mode === 'xfmr') renderXfmr(fresh, ctx); else if (mode === 'three') render3ph(fresh, ctx); else if (mode === 'home') renderHome(fresh, ctx); else if (mode === 'wiring') renderWiring(fresh, ctx); else if (mode === 'faults') renderFaults(fresh, ctx); else renderBeams(fresh, ctx);
+    if (mode === 'pulley') renderPulleys(fresh, ctx); else if (mode === 'truss') renderTruss(fresh, ctx); else if (mode === 'fluid') renderFluid(fresh, ctx); else if (mode === 'vib') renderVib(fresh, ctx); else if (mode === 'fbd') renderFbd(fresh, ctx); else if (mode === 'air') renderAir(fresh, ctx); else if (mode === 'tunnel') renderTunnel(fresh, ctx); else if (mode === 'mohr') renderMohr(fresh, ctx); else if (mode === 'circ') renderCircuit(fresh, ctx); else if (mode === 'ac') renderAC(fresh, ctx); else if (mode === 'trans') renderTrans(fresh, ctx); else if (mode === 'xfmr') renderXfmr(fresh, ctx); else if (mode === 'three') render3ph(fresh, ctx); else if (mode === 'home') renderHome(fresh, ctx); else if (mode === 'wiring') renderWiring(fresh, ctx); else if (mode === 'faults') renderFaults(fresh, ctx); else if (mode === 'motors') renderMotors(fresh, ctx); else if (mode === 'pump') renderPump(fresh, ctx); else if (mode === 'appl') renderAppliances(fresh, ctx); else renderBeams(fresh, ctx);
     const getScene = { beam: () => sc && { ...sc, sel: null }, pulley: pulleyScene, truss: trussScene, fluid: fluidScene, vib: vibScene }[mode];
     renderSaved(page.querySelector('#pgSaved'), { mode, getScene, toast: ctx.toast, practice: ctx.practice });
     // undo/redo live in the corner of the drawing card, next to what they change
     const stage = body.querySelector('.pg-stage'); if (undoBox && stage) stage.prepend(undoBox);
-    if (undoBox) setTimeout(() => { const h = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined }); if (h.cur === undefined) { try { h.cur = localStorage.getItem({ beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1', tunnel: 'mh-pg-tunnel-v1', mohr: 'mh-pg-mohr-v1', circ: 'mh-pg-circ-v1', ac: 'mh-pg-ac-v1', trans: 'mh-pg-trans-v1', xfmr: 'mh-pg-xfmr-v1', three: 'mh-pg-3ph-v1', home: 'mh-pg-home-v1', wiring: 'mh-pg-wiring-v1', faults: 'mh-pg-faults-v1' }[mode]); } catch (e) { h.cur = null; } } undoBox.querySelector('#pgUndo').disabled = !h.past.length; undoBox.querySelector('#pgRedo').disabled = !h.future.length; }, 0);
+    if (undoBox) setTimeout(() => { const h = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined }); if (h.cur === undefined) { try { h.cur = localStorage.getItem({ beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1', tunnel: 'mh-pg-tunnel-v1', mohr: 'mh-pg-mohr-v1', circ: 'mh-pg-circ-v1', ac: 'mh-pg-ac-v1', trans: 'mh-pg-trans-v1', xfmr: 'mh-pg-xfmr-v1', three: 'mh-pg-3ph-v1', home: 'mh-pg-home-v1', wiring: 'mh-pg-wiring-v1', faults: 'mh-pg-faults-v1', motors: 'mh-pg-motors-v1', pump: 'mh-pg-pump-v1', appl: 'mh-pg-appl-v1' }[mode]); } catch (e) { h.cur = null; } } undoBox.querySelector('#pgUndo').disabled = !h.past.length; undoBox.querySelector('#pgRedo').disabled = !h.future.length; }, 0);
   };
   // ---- undo / redo: every mode keeps its whole scene in localStorage, so history is a list of
   // snapshots of that key, taken after each interaction (selection changes are ignored)
-  const STORE = { beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1', tunnel: 'mh-pg-tunnel-v1', mohr: 'mh-pg-mohr-v1', circ: 'mh-pg-circ-v1', ac: 'mh-pg-ac-v1', trans: 'mh-pg-trans-v1', xfmr: 'mh-pg-xfmr-v1', three: 'mh-pg-3ph-v1', home: 'mh-pg-home-v1', wiring: 'mh-pg-wiring-v1', faults: 'mh-pg-faults-v1' };
+  const STORE = { beam: KEY, pulley: 'mh-pg-pul-v1', truss: 'mh-pg-truss-v1', fluid: 'mh-pg-fluid-v1', vib: 'mh-pg-vib-v1', fbd: 'mh-pg-fbd-v1', air: 'mh-pg-air-v1', tunnel: 'mh-pg-tunnel-v1', mohr: 'mh-pg-mohr-v1', circ: 'mh-pg-circ-v1', ac: 'mh-pg-ac-v1', trans: 'mh-pg-trans-v1', xfmr: 'mh-pg-xfmr-v1', three: 'mh-pg-3ph-v1', home: 'mh-pg-home-v1', wiring: 'mh-pg-wiring-v1', faults: 'mh-pg-faults-v1', motors: 'mh-pg-motors-v1', pump: 'mh-pg-pump-v1', appl: 'mh-pg-appl-v1' };
   const read = () => { try { return localStorage.getItem(STORE[mode]); } catch (e) { return null; } };
   const norm = (raw) => { try { const o = JSON.parse(raw); delete o.sel; delete o.pend; return JSON.stringify(o); } catch (e) { return raw; } };
   const hist = HIST[mode] || (HIST[mode] = { past: [], future: [], cur: undefined });
@@ -344,6 +347,12 @@ export function renderPlayground(page, ctx) {
   };
   undoBox.querySelector('#pgUndo').onclick = (ev) => { ev.stopPropagation(); jump('past', 'future'); };
   undoBox.querySelector('#pgRedo').onclick = (ev) => { ev.stopPropagation(); jump('future', 'past'); };
+  root.addEventListener('click', (ev) => {
+    const g = ev.target.closest('[data-goto]'); if (!g || !ALL_MODES.includes(g.dataset.goto)) return;
+    ev.preventDefault(); mode = g.dataset.goto;
+    try { localStorage.setItem(`${MODE_KEY}-${catOf(mode).id}`, mode); localStorage.setItem(MODE_KEY, mode); } catch (e) { /* ignore */ }
+    show(); window.scrollTo(0, 0);
+  });
   const cats = page.querySelector('.pg-cats');
   if (cats) cats.onclick = (ev) => {
     const b = ev.target.closest('[data-cat]'); if (!b || b.dataset.cat === catOf(mode).id) return;

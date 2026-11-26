@@ -66,7 +66,7 @@ function si(v, unit, d = 3) {
 }
 const text = (x, y, s, cls = '', anchor = 'middle') => `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" class="pg-t ${cls}">${esc(s)}</text>`;
 const label = (e) => ({
-  res: si(e.R, 'Ω'), lamp: `${e.V}V ${e.P}W`, bat: `${e.V} V`, vac: `${e.Vrms}V~${e.f === 50 ? '' : ` ${e.f}Hz`}`, fuse: e.blown ? 'נשרף' : `${e.I} A`, cap: si(e.C, 'F'), ind: si(e.L, 'H'),
+  res: si(e.R, 'Ω'), lamp: `${e.V}V ${e.P}W`, bat: `${e.V} V`, vac: `${e.Vrms}V~${e.f === 50 ? '' : ` ${e.f}Hz`}`, fuse: e.blown ? 'נשרף' : `${e.I} A`, cap: si(e.C, 'F'), ind: e.rL ? `${si(e.L, 'H')} ${si(e.rL, 'Ω')}` : si(e.L, 'H'),
   cable: `${e.len}m ${e.area}mm²`, sw: e.on ? 'סגור' : 'פתוח',
 }[e.type] || '');
 
@@ -122,7 +122,7 @@ export function renderCircuit(root, { toast }) {
       const glow = e.type === 'lamp' ? Math.min(1, P / e.P) : 0;
       s += `<g transform="translate(${((ax + bx) / 2).toFixed(1)} ${((ay + by) / 2).toFixed(1)}) rotate(${ang.toFixed(2)})" class="${st.sel === e.id ? 'pg-csel' : ''}">${symbol(e, len, glow)}</g>`;
       const lb = label(e);
-      if (lb) { const nx = -(by - ay) / len, ny = (bx - ax) / len, sgn = ny > 0.1 || (Math.abs(ny) <= 0.1 && nx < 0) ? -1 : 1, off = e.type === 'lamp' ? 24 : e.type === 'vac' ? 27 : 17; s += text((ax + bx) / 2 + sgn * nx * off, (ay + by) / 2 + sgn * ny * off + 4, lb, `pg-clab ${e.type === 'fuse' && e.blown ? 'pg-blowntxt' : ''}`); }
+      if (lb) { const nx = -(by - ay) / len, ny = (bx - ax) / len, sgn = ny > 0.1 || (Math.abs(ny) <= 0.1 && nx < 0) ? -1 : 1, off = e.type === 'lamp' ? 24 : e.type === 'vac' ? 27 : 17; const lx = (ax + bx) / 2 + sgn * nx * off, anc = lx > W - 34 ? 'end' : lx < 34 ? 'start' : 'middle'; s += text(anc === 'end' ? Math.min(lx + 12, W - 2) : anc === 'start' ? Math.max(lx - 12, 2) : lx, (ay + by) / 2 + sgn * ny * off + 4, lb, `pg-clab ${e.type === 'fuse' && e.blown ? 'pg-blowntxt' : ''}`, anc); }
     }
     for (const k of nodeSet()) { const [x, y] = px(k); s += `<circle cx="${x}" cy="${y}" r="3.4" class="pg-cnode"/>`; }
     if (st.pend) { const [x, y] = px(st.pend); s += `<circle cx="${x}" cy="${y}" r="7" class="pg-jpend" fill="none"/>`; }
@@ -272,7 +272,7 @@ export function renderCircuit(root, { toast }) {
       case 'sw': return head + `<button class="btn" data-act="toggle">${e.on ? '⏻ פתח את המתג' : '⏻ סגור את המתג'}</button>${del}`;
       case 'fuse': return head + `<div class="pg-form">${field('I', 'זרם נקוב', e.I, 'A')}</div>${chips([[0.5, '0.5 A'], [1, '1 A'], [2, '2 A'], [5, '5 A'], [10, '10 A']], e.I, 'I')}${e.blown ? '<p class="small" style="color:var(--bad)">הנתיך נשרף. מצא קודם למה (קצר? עומס יתר?), ורק אז החלף.</p><button class="btn" data-act="refuse">🔁 החלף נתיך</button>' : ''}<p class="small muted">בסימולציה הנתיך נשרף מיד כשהזרם עובר את הנקוב. נתיך אמיתי נשרף אחרי זמן שתלוי בכמה הזרם גבוה.</p>${del}`;
       case 'cap': return head + `<div class="pg-form">${field('Cu', 'קיבול', Number((e.C * 1e6).toPrecision(4)), 'µF')}</div>${chips([[10, '10 µF'], [100, '100 µF'], [1000, '1000 µF']], Number((e.C * 1e6).toPrecision(4)), 'Cu')}<p class="small muted">במתח ישר, קבל טעון לא מעביר זרם. עם נגד R הוא נטען בקבוע זמן ${ltr('τ = RC')}.</p>${del}`;
-      case 'ind': return head + `<div class="pg-form">${field('L', 'השראות', e.L, 'H')}</div>${chips([[0.1, '0.1 H'], [1, '1 H'], [5, '5 H']], e.L, 'L')}<p class="small muted">סליל מתנגד לשינוי בזרם: ${ltr('V = L·di/dt')}. במתח ישר יציב הוא כמו חוט.</p>${del}`;
+      case 'ind': return head + `<div class="pg-form">${field('L', 'השראות', e.L, 'H')}${field('rL', 'התנגדות הליפוף', e.rL || 0, 'Ω')}</div>${chips([[0.1, '0.1 H'], [1, '1 H'], [5, '5 H']], e.L, 'L')}<p class="small muted">סליל מתנגד לשינוי בזרם: ${ltr('V = L·di/dt')}. במתח ישר יציב הוא כמו חוט.</p>${del}`;
       case 'diode': return head + `<button class="btn" data-act="flip">⇄ הפוך כיוון</button><p class="small muted">מודל פשוט: מוליכה בכיוון החץ, עם מפל של בערך ${ltr('0.7 V')} (סיליקון), וחוסמת בכיוון ההפוך.</p>${del}`;
       case 'cable': return head + `<div class="pg-form">${field('len', 'אורך', e.len, 'm')}${field('area', 'חתך', e.area, 'mm²')}</div>${chips([[0.75, '0.75 mm²'], [1.5, '1.5 mm²'], [2.5, '2.5 mm²'], [4, '4 mm²']], e.area, 'area')}${chips([['cu', MAT_NAME.cu], ['al', MAT_NAME.al]], e.mat, 'mat')}
         <p class="small">${ltr(`R = ρL/A = ${si(cableR(e.len, e.area, e.mat), 'Ω')}`)}, עם ${ltr(`ρ = ${e.mat === 'cu' ? '1.68' : '2.65'}·10⁻⁸ Ω·m`)} ב-${ltr('20 °C')}. זה מוליך אחד: לזרם יש תמיד דרך הלוך ודרך חזור, ולכן במעגל אמיתי סופרים את האורך פעמיים.</p>${del}`;
@@ -399,7 +399,7 @@ export function renderCircuit(root, { toast }) {
   root.addEventListener('input', (ev) => {
     const f = ev.target.dataset.f, e = st.els.find((q) => q.id === st.sel); if (!f || !e) return;
     const v = parseFloat(ev.target.value); if (!Number.isFinite(v) || v < 0) return;
-    if (f === 'Cu') { if (v <= 0) return; e.C = v * 1e-6; } else if (f === 'r') e.r = Math.max(1e-3, v); else { if (v <= 0) return; e[f] = v; }
+    if (f === 'Cu') { if (v <= 0) return; e.C = v * 1e-6; } else if (f === 'r') e.r = Math.max(1e-3, v); else if (f === 'rL') e.rL = v; else { if (v <= 0) return; e[f] = v; }
     save(); restart(); drawEls();
   });
   ed.addEventListener('change', () => { ed.innerHTML = editor(); });
