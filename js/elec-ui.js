@@ -81,3 +81,12 @@ export function phasors(items, { W = 360, H = 200, rot = 0, R = 80, axes = true,
   }
   return s + '</svg>';
 }
+
+// the home stage: every screen carries this note (wording from the plan in תוצרים/פרומפט מגרש החשמל.md)
+export const HOME_SAFETY = '<p class="small pg-safe">⚠ זו המחשה ללימוד. עבודה בלוח חשמל אמיתי מותרת רק לחשמלאי מוסמך.</p>';
+// a wire in its color: L brown, N blue, PE green with yellow stripes (L2 black, L3 grey)
+export function wire(d, kind, w = 3, extra = '') {
+  const col = { L: '#8b5a2b', N: '#2563eb', L2: '#111827', L3: '#9ca3af' }[kind];
+  if (kind === 'PE') return `<path d="${d}" fill="none" stroke="#16a34a" stroke-width="${w}" stroke-linecap="round" ${extra}/><path d="${d}" fill="none" stroke="#facc15" stroke-width="${w}" stroke-dasharray="5 5" ${extra}/>`;
+  return `<path d="${d}" fill="none" stroke="${col || kind}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" ${extra}/>`;
+}

@@ -433,7 +433,7 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 /* playground header v2: modes as a 3×2 grid (nothing hidden, nothing sticky); undo/redo float above the tab bar */
 .pg-head { position: static; padding: 0; margin: 0 0 10px; }
 .pg-head .pg-modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; margin-bottom: 0; }
-.pg-head .pg-modes[data-n="9"], .pg-head .pg-modes[data-n="6"], .pg-head .pg-modes[data-n="5"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pg-head .pg-modes[data-n="9"], .pg-head .pg-modes[data-n="8"], .pg-head .pg-modes[data-n="6"], .pg-head .pg-modes[data-n="5"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pg-cats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
 .pg-cat { min-height: 40px; border: 1.5px solid var(--surface-2); border-radius: 12px; background: var(--surface); font-weight: 800; color: var(--muted); cursor: pointer; }
 .pg-cat[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
@@ -502,3 +502,14 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-inst { margin-bottom: 8px; }
 .pg-slow { align-items: center; margin-bottom: 8px; }
 .pg-slow .chip { min-height: 34px; padding: 4px 10px; }
+/* electricity, stage D: home panel, apartment, wiring boxes */
+.pg-hbox { fill: var(--surface-2); stroke: var(--border); stroke-width: 1.5; }
+.pg-rail { stroke: var(--muted); stroke-width: 6; opacity: .35; }
+.pg-hbrk { fill: var(--surface); stroke: var(--text); stroke-width: 1.4; }
+.pg-hslot { fill: var(--surface-2); stroke: var(--border); }
+.pg-hmod, .pg-hhandle, .pg-happ, .pg-wsw { cursor: pointer; }
+.pg-hsel .pg-hbrk { stroke: var(--accent); stroke-width: 2.6; }
+.pg-room { fill: var(--surface-2); stroke: var(--text); stroke-width: 1.6; }
+.pg-happbg { fill: var(--surface); stroke: var(--border); stroke-width: 1.2; }
+.pg-wterm { fill: var(--surface); stroke: var(--text); stroke-width: 1.6; }
+.pg-wbox { fill: color-mix(in srgb, var(--surface-2) 70%, transparent); stroke: var(--muted); stroke-width: 1.4; stroke-dasharray: 5 3; }
