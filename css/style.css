@@ -433,7 +433,7 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 /* playground header v2: modes as a 3×2 grid (nothing hidden, nothing sticky); undo/redo float above the tab bar */
 .pg-head { position: static; padding: 0; margin: 0 0 10px; }
 .pg-head .pg-modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); overflow: visible; margin-bottom: 0; }
-.pg-head .pg-modes[data-n="17"], .pg-head .pg-modes[data-n="16"], .pg-head .pg-modes[data-n="15"], .pg-head .pg-modes[data-n="14"], .pg-head .pg-modes[data-n="13"], .pg-head .pg-modes[data-n="9"], .pg-head .pg-modes[data-n="11"], .pg-head .pg-modes[data-n="8"], .pg-head .pg-modes[data-n="6"], .pg-head .pg-modes[data-n="5"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pg-head .pg-modes[data-n="18"], .pg-head .pg-modes[data-n="17"], .pg-head .pg-modes[data-n="16"], .pg-head .pg-modes[data-n="15"], .pg-head .pg-modes[data-n="14"], .pg-head .pg-modes[data-n="13"], .pg-head .pg-modes[data-n="9"], .pg-head .pg-modes[data-n="11"], .pg-head .pg-modes[data-n="8"], .pg-head .pg-modes[data-n="6"], .pg-head .pg-modes[data-n="5"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pg-cats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
 .pg-cat { min-height: 40px; border: 1.5px solid var(--surface-2); border-radius: 12px; background: var(--surface); font-weight: 800; color: var(--muted); cursor: pointer; }
 .pg-cat[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
