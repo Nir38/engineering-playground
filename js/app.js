@@ -8,7 +8,7 @@ import { loadSaved, makeSceneQuestion } from './scenes.js';
 import { pickInterview, limitFor, grade, INTERVIEW_DOMAINS } from './interview.js';
 import { review, dueIds, parseAnswer, isCorrect, sanitizeState, spread, DAILY_LIMIT } from './srs.js';
 
-const APP_VERSION = '3.14.0';
+const APP_VERSION = '3.15.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }
@@ -561,7 +561,7 @@ function progressView() {
   $('#copyRep').onclick = () => copy('דיווחי טעויות ממגרש הנדסה:\n' + state.reports.map((r, i) => `${i + 1}. [${r.id} · ${r.sub}] ${r.q}\n   תשובה באפליקציה: ${r.answer}\n   הערה: ${r.note || '(אין)'}`).join('\n'), 'הועתק. הדבק בשיחה עם המנהל.');
   $('#clearRep').onclick = () => { if (confirm('למחוק את כל הדיווחים?')) { state.reports = []; save(); progressView(); } };
   // backup as a file: progress plus the playground scenes and saved questions
-  const BACKUP_KEYS = ['mh-pg-saved-v1', 'mh-pg-v1', 'mh-pg-pul-v1', 'mh-pg-truss-v1', 'mh-pg-fluid-v1', 'mh-pg-vib-v1', 'mh-pg-fbd-v1', 'mh-pg-air-v1', 'mh-pg-tunnel-v1', 'mh-pg-mohr-v1', 'mh-pg-tol-v1', 'mh-pg-fat-v1', 'mh-pg-buck-v1', 'mh-pg-moody-v1', 'mh-pg-hunt-v1', 'mh-pg-kt-v1', 'mh-pg-bolt-v1', 'mh-pg-circ-v1', 'mh-pg-ac-v1', 'mh-pg-trans-v1', 'mh-pg-xfmr-v1', 'mh-pg-3ph-v1', 'mh-pg-home-v1', 'mh-pg-wiring-v1', 'mh-pg-faults-v1', 'mh-pg-motors-v1', 'mh-pg-pump-v1', 'mh-pg-appl-v1'];
+  const BACKUP_KEYS = ['mh-pg-saved-v1', 'mh-pg-v1', 'mh-pg-pul-v1', 'mh-pg-truss-v1', 'mh-pg-fluid-v1', 'mh-pg-vib-v1', 'mh-pg-fbd-v1', 'mh-pg-air-v1', 'mh-pg-tunnel-v1', 'mh-pg-mohr-v1', 'mh-pg-tol-v1', 'mh-pg-fat-v1', 'mh-pg-buck-v1', 'mh-pg-moody-v1', 'mh-pg-hunt-v1', 'mh-pg-kt-v1', 'mh-pg-bolt-v1', 'mh-pg-gears-v1', 'mh-pg-circ-v1', 'mh-pg-ac-v1', 'mh-pg-trans-v1', 'mh-pg-xfmr-v1', 'mh-pg-3ph-v1', 'mh-pg-home-v1', 'mh-pg-wiring-v1', 'mh-pg-faults-v1', 'mh-pg-motors-v1', 'mh-pg-pump-v1', 'mh-pg-appl-v1'];
   $('#exp').onclick = () => {
     const extra = {}; BACKUP_KEYS.forEach((k) => { try { const v = localStorage.getItem(k); if (v) extra[k] = v; } catch (e) { /* ignore */ } });
     const blob = new Blob([JSON.stringify({ app: 'mgrash-handasa', v: APP_VERSION, date: new Date().toISOString(), state, extra })], { type: 'application/json' });
