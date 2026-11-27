@@ -5,9 +5,10 @@ import { draw } from './diagrams.js';
 import { esc, rich } from './text.js';
 import { renderPlayground } from './playground.js';
 import { loadSaved, makeSceneQuestion } from './scenes.js';
+import { pickInterview, limitFor, grade, INTERVIEW_DOMAINS } from './interview.js';
 import { review, dueIds, parseAnswer, isCorrect, sanitizeState, spread, DAILY_LIMIT } from './srs.js';
 
-const APP_VERSION = '3.10.0';
+const APP_VERSION = '3.11.0';
 const DOMAINS = allDomains();
 const READY = DOMAINS.filter((d) => !d.soon);
 const SUB = {}; // subtopicId -> { sub, domain }
@@ -264,7 +265,7 @@ function searchView() {
 let builder = { subs: new Set(), count: 10, mode: 'quiz', diff: 0 };
 function quizBuilder() {
   setTitle('תרגול');
-  const modes = [['quiz', 'בוחן'], ['trivia', 'טריוויה ⏱️'], ['mistakes', 'חזרה מרווחת'], ['marked', '⭐ מסומנות']];
+  const modes = [['quiz', 'בוחן'], ['trivia', 'טריוויה ⏱️'], ['mistakes', 'חזרה מרווחת'], ['marked', '⭐ מסומנות'], ['interview', 'ראיון 🎤']];
   view.innerHTML = `${quizBanner()}
     <div class="card"><h3>סוג תרגול</h3><div class="chips" id="modes">${modes.map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${builder.mode === v}">${l}</button>`).join('')}</div>
       <p class="muted small" id="modeHelp" style="margin:8px 0 0"></p></div>
@@ -276,8 +277,8 @@ function quizBuilder() {
     <div class="card"><h3>מספר שאלות</h3><div class="chips" id="counts">${[5, 10, 20, 30].map((n) => `<button class="chip" data-v="${n}" aria-pressed="${builder.count === n}">${n}</button>`).join('')}</div>
       <h3 style="margin-top:14px">רמת קושי</h3><div class="chips" id="diffs">${[[0, 'הכל'], [1, 'בסיס'], [2, 'בינוני'], [3, 'מתקדם']].map(([v, l]) => `<button class="chip" data-v="${v}" aria-pressed="${builder.diff === v}">${l}</button>`).join('')}</div></div>
     <button class="btn primary block" id="go">התחל</button>`;
-  const help = { quiz: 'כל סוגי השאלות, כולל תרגילי חישוב. ציון והסבר בסוף.', trivia: 'שאלות אמריקאיות ונכון/לא נכון, 20 שניות לכל שאלה.', mistakes: 'שאלות שהגיע זמן לחזור עליהן: טעות חוזרת היום, ותשובה נכונה נדחית ל-1, 3, 7, 21 ו-60 ימים.', marked: 'רק שאלות שסימנת בכוכב.' };
-  const refresh = () => { $('#modeHelp').textContent = help[builder.mode]; $('#go').disabled = builder.subs.size === 0; $('#go').textContent = builder.subs.size ? `התחל (${builder.subs.size === 1 ? 'תת-נושא אחד' : `${builder.subs.size} תתי-נושאים`})` : 'בחר לפחות נושא אחד'; };
+  const help = { quiz: 'כל סוגי השאלות, כולל תרגילי חישוב. ציון והסבר בסוף.', trivia: 'שאלות אמריקאיות ונכון/לא נכון, 20 שניות לכל שאלה.', mistakes: 'שאלות שהגיע זמן לחזור עליהן: טעות חוזרת היום, ותשובה נכונה נדחית ל-1, 3, 7, 21 ו-60 ימים.', marked: 'רק שאלות שסימנת בכוכב.', interview: 'סימולציה של ראיון טכני: שאלות מכמה נושאים, שליש מהן "תסביר", עם זמן לכל שאלה (הסבר 2 דקות, חישוב 3, אמריקאית 45 שניות). נושאים שטעית בהם עולים יותר. בלי בחירת נושאים: נושאי NPI ותכן.' };
+  const refresh = () => { const iv = builder.mode === 'interview' && !builder.subs.size; $('#modeHelp').textContent = help[builder.mode]; $('#go').disabled = builder.subs.size === 0 && !iv; $('#go').textContent = iv ? 'התחל ראיון (נושאי NPI ותכן)' : builder.subs.size ? `התחל (${builder.subs.size === 1 ? 'תת-נושא אחד' : `${builder.subs.size} תתי-נושאים`})` : 'בחר לפחות נושא אחד'; };
   const chipGroup = (id, key, num) => $(id).querySelectorAll('.chip').forEach((c) => (c.onclick = () => {
     builder[key] = num ? Number(c.dataset.v) : c.dataset.v;
     $(id).querySelectorAll('.chip').forEach((x) => x.setAttribute('aria-pressed', x === c)); refresh();
@@ -302,7 +303,7 @@ function buildPool({ subs, mode, diff }) {
     if (diff) pool = pool.filter((x) => x.difficulty === diff);
     return pool;
   }
-  const set = new Set(subs);
+  const set = new Set(mode === 'interview' && !subs.length ? READY.filter((d) => INTERVIEW_DOMAINS.includes(d.id)).flatMap((d) => d.subtopics.map((x) => x.id)) : subs);
   const items = [];
   for (const id of set) {
     if (id === 'pg-mine') { // saved playground scenes: each one twice, new numbers every time
@@ -337,8 +338,7 @@ function materialize(item) {
   return out;
 }
 function startQuiz(opts) {
-  let pool = shuffle(buildPool(opts));
-  pool = spread(pool.slice(0, opts.count)); // two copies of the same exercise are kept apart
+  let pool = opts.mode === 'interview' ? pickInterview(buildPool(opts), state.sub, opts.count) : spread(shuffle(buildPool(opts)).slice(0, opts.count)); // two copies of the same exercise are kept apart
   if (!pool.length) { toast(opts.mode === 'mistakes' ? 'אין שאלות לחזרה היום' : opts.mode === 'marked' ? 'אין שאלות מסומנות' : 'אין שאלות שמתאימות לבחירה'); return; }
   if (quiz && quiz.timer) clearInterval(quiz.timer);
   quiz = { opts, items: pool.map(materialize), i: 0, results: [], timer: null, deadlines: {} };
@@ -353,13 +353,15 @@ function contextBox(q) {
   return `<details class="qctx" open><summary>📖 הרחבה על הנושא: ${esc(ent.sub.title)}</summary><div class="qctx-body"><p>${rich(L.intuition)}</p>${eqs}
     <a class="small" href="#/learn/${ent.domain.id}/${ent.sub.id}">לשיעור המלא ‹</a></div></details>`;
 }
+const clock = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : String(s));
+const quizLimit = (q) => (quiz.opts.mode === 'trivia' ? 20 : quiz.opts.mode === 'interview' ? limitFor(q.type) : 0);
 function quizRun() {
   if (!quiz) return (location.hash = '#/quiz');
   if (quiz.timer) { clearInterval(quiz.timer); quiz.timer = null; }
   if (quiz.i >= quiz.items.length) return quizSummary();
   const q = quiz.items[quiz.i];
-  const n = quiz.items.length;
-  setTitle(quiz.opts.mode === 'trivia' ? 'טריוויה' : quiz.opts.mode === 'mistakes' ? 'חזרה מרווחת' : quiz.opts.mode === 'marked' ? 'שאלות מסומנות' : 'בוחן');
+  const n = quiz.items.length, lim = quizLimit(q);
+  setTitle(quiz.opts.mode === 'interview' ? 'ראיון' : quiz.opts.mode === 'trivia' ? 'טריוויה' : quiz.opts.mode === 'mistakes' ? 'חזרה מרווחת' : quiz.opts.mode === 'marked' ? 'שאלות מסומנות' : 'בוחן');
   const subTitle = SUB[q.sub].sub.title;
   let body = '';
   if (q.type === 'mcq') body = `<div class="options">${q.options.map((o, i) => `<button class="option" data-i="${i}">${rich(o)}</button>`).join('')}</div>`;
@@ -369,7 +371,7 @@ function quizRun() {
   if (q.type === 'open') body = `<div class="btn-row"><button class="btn primary" id="reveal">הצג תשובה לדוגמה</button></div>`;
   view.innerHTML = `
     <div class="qhead"><span class="small muted">${quiz.i + 1}/${n}</span><div class="bar"><i style="width:${(100 * quiz.i) / n}%"></i></div>
-      ${quiz.opts.mode === 'trivia' ? '<span class="timer" id="timer">20</span>' : ''}<button class="icon-btn" id="quit" aria-label="יציאה">✕</button></div>
+      ${lim ? `<span class="timer" id="timer">${clock(lim)}</span>` : ''}<button class="icon-btn" id="quit" aria-label="יציאה">✕</button></div>
     <div class="card">
       <div class="row small muted" style="margin-bottom:6px"><span class="grow">${esc(subTitle)}</span><span>${'●'.repeat(q.difficulty || 1)}${'○'.repeat(3 - (q.difficulty || 1))}</span></div>
       <div class="qtext">${rich(q.q)}</div>
@@ -401,13 +403,18 @@ function quizRun() {
   };
   const done = quiz.results[quiz.i];
   if (done) { showAnswered(q, done.ok, done.detail); mathify(); return; } // returning to an answered question
-  if (quiz.opts.mode === 'trivia') { // the 20 s run from the first time the question is shown, also across visits
+  if (lim) { // the time runs from the first time the question is shown, also across visits
     quiz.deadlines = quiz.deadlines || {};
-    if (!quiz.deadlines[quiz.i]) { quiz.deadlines[quiz.i] = Date.now() + 20000; saveQuiz(); }
+    if (!quiz.deadlines[quiz.i]) { quiz.deadlines[quiz.i] = Date.now() + lim * 1000; saveQuiz(); }
     const tick = () => {
       const left = Math.max(0, Math.ceil((quiz.deadlines[quiz.i] - Date.now()) / 1000)), el = $('#timer');
-      if (el) { el.textContent = left; el.classList.toggle('low', left <= 5); }
-      if (left <= 0) { clearInterval(quiz.timer); quiz.timer = null; answer(false, { timeout: true }); }
+      if (el) { el.textContent = clock(left); el.classList.toggle('low', left <= Math.min(10, lim / 4)); }
+      if (left <= 0) {
+        clearInterval(quiz.timer); quiz.timer = null;
+        // an "explain" question in an interview: time is up, show the model answer, the user still grades it
+        if (q.type === 'open' && quiz.opts.mode === 'interview') { quiz.overtime = quiz.i; const rv = $('#reveal'); if (rv) rv.onclick(); toast('⏱️ נגמר הזמן. בראיון אמיתי היית צריך לסכם כאן.'); }
+        else answer(false, { timeout: true });
+      }
     };
     tick(); if (!quiz.results[quiz.i]) quiz.timer = setInterval(tick, 250);
   }
@@ -417,6 +424,11 @@ function answer(ok, detail) {
   if (quiz.timer) { clearInterval(quiz.timer); quiz.timer = null; }
   const q = quiz.items[quiz.i];
   if (quiz.results[quiz.i]) return; // already answered
+  if (quiz.opts.mode === 'interview') { // seconds used, and whether the time ran out
+    const lim = quizLimit(q), dl = quiz.deadlines && quiz.deadlines[quiz.i];
+    if (dl) detail.t = Math.round(Math.min(lim, lim - Math.max(0, (dl - Date.now()) / 1000)));
+    if (quiz.overtime === quiz.i) detail.timeout = true;
+  }
   quiz.results[quiz.i] = { ok, q, detail };
   state.q[q.id] = review(state.q[q.id], ok); // counts + next review date (spaced repetition)
   const ss = state.sub[q.sub] || { right: 0, wrong: 0 };
@@ -471,6 +483,14 @@ function finalize() {
   state.history = state.history.slice(0, 100);
   save(); try { localStorage.removeItem(QKEY); } catch (e) { /* ignore */ }
 }
+function interviewCard(res) {
+  const g = grade(res.map((r) => ({ ok: r.ok, type: r.q.type, t: r.detail && r.detail.t, timeout: r.detail && r.detail.timeout })));
+  const by = {}; res.forEach((r) => { const d = SUB[r.q.sub].domain, b = by[d.id] || (by[d.id] = { name: `${d.icon || ''} ${d.title}`, right: 0, n: 0 }); b.n++; if (r.ok) b.right++; });
+  return `<div class="card"><h3>🎤 משוב המראיין</h3><p><b>${esc(g.verdict)}.</b></p>
+    <div class="pg-max"><div><span>זמן ממוצע לשאלה</span><b>${Math.round(g.avg)} שניות</b></div><div><span>תשובות איטיות</span><b>${g.slow} מתוך ${g.n}</b></div></div>
+    <table class="pg-table" style="margin-top:8px"><tbody>${Object.values(by).map((b) => `<tr><td>${esc(b.name)}</td><td>${b.right}/${b.n}</td></tr>`).join('')}</tbody></table>
+    <p class="small muted" style="margin-top:8px">${g.slow ? 'בראיון קצב חשוב: תשובה טובה מתחילה בהנחה, ממשיכה בנוסחה, ונגמרת במספר ובמשמעות ההנדסית שלו. ' : ''}בשאלות "תסביר" תענה בקול, כאילו המראיין מולך, ורק אחר כך תפתח את התשובה לדוגמה.</p></div>`;
+}
 function quizSummary() {
   finalize();
   const res = quiz.results;
@@ -489,6 +509,7 @@ function quizSummary() {
         <text x="60" y="80" text-anchor="middle" font-size="12" fill="var(--muted)">${right} מתוך ${n}</text></svg>
       <h2>${score >= 90 ? 'מצוין! 🎯' : score >= 60 ? 'עבר. יש על מה לעבוד 💪' : 'מתחת ל-6: כדאי לחזור לחומר 📖'}</h2>
     </div>
+    ${quiz.opts.mode === 'interview' ? interviewCard(res) : ''}
     ${Object.keys(weak).length ? `<div class="card"><h3>לחזור על</h3>${Object.entries(weak).map(([id, c]) => `<a class="list-item" href="#/learn/${SUB[id].domain.id}/${id}"><div class="grow"><b>${esc(SUB[id].sub.title)}</b><div class="muted small">${c} טעויות</div></div><span class="chev">‹</span></a>`).join('')}</div>` : ''}
     <div class="card"><h3>כל השאלות</h3>${res.map((r) => `<div class="review-item ${r.ok ? 'good' : 'bad'}"><div class="small">${rich(r.q.q)}</div>
       <div class="small muted">${r.q.type === 'numeric' ? `תשובה: <span dir="ltr">${fmt(r.q.answer, (r.q.tol || 0.02) < 0.01 ? 7 : 4)} ${esc(r.q.unit || '')}</span>` : r.q.type === 'mcq' ? `תשובה: ${rich(r.q.options[r.q.answer])}` : r.q.type === 'tf' ? `תשובה: ${r.q.answer ? 'נכון' : 'לא נכון'}` : ''}</div></div>`).join('')}</div>
