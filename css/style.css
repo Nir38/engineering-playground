@@ -534,3 +534,6 @@ text.pg-fbad { fill: var(--bad); stroke: var(--surface); stroke-width: 3px; }
 .pg-tol input[type="number"] { direction: ltr; text-align: center; }
 .pg-tol .chip { padding: 4px 9px; min-width: 0; }
 .pg-tol td:nth-child(2) { width: 30%; }
+
+.pg-head .pg-modes[data-n="1"] { grid-template-columns: 1fr; }
+.pg-head .pg-modes[data-n="2"] { grid-template-columns: 1fr 1fr; }
