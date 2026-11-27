@@ -302,7 +302,9 @@ function editorHtml() {
 const MODE_KEY = 'mh-pg-mode';
 // two categories; each mode belongs to one. A category with no modes yet is not shown.
 const CATS = [
-  { id: 'mech', name: '⚙ מכניקה', modes: [['beam', '🏗️ קורות'], ['pulley', '🪢 גלגלות'], ['truss', '△ מסבכים'], ['fluid', '💧 נוזלים'], ['vib', '〰 רטט'], ['fbd', '✎ גוף חופשי'], ['air', '✈ כנף'], ['tunnel', '🌬 מנהרת רוח'], ['mohr', '◯ מעגל Mohr'], ['fat', '⟳ עייפות'], ['tol', '📏 טולרנסים'], ['buck', '⇩ קריסה'], ['moody', '〽 Moody'], ['hunt', '🔍 ציד טעויות'], ['kt', '✱ ריכוזי מאמץ'], ['bolt', '🔩 מחבר מוברג'], ['gears', '⚙ גלגלי שיניים'], ['springs', '🌀 קפיצים'], ['shaft', '⌀ תכן ציר']] },
+  { id: 'mech', name: '🏗️ חוזק ומבנים', modes: [['beam', '🏗️ קורות'], ['truss', '△ מסבכים'], ['fbd', '✎ גוף חופשי'], ['mohr', '◯ מעגל Mohr'], ['kt', '✱ ריכוזי מאמץ'], ['fat', '⟳ עייפות'], ['buck', '⇩ קריסה']] },
+  { id: 'mach', name: '🔩 רכיבי מכונות ותכן', modes: [['shaft', '⌀ תכן ציר'], ['gears', '⚙ גלגלי שיניים'], ['bolt', '🔩 מחבר מוברג'], ['springs', '🌀 קפיצים'], ['pulley', '🪢 גלגלות'], ['tol', '📏 טולרנסים'], ['hunt', '🔍 ציד טעויות']] },
+  { id: 'flow', name: '💧 זורמים ורטט', modes: [['fluid', '💧 נוזלים'], ['moody', '〽 Moody'], ['air', '✈ כנף'], ['tunnel', '🌬 מנהרת רוח'], ['vib', '〰 רטט']] },
   { id: 'elec', name: '⚡ חשמל', modes: [['circ', '⚡ מעגלים ומולטימטר'], ['ac', '〜 AC'], ['trans', '⏱ מעברים'], ['xfmr', '🔁 שנאי'], ['three', '⚡⚡⚡ תלת-פאזי'], ['home', '🏠 לוח ודירה'], ['wiring', '🔌 חיבורים'], ['faults', '🔍 איתור תקלות'], ['motors', '⚙ מנועים'], ['pump', '💧 משאבה'], ['appl', '🧊 מכשירים']] },
 ];
 const ALL_MODES = CATS.flatMap((c) => c.modes.map(([id]) => id));
